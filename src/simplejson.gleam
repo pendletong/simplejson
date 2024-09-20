@@ -26,7 +26,8 @@ pub fn main() {
   parse("[1]")
   parse("[1,2]")
   parse("[1, 2]")
-
+  parse("[\"\\�\"]")
+  parse("[\"\\uqqqq\"]")
   parse("[1, 2, \"\"]")
   parse("[1, 2, \"testing!!\"]")
   parse("[1, 2, \"\\\"\"]")
@@ -34,6 +35,7 @@ pub fn main() {
   parse("[1, 2, -134.5e-10]")
   parse("[1, 2, \"\"\"]")
   parse("[1, 2, \"\"\"\"]")
+  parse("[null, true, false, 1]")
   parse("[1")
   // parse("[1 , 2, 3]")
 }
@@ -64,6 +66,15 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
     }
     " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest -> {
       do_parse(rest)
+    }
+    "true" <> rest -> {
+      Ok(#(rest, JsonBool(True)))
+    }
+    "false" <> rest -> {
+      Ok(#(rest, JsonBool(False)))
+    }
+    "null" <> rest -> {
+      Ok(#(rest, JsonNull))
     }
     "-" <> _rest
     | "0" <> _rest
