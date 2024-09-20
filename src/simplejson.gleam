@@ -48,12 +48,11 @@ pub type JsonValue {
   JsonArray(List(JsonValue))
 }
 
-pub fn parse(json: String) -> JsonValue {
-  do_parse(json)
-  |> result.unwrap(#("XXX", JsonString("ARGH")))
-  |> io.debug
-
-  JsonNull
+pub fn parse(json: String) -> Result(JsonValue, Nil) {
+  case do_parse(json) {
+    Ok(#(_, json_value)) -> Ok(json_value)
+    _ -> Error(Nil)
+  }
 }
 
 fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
