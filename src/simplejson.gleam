@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/io
@@ -21,6 +22,19 @@ pub fn main() {
   parse("-123.45e+1")
   parse("-123.123e3")
   parse("-12300e-3")
+  parse("[]")
+  parse("[1]")
+  parse("[1,2]")
+  parse("[1, 2]")
+
+  parse("[1, 2, \"\"]")
+  parse("[1, 2, \"testing!!\"]")
+  parse("[1, 2, \"\\\"\"]")
+  parse("[1, 2, \"\\u0041\\\\\\/\"]")
+  parse("[1, 2, -134.5e-10]")
+  parse("[1, 2, \"\"\"]")
+  parse("[1, 2, \"\"\"\"]")
+  parse("[1")
   // parse("[1 , 2, 3]")
 }
 
@@ -33,20 +47,23 @@ pub type JsonValue {
 }
 
 pub fn parse(json: String) -> JsonValue {
-  do_parse(json, JsonNull)
+  do_parse(json)
   |> result.unwrap(#("XXX", JsonString("ARGH")))
   |> io.debug
 
   JsonNull
 }
 
-fn do_parse(json: String, acc: JsonValue) -> Result(#(String, JsonValue), Nil) {
+fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
   case json {
     "[" <> rest -> {
-      do_parse(rest, JsonArray([]))
+      do_parse_list(rest, [], None)
+    }
+    "\"" <> rest -> {
+      do_parse_string(rest, "")
     }
     " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest -> {
-      do_parse(rest, acc)
+      do_parse(rest)
     }
     "-" <> _rest
     | "0" <> _rest
@@ -62,7 +79,74 @@ fn do_parse(json: String, acc: JsonValue) -> Result(#(String, JsonValue), Nil) {
       do_parse_number(json)
     }
 
-    _ -> panic
+    _ -> Error(Nil)
+  }
+}
+
+fn do_parse_string(
+  json: String,
+  str: String,
+) -> Result(#(String, JsonValue), Nil) {
+  use #(char, rest) <- result.try(string.pop_grapheme(json))
+  case char {
+    "\"" -> Ok(#(rest, JsonString(str)))
+    "\\" -> {
+      case rest {
+        "\"" <> rest -> do_parse_string(rest, str <> "\"")
+        "\\" <> rest -> do_parse_string(rest, str <> "\\")
+        "/" <> rest -> do_parse_string(rest, str <> "/")
+        "b" <> rest -> do_parse_string(rest, str <> "\u{08}")
+        "f" <> rest -> do_parse_string(rest, str <> "\f")
+        "n" <> rest -> do_parse_string(rest, str <> "\n")
+        "r" <> rest -> do_parse_string(rest, str <> "\r")
+        "t" <> rest -> do_parse_string(rest, str <> "\t")
+        "u" <> rest -> {
+          use #(rest, char) <- result.try(parse_hex(rest))
+          do_parse_string(rest, str <> char)
+        }
+        _ -> Error(Nil)
+      }
+    }
+    _ -> do_parse_string(rest, str <> char)
+  }
+}
+
+fn parse_hex(json: String) -> Result(#(String, String), Nil) {
+  let hex = string.slice(json, 0, 4)
+  use <- bool.guard(string.length(hex) < 4, return: Error(Nil))
+  let rest = string.drop_left(json, 4)
+
+  use parsed <- result.try(int.base_parse(hex, 16))
+  use utf8 <- result.try(string.utf_codepoint(parsed))
+
+  Ok(#(rest, string.from_utf_codepoints([utf8])))
+}
+
+fn do_parse_list(
+  json: String,
+  list: List(JsonValue),
+  last_value: Option(JsonValue),
+) -> Result(#(String, JsonValue), Nil) {
+  case json {
+    "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
+    "," <> rest -> {
+      case last_value {
+        None -> Error(Nil)
+        Some(_) -> {
+          use #(rest, next_item) <- result.try(do_parse(rest))
+          do_parse_list(rest, [next_item, ..list], Some(next_item))
+        }
+      }
+    }
+    _ -> {
+      case last_value {
+        None -> {
+          use #(rest, next_item) <- result.try(do_parse(json))
+          do_parse_list(rest, [next_item, ..list], Some(next_item))
+        }
+        Some(_) -> Error(Nil)
+      }
+    }
   }
 }
 
