@@ -9,7 +9,7 @@ import gleam/result
 import gleam/string
 
 pub fn main() {
-  parse("[�]")
+  parse("[-1e+9999]")
   |> io.debug
 }
 

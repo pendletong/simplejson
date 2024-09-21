@@ -1,4 +1,6 @@
+@target(erlang)
 import file_streams/file_stream
+@target(erlang)
 import file_streams/text_encoding
 import gleam/io
 import gleam/list
@@ -43,6 +45,15 @@ pub fn simplejson_tests() {
   |> describe("Parse testfiles", _)
 }
 
+@target(javascript)
+fn read_file(name: String) -> Result(String, Nil) {
+  case simplifile.read(name) {
+    Ok(content) -> Ok(content)
+    Error(_) -> Error(Nil)
+  }
+}
+
+@target(erlang)
 fn read_file(name: String) -> Result(String, Nil) {
   let encoding = case
     string.contains(string.lowercase(name), "utf16")
@@ -66,7 +77,7 @@ fn read_file(name: String) -> Result(String, Nil) {
       Ok(json)
     }
     Error(_) -> {
-      case simplifile.read(name) |> io.debug {
+      case simplifile.read(name) {
         Ok(content) -> Ok(content)
         Error(_) -> Error(Nil)
       }
