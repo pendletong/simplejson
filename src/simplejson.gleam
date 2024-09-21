@@ -1,4 +1,5 @@
 import gleam/bool
+import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
 import gleam/io
@@ -8,36 +9,8 @@ import gleam/result
 import gleam/string
 
 pub fn main() {
-  io.println("Hello from simplejson!")
-  parse("123")
-  parse("-123")
-  parse("-")
-  parse("123.234")
-  parse("-123.123")
-  parse("123e1")
-  parse("-123e+2")
-  parse("123e-3")
-  parse("-123.123e1")
-  parse("123.02e-1")
-  parse("-123.45e+1")
-  parse("-123.123e3")
-  parse("-12300e-3")
-  parse("[]")
-  parse("[1]")
-  parse("[1,2]")
-  parse("[1, 2]")
-  parse("[\"\\�\"]")
-  parse("[\"\\uqqqq\"]")
-  parse("[1, 2, \"\"]")
-  parse("[1, 2, \"testing!!\"]")
-  parse("[1, 2, \"\\\"\"]")
-  parse("[1, 2, \"\\u0041\\\\\\/\"]")
-  parse("[1, 2, -134.5e-10]")
-  parse("[1, 2, \"\"\"]")
-  parse("[1, 2, \"\"\"\"]")
-  parse("[null, true, false, 1]")
-  parse("[1")
-  // parse("[1 , 2, 3]")
+  parse("[�]")
+  |> io.debug
 }
 
 pub type JsonValue {
@@ -46,12 +19,26 @@ pub type JsonValue {
   JsonBool(bool: Bool)
   JsonNull
   JsonArray(List(JsonValue))
+  JsonObject(Dict(String, JsonValue))
 }
 
 pub fn parse(json: String) -> Result(JsonValue, Nil) {
   case do_parse(json) {
-    Ok(#(_, json_value)) -> Ok(json_value)
+    Ok(#(rest, json_value)) -> {
+      case check_end(rest) {
+        False -> Error(Nil)
+        True -> Ok(json_value)
+      }
+    }
     _ -> Error(Nil)
+  }
+}
+
+fn check_end(json: String) -> Bool {
+  case json {
+    " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest -> check_end(rest)
+    "" -> True
+    _ -> False
   }
 }
 
@@ -59,6 +46,9 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
   case json {
     "[" <> rest -> {
       do_parse_list(rest, [], None)
+    }
+    "{" <> rest -> {
+      do_parse_object(rest, dict.new(), None)
     }
     "\"" <> rest -> {
       do_parse_string(rest, "")
@@ -93,6 +83,65 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
   }
 }
 
+fn do_parse_whitespace(json: String) -> String {
+  case json {
+    " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest ->
+      do_parse_whitespace(rest)
+    _ -> json
+  }
+}
+
+fn do_parse_object(
+  json: String,
+  obj: Dict(String, JsonValue),
+  last_entry: Option(#(Option(Nil), Option(String), Option(JsonValue))),
+) -> Result(#(String, JsonValue), Nil) {
+  case do_parse_whitespace(json) {
+    "}" <> rest -> {
+      case last_entry {
+        None | Some(#(None, None, None)) -> Ok(#(rest, JsonObject(obj)))
+        _ -> Error(Nil)
+      }
+    }
+    "\"" <> rest -> {
+      case last_entry {
+        None | Some(#(Some(Nil), None, None)) -> {
+          case do_parse_string(rest, "") {
+            Ok(#(rest, JsonString(key))) ->
+              do_parse_object(rest, obj, Some(#(Some(Nil), Some(key), None)))
+            _ -> Error(Nil)
+          }
+        }
+        _ -> Error(Nil)
+      }
+    }
+    ":" <> rest -> {
+      case last_entry {
+        Some(#(Some(Nil), Some(key), None)) -> {
+          use #(rest, value) <- result.try(do_parse(rest))
+          do_parse_object(
+            rest,
+            dict.insert(obj, key, value),
+            Some(#(None, None, None)),
+          )
+        }
+        _ -> Error(Nil)
+      }
+    }
+    "," <> rest -> {
+      case last_entry {
+        Some(#(None, None, None)) -> {
+          do_parse_object(rest, obj, Some(#(Some(Nil), None, None)))
+        }
+        _ -> Error(Nil)
+      }
+    }
+    _ -> {
+      Error(Nil)
+    }
+  }
+}
+
 fn do_parse_string(
   json: String,
   str: String,
@@ -117,7 +166,17 @@ fn do_parse_string(
         _ -> Error(Nil)
       }
     }
-    _ -> do_parse_string(rest, str <> char)
+    _ -> {
+      case string.to_utf_codepoints(char) {
+        [n] -> {
+          case string.utf_codepoint_to_int(n) < 32 {
+            True -> Error(Nil)
+            False -> do_parse_string(rest, str <> char)
+          }
+        }
+        _ -> Error(Nil)
+      }
+    }
   }
 }
 
@@ -125,11 +184,14 @@ fn parse_hex(json: String) -> Result(#(String, String), Nil) {
   let hex = string.slice(json, 0, 4)
   use <- bool.guard(string.length(hex) < 4, return: Error(Nil))
   let rest = string.drop_left(json, 4)
-
   use parsed <- result.try(int.base_parse(hex, 16))
-  use utf8 <- result.try(string.utf_codepoint(parsed))
-
-  Ok(#(rest, string.from_utf_codepoints([utf8])))
+  case parsed {
+    65_534 | 65_535 -> Ok(#(rest, ""))
+    _ -> {
+      use utf8 <- result.try(string.utf_codepoint(parsed))
+      Ok(#(rest, string.from_utf_codepoints([utf8])))
+    }
+  }
 }
 
 fn do_parse_list(
@@ -137,7 +199,7 @@ fn do_parse_list(
   list: List(JsonValue),
   last_value: Option(JsonValue),
 ) -> Result(#(String, JsonValue), Nil) {
-  case json {
+  case do_parse_whitespace(json) {
     "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
     "," <> rest -> {
       case last_value {
@@ -163,13 +225,13 @@ fn do_parse_list(
 fn do_parse_number(json: String) -> Result(#(String, JsonValue), Nil) {
   use #(json, num) <- result.try(case json {
     "-" <> rest -> {
-      do_parse_int(rest, "-")
+      do_parse_int(rest, False, "-")
     }
-    _ -> do_parse_int(json, "")
+    _ -> do_parse_int(json, False, "")
   })
 
   use #(json, fraction) <- result.try(case json {
-    "." <> rest -> do_parse_int(rest, "")
+    "." <> rest -> do_parse_int(rest, True, "")
     _ -> Ok(#(json, ""))
   })
 
@@ -257,15 +319,19 @@ fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
 
 fn do_parse_exponent(json: String) -> Result(#(String, String), Nil) {
   use #(json, exp) <- result.try(case json {
-    "+" <> rest -> do_parse_int(rest, "")
-    "-" <> rest -> do_parse_int(rest, "-")
-    _ -> do_parse_int(json, "")
+    "+" <> rest -> do_parse_int(rest, True, "")
+    "-" <> rest -> do_parse_int(rest, True, "-")
+    _ -> do_parse_int(json, True, "")
   })
 
   Ok(#(json, exp))
 }
 
-fn do_parse_int(json: String, num: String) -> Result(#(String, String), Nil) {
+fn do_parse_int(
+  json: String,
+  allow_leading_zeroes: Bool,
+  num: String,
+) -> Result(#(String, String), Nil) {
   case json {
     "0" as n <> rest
     | "1" as n <> rest
@@ -277,7 +343,10 @@ fn do_parse_int(json: String, num: String) -> Result(#(String, String), Nil) {
     | "7" as n <> rest
     | "8" as n <> rest
     | "9" as n <> rest -> {
-      do_parse_int(rest, num <> n)
+      case num, allow_leading_zeroes {
+        "0", False | "-0", False -> Error(Nil)
+        _, _ -> do_parse_int(rest, allow_leading_zeroes, num <> n)
+      }
     }
     _ -> {
       case num {
