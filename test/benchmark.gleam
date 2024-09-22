@@ -1,6 +1,5 @@
 import glychee/benchmark
 import glychee/configuration
-import jackson
 import simplejson
 
 @target(erlang)
@@ -19,12 +18,6 @@ pub fn small_benchmark() {
       benchmark.Function("simplejson", fn(data) {
         fn() {
           simplejson.parse(data)
-          Nil
-        }
-      }),
-      benchmark.Function("jackson", fn(data) {
-        fn() {
-          jackson.parse(data)
           Nil
         }
       }),

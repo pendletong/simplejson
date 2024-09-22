@@ -333,7 +333,7 @@ fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
   }
 }
 
-pub fn fast_exp(n: Int) -> Int {
+fn fast_exp(n: Int) -> Int {
   exp2(1, 10, n)
 }
 

@@ -1,12 +1,12 @@
 name = "simplejson"
-version = "1.0.0"
+version = "0.5.0"
 
 # Fill out these fields if you intend to generate HTML documentation or publish
 # your project to the Hex package manager.
 #
-# description = ""
-# licences = ["Apache-2.0"]
-# repository = { type = "github", user = "", repo = "" }
+description = "Native gleam json parser/generator"
+licences = ["Apache-2.0"]
+repository = { type = "github", user = "pendletong", repo = "simplejson" }
 # links = [{ title = "Website", href = "" }]
 #
 # For a full reference of all the available options, you can have a look at
@@ -23,4 +23,3 @@ simplifile = ">= 2.1.0 and < 3.0.0"
 startest = ">= 0.5.0 and < 1.0.0"
 file_streams = ">= 1.1.1 and < 2.0.0"
 glychee = ">= 1.1.2 and < 2.0.0"
-jackson = ">= 1.2.0 and < 2.0.0"
