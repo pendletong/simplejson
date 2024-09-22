@@ -14,7 +14,8 @@ pub fn main() {
     //"{  \"type\": \"FeatureCollection\",  \"features\": [    {      \"type\": \"Feature\",      \"properties\": {},      \"geometry\": {        \"type\": \"Point\",        \"coordinates\": [4.483605784808901, 51.907188449679325]      }    },    {      \"type\": \"Feature\",      \"properties\": {},      \"geometry\": {        \"type\": \"Polygon\",        \"coordinates\": [          [            [3.974369110811523 , 51.907355547778565],            [4.173944459020191 , 51.86237166892457 ],            [4.3808076710679416, 51.848867725914914],            [4.579822414365026 , 51.874487141880024],            [4.534413416598767 , 51.9495302480326  ],            [4.365110733567974 , 51.92360787140825 ],            [4.179550508127079 , 51.97336560819281 ],            [4.018096293847009 , 52.00236546429852 ],            [3.9424146309028174, 51.97681895676649 ],            [3.974369110811523 , 51.907355547778565]          ]        ]      }}]}",
     // "[123123e100000]",
     // "[1.2e2,1.2e3,1.2e4,1.32423e7, 123000e-2]",
-    "[0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006]",
+    // "[0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006]",
+    "[0.12e05, \"\n\"]",
   )
   |> io.debug
 }
@@ -150,10 +151,10 @@ fn do_parse_string(
   json: String,
   str: String,
 ) -> Result(#(String, JsonValue), Nil) {
-  use #(char, rest) <- result.try(string.pop_grapheme(json))
-  case char {
-    "\"" -> Ok(#(rest, JsonString(str)))
-    "\\" -> {
+  // use #(char, rest) <- result.try(string.pop_grapheme(json))
+  case json {
+    "\"" <> rest -> Ok(#(rest, JsonString(str)))
+    "\\" <> rest -> {
       case rest {
         "\"" <> rest -> do_parse_string(rest, str <> "\"")
         "\\" <> rest -> do_parse_string(rest, str <> "\\")
@@ -170,16 +171,41 @@ fn do_parse_string(
         _ -> Error(Nil)
       }
     }
+    "\u{00}" <> _
+    | "\u{01}" <> _
+    | "\u{02}" <> _
+    | "\u{03}" <> _
+    | "\u{04}" <> _
+    | "\u{05}" <> _
+    | "\u{06}" <> _
+    | "\u{07}" <> _
+    | "\u{08}" <> _
+    | "\u{09}" <> _
+    | "\u{0A}" <> _
+    | "\u{0B}" <> _
+    | "\u{0C}" <> _
+    | "\u{0D}" <> _
+    | "\u{0E}" <> _
+    | "\u{0F}" <> _
+    | "\u{10}" <> _
+    | "\u{11}" <> _
+    | "\u{12}" <> _
+    | "\u{13}" <> _
+    | "\u{14}" <> _
+    | "\u{15}" <> _
+    | "\u{16}" <> _
+    | "\u{17}" <> _
+    | "\u{18}" <> _
+    | "\u{19}" <> _
+    | "\u{1A}" <> _
+    | "\u{1B}" <> _
+    | "\u{1C}" <> _
+    | "\u{1D}" <> _
+    | "\u{1E}" <> _
+    | "\u{1F}" <> _ -> Error(Nil)
     _ -> {
-      case string.to_utf_codepoints(char) {
-        [n] -> {
-          case string.utf_codepoint_to_int(n) < 32 {
-            True -> Error(Nil)
-            False -> do_parse_string(rest, str <> char)
-          }
-        }
-        _ -> Error(Nil)
-      }
+      use #(char, rest) <- result.try(string.pop_grapheme(json))
+      do_parse_string(rest, str <> char)
     }
   }
 }
@@ -328,9 +354,14 @@ fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
     _ -> int_val <> "." <> fraction
   }
   let assert Ok(float_val) = float.parse(float_val)
-  let assert Ok(mult) = int.power(10, int.to_float(exp))
+  case exp {
+    0 -> float_val
+    _ -> {
+      let assert Ok(mult) = int.power(10, int.to_float(exp))
 
-  float_val *. mult
+      float_val *. mult
+    }
+  }
 }
 
 fn do_parse_exponent(json: String) -> Result(#(String, String), Nil) {
