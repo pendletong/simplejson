@@ -5,11 +5,17 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import gleam/string
 
 pub fn main() {
-  parse("[-1e+9999]")
+  parse(
+    //"{  \"type\": \"FeatureCollection\",  \"features\": [    {      \"type\": \"Feature\",      \"properties\": {},      \"geometry\": {        \"type\": \"Point\",        \"coordinates\": [4.483605784808901, 51.907188449679325]      }    },    {      \"type\": \"Feature\",      \"properties\": {},      \"geometry\": {        \"type\": \"Polygon\",        \"coordinates\": [          [            [3.974369110811523 , 51.907355547778565],            [4.173944459020191 , 51.86237166892457 ],            [4.3808076710679416, 51.848867725914914],            [4.579822414365026 , 51.874487141880024],            [4.534413416598767 , 51.9495302480326  ],            [4.365110733567974 , 51.92360787140825 ],            [4.179550508127079 , 51.97336560819281 ],            [4.018096293847009 , 52.00236546429852 ],            [3.9424146309028174, 51.97681895676649 ],            [3.974369110811523 , 51.907355547778565]          ]        ]      }}]}",
+    // "[123123e100000]",
+    // "[1.2e2,1.2e3,1.2e4,1.32423e7, 123000e-2]",
+    "[0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006]",
+  )
   |> io.debug
 }
 
@@ -43,6 +49,7 @@ fn check_end(json: String) -> Bool {
 }
 
 fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
+  let json = do_trim_whitespace(json)
   case json {
     "[" <> rest -> {
       do_parse_list(rest, [], None)
@@ -52,9 +59,6 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
     }
     "\"" <> rest -> {
       do_parse_string(rest, "")
-    }
-    " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest -> {
-      do_parse(rest)
     }
     "true" <> rest -> {
       Ok(#(rest, JsonBool(True)))
@@ -83,10 +87,10 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
   }
 }
 
-fn do_parse_whitespace(json: String) -> String {
+fn do_trim_whitespace(json: String) -> String {
   case json {
     " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest ->
-      do_parse_whitespace(rest)
+      do_trim_whitespace(rest)
     _ -> json
   }
 }
@@ -96,7 +100,7 @@ fn do_parse_object(
   obj: Dict(String, JsonValue),
   last_entry: Option(#(Option(Nil), Option(String), Option(JsonValue))),
 ) -> Result(#(String, JsonValue), Nil) {
-  case do_parse_whitespace(json) {
+  case do_trim_whitespace(json) {
     "}" <> rest -> {
       case last_entry {
         None | Some(#(None, None, None)) -> Ok(#(rest, JsonObject(obj)))
@@ -199,7 +203,7 @@ fn do_parse_list(
   list: List(JsonValue),
   last_value: Option(JsonValue),
 ) -> Result(#(String, JsonValue), Nil) {
-  case do_parse_whitespace(json) {
+  case do_trim_whitespace(json) {
     "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
     "," <> rest -> {
       case last_value {
@@ -267,7 +271,8 @@ fn do_parse_number(json: String) -> Result(#(String, JsonValue), Nil) {
         }
         "+" <> exp | exp -> {
           let assert Ok(exp) = int.parse(exp)
-          case exp >= string.length(fraction) {
+          let fraction_length = string.length(fraction)
+          case exp >= fraction_length {
             True -> JsonNumber(Some(decode_int(num, fraction, exp)), None)
             False -> JsonNumber(None, Some(decode_float(num, fraction, exp)))
           }
@@ -281,27 +286,38 @@ fn do_parse_number(json: String) -> Result(#(String, JsonValue), Nil) {
 
 fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
   let assert Ok(int_val) = int.parse(int_val)
+  let #(int_val, exp) = case fraction {
+    "" -> #(int_val, exp)
+    fraction -> {
+      let fraction_length = string.length(fraction)
+      let assert Ok(fraction) = int.parse(fraction)
 
-  let int_val = case exp < 0 {
-    True -> {
-      let assert Ok(mult) = int.power(10, int.to_float(-exp))
-      int_val / float.truncate(mult)
-    }
-    False -> {
-      let assert Ok(mult) = int.power(10, int.to_float(exp))
-      int_val * float.truncate(mult)
+      #(int_val * fast_exp(fraction_length) + fraction, exp - fraction_length)
     }
   }
+  case exp < 0 {
+    True -> {
+      int_val / fast_exp(-exp)
+    }
+    False -> {
+      int_val * fast_exp(exp)
+    }
+  }
+}
 
-  case fraction {
-    "" -> int_val
-    _ -> {
-      let assert Ok(fraction) = int.parse(fraction)
-      let fraction = case int_val < 0 {
-        True -> -fraction
-        False -> fraction
+fn fast_exp(n: Int) -> Int {
+  exp2(1, 10, n)
+}
+
+fn exp2(y: Int, x: Int, n: Int) -> Int {
+  case int.compare(n, 0) {
+    Eq -> y
+    Lt -> -999
+    Gt -> {
+      case int.is_even(n) {
+        True -> exp2(y, x * x, n / 2)
+        False -> exp2(x * y, x * x, { n - 1 } / 2)
       }
-      int_val + fraction
     }
   }
 }
