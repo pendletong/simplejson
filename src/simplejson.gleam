@@ -10,12 +10,15 @@ import gleam/result
 import gleam/string
 
 pub fn main() {
+  let assert Ok(mult) = int.power(10, int.to_float(5))
+  io.debug(#(mult, int.to_float(fast_exp(5))))
   parse(
     //"{  \"type\": \"FeatureCollection\",  \"features\": [    {      \"type\": \"Feature\",      \"properties\": {},      \"geometry\": {        \"type\": \"Point\",        \"coordinates\": [4.483605784808901, 51.907188449679325]      }    },    {      \"type\": \"Feature\",      \"properties\": {},      \"geometry\": {        \"type\": \"Polygon\",        \"coordinates\": [          [            [3.974369110811523 , 51.907355547778565],            [4.173944459020191 , 51.86237166892457 ],            [4.3808076710679416, 51.848867725914914],            [4.579822414365026 , 51.874487141880024],            [4.534413416598767 , 51.9495302480326  ],            [4.365110733567974 , 51.92360787140825 ],            [4.179550508127079 , 51.97336560819281 ],            [4.018096293847009 , 52.00236546429852 ],            [3.9424146309028174, 51.97681895676649 ],            [3.974369110811523 , 51.907355547778565]          ]        ]      }}]}",
     // "[123123e100000]",
     // "[1.2e2,1.2e3,1.2e4,1.32423e7, 123000e-2]",
     // "[0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006]",
-    "[0.12e05, \"\n\"]",
+    // "[0.12e05, 123.123123e-5,123.123123e5]",
+    "[-0.000000000000000000000000000000000000000000000000000000000000000000000000000001]",
   )
   |> io.debug
 }
@@ -151,7 +154,6 @@ fn do_parse_string(
   json: String,
   str: String,
 ) -> Result(#(String, JsonValue), Nil) {
-  // use #(char, rest) <- result.try(string.pop_grapheme(json))
   case json {
     "\"" <> rest -> Ok(#(rest, JsonString(str)))
     "\\" <> rest -> {
@@ -331,7 +333,7 @@ fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
   }
 }
 
-fn fast_exp(n: Int) -> Int {
+pub fn fast_exp(n: Int) -> Int {
   exp2(1, 10, n)
 }
 
@@ -354,9 +356,12 @@ fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
     _ -> int_val <> "." <> fraction
   }
   let assert Ok(float_val) = float.parse(float_val)
-  case exp {
-    0 -> float_val
-    _ -> {
+  case int.compare(exp, 0) {
+    Eq -> float_val
+    Gt -> {
+      float_val *. int.to_float(fast_exp(exp))
+    }
+    Lt -> {
       let assert Ok(mult) = int.power(10, int.to_float(exp))
 
       float_val *. mult
@@ -390,15 +395,24 @@ fn do_parse_int(
     | "7" as n <> rest
     | "8" as n <> rest
     | "9" as n <> rest -> {
-      case num, allow_leading_zeroes {
-        "0", False | "-0", False -> Error(Nil)
-        _, _ -> do_parse_int(rest, allow_leading_zeroes, num <> n)
-      }
+      do_parse_int(rest, allow_leading_zeroes, num <> n)
     }
     _ -> {
       case num {
         "" | "-" -> Error(Nil)
-        _ -> Ok(#(json, num))
+        _ -> {
+          case allow_leading_zeroes || num == "0" || num == "-0" {
+            True -> Ok(#(json, num))
+            False -> {
+              case
+                string.starts_with(num, "0") || string.starts_with(num, "-0")
+              {
+                True -> Error(Nil)
+                False -> Ok(#(json, num))
+              }
+            }
+          }
+        }
       }
     }
   }
