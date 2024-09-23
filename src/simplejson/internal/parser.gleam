@@ -268,46 +268,33 @@ fn do_parse_number(json: String) -> Result(#(String, JsonValue), Nil) {
         }
       },
     )
-  let ret = case fraction {
-    "" -> {
-      case exp {
-        "" -> JsonNumber(Some(decode_int(num, "", 0)), None, original)
+  let ret = case fraction, exp {
+    "", "" -> JsonNumber(Some(decode_int(num, "", 0)), None, original)
 
-        "-" <> exp -> {
-          let assert Ok(exp) = int.parse(exp)
-          case string.ends_with(num, string.repeat("0", exp)) {
-            True -> JsonNumber(Some(decode_int(num, "", -exp)), None, original)
-            False ->
-              JsonNumber(
-                None,
-                Some(decode_float(num, fraction, -exp)),
-                original,
-              )
-          }
-        }
-        "+" <> exp | exp -> {
-          let assert Ok(exp) = int.parse(exp)
-          JsonNumber(Some(decode_int(num, "", exp)), None, original)
-        }
+    "", "-" <> exp -> {
+      let assert Ok(exp) = int.parse(exp)
+      case string.ends_with(num, string.repeat("0", exp)) {
+        True -> JsonNumber(Some(decode_int(num, "", -exp)), None, original)
+        False ->
+          JsonNumber(None, Some(decode_float(num, fraction, -exp)), original)
       }
     }
-    _ -> {
-      case exp {
-        "" -> JsonNumber(None, Some(decode_float(num, fraction, 0)), original)
-        "-" <> exp -> {
-          let assert Ok(exp) = int.parse(exp)
-          JsonNumber(None, Some(decode_float(num, fraction, -exp)), original)
-        }
-        "+" <> exp | exp -> {
-          let assert Ok(exp) = int.parse(exp)
-          let fraction_length = string.length(fraction)
-          case exp >= fraction_length {
-            True ->
-              JsonNumber(Some(decode_int(num, fraction, exp)), None, original)
-            False ->
-              JsonNumber(None, Some(decode_float(num, fraction, exp)), original)
-          }
-        }
+    "", "+" <> exp | "", exp -> {
+      let assert Ok(exp) = int.parse(exp)
+      JsonNumber(Some(decode_int(num, "", exp)), None, original)
+    }
+    _, "" -> JsonNumber(None, Some(decode_float(num, fraction, 0)), original)
+    _, "-" <> exp -> {
+      let assert Ok(exp) = int.parse(exp)
+      JsonNumber(None, Some(decode_float(num, fraction, -exp)), original)
+    }
+    _, "+" <> exp | _, exp -> {
+      let assert Ok(exp) = int.parse(exp)
+      let fraction_length = string.length(fraction)
+      case exp >= fraction_length {
+        True -> JsonNumber(Some(decode_int(num, fraction, exp)), None, original)
+        False ->
+          JsonNumber(None, Some(decode_float(num, fraction, exp)), original)
       }
     }
   }
