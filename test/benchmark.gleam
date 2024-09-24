@@ -16,10 +16,7 @@ pub fn small_benchmark() {
   benchmark.run(
     [
       benchmark.Function("simplejson", fn(data) {
-        fn() {
-          simplejson.parse(data)
-          Nil
-        }
+        fn() { simplejson.parse(data) }
       }),
     ],
     [
