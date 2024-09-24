@@ -2,17 +2,20 @@ import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import gleam/string
 import simplejson/jsonvalue.{
-  type JsonValue, type ParseError, JsonArray, JsonBool, JsonNull, JsonNumber,
-  JsonObject, JsonString, UnexpectedCharacter, Unknown,
+  type JsonValue, type ParseError, InvalidCharacter, InvalidEscapeCharacter,
+  InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber,
+  JsonObject, JsonString, UnexpectedCharacter, UnexpectedEnd, Unknown,
 }
 
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
+  let json = do_trim_whitespace(json)
   case do_parse(json) {
     Ok(#(rest, json_value)) -> {
       let rest = do_trim_whitespace(rest)
@@ -21,13 +24,15 @@ pub fn parse(json: String) -> Result(JsonValue, ParseError) {
         _ -> Error(unexpected_character(json, rest))
       }
     }
-    Error(UnexpectedCharacter(char, _)) ->
+    Error(UnexpectedCharacter(char, _)) -> {
       Error(unexpected_character(json, char))
+    }
     Error(_ as parse_error) -> Error(parse_error)
   }
 }
 
 fn unexpected_character(json: String, char: String) -> ParseError {
+  // io.debug("JSON " <> json <> " char " <> int.to_string(string.length(char)))
   let assert Ok(first_char) = string.first(char)
   let assert Ok(#(initial_str, _)) = string.split_once(json, char)
   UnexpectedCharacter(first_char, string.length(initial_str) + 1)
@@ -67,7 +72,7 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), ParseError) {
     | "9" <> _rest -> {
       do_parse_number(json)
     }
-
+    "" -> Error(UnexpectedEnd)
     _ -> Error(UnexpectedCharacter(json, -1))
   }
 }
@@ -89,7 +94,7 @@ fn do_parse_object(
     "}" <> rest -> {
       case last_entry {
         None | Some(#(None, None, None)) -> Ok(#(rest, JsonObject(obj)))
-        _ -> Error(Nil)
+        _ -> Error(UnexpectedCharacter("}", -1))
       }
     }
     "\"" <> rest -> {
@@ -98,10 +103,11 @@ fn do_parse_object(
           case do_parse_string(rest, "") {
             Ok(#(rest, JsonString(key))) ->
               do_parse_object(rest, obj, Some(#(Some(Nil), Some(key), None)))
-            _ -> Error(Nil)
+            Error(e) -> Error(e)
+            Ok(_) -> Error(Unknown)
           }
         }
-        _ -> Error(Nil)
+        _ -> Error(UnexpectedCharacter("\"", -1))
       }
     }
     ":" <> rest -> {
@@ -114,7 +120,7 @@ fn do_parse_object(
             Some(#(None, None, None)),
           )
         }
-        _ -> Error(Nil)
+        _ -> Error(UnexpectedCharacter(":", -1))
       }
     }
     "," <> rest -> {
@@ -122,12 +128,11 @@ fn do_parse_object(
         Some(#(None, None, None)) -> {
           do_parse_object(rest, obj, Some(#(Some(Nil), None, None)))
         }
-        _ -> Error(Nil)
+        _ -> Error(UnexpectedCharacter(",", -1))
       }
     }
-    _ -> {
-      Error(Nil)
-    }
+    "" -> Error(UnexpectedEnd)
+    _ -> Error(Unknown)
   }
 }
 
@@ -151,7 +156,11 @@ fn do_parse_string(
           use #(rest, char) <- result.try(parse_hex(rest))
           do_parse_string(rest, str <> char)
         }
-        _ -> Error(Nil)
+        "" -> Error(UnexpectedEnd)
+        _ -> {
+          let assert Ok(first_char) = string.first(rest)
+          Error(InvalidEscapeCharacter(first_char, -1))
+        }
       }
     }
     "\u{00}" <> _
@@ -185,9 +194,13 @@ fn do_parse_string(
     | "\u{1C}" <> _
     | "\u{1D}" <> _
     | "\u{1E}" <> _
-    | "\u{1F}" <> _ -> Error(Nil)
+    | "\u{1F}" <> _ -> {
+      Error(InvalidCharacter(json, -1))
+    }
     _ -> {
-      use #(char, rest) <- result.try(string.pop_grapheme(json))
+      use #(char, rest) <- result.try(
+        string.pop_grapheme(json) |> result.map_error(fn(_) { UnexpectedEnd }),
+      )
       do_parse_string(rest, str <> char)
     }
   }
@@ -195,13 +208,18 @@ fn do_parse_string(
 
 fn parse_hex(json: String) -> Result(#(String, String), ParseError) {
   let hex = string.slice(json, 0, 4)
-  use <- bool.guard(string.length(hex) < 4, return: Error(Nil))
+  use <- bool.guard(string.length(hex) < 4, return: Error(UnexpectedEnd))
   let rest = string.drop_left(json, 4)
-  use parsed <- result.try(int.base_parse(hex, 16))
+  use parsed <- result.try(
+    int.base_parse(hex, 16) |> result.map_error(fn(_) { InvalidHex(hex, -1) }),
+  )
   case parsed {
     65_534 | 65_535 -> Ok(#(rest, ""))
     _ -> {
-      use utf8 <- result.try(string.utf_codepoint(parsed))
+      use utf8 <- result.try(
+        string.utf_codepoint(parsed)
+        |> result.map_error(fn(_) { InvalidHex(hex, -1) }),
+      )
       Ok(#(rest, string.from_utf_codepoints([utf8])))
     }
   }
@@ -216,20 +234,21 @@ fn do_parse_list(
     "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
     "," <> rest -> {
       case last_value {
-        None -> Error(Nil)
+        None -> Error(InvalidCharacter(",", -1))
         Some(_) -> {
           use #(rest, next_item) <- result.try(do_parse(rest))
           do_parse_list(rest, [next_item, ..list], Some(next_item))
         }
       }
     }
+    "" -> Error(UnexpectedEnd)
     _ -> {
       case last_value {
         None -> {
           use #(rest, next_item) <- result.try(do_parse(json))
           do_parse_list(rest, [next_item, ..list], Some(next_item))
         }
-        Some(_) -> Error(Nil)
+        Some(_) -> Error(UnexpectedCharacter(json, -1))
       }
     }
   }
@@ -390,7 +409,7 @@ fn do_parse_int(
     }
     _ -> {
       case num {
-        "" | "-" -> Error(Nil)
+        "" | "-" -> Error(InvalidNumber(num, -1))
         _ -> {
           case allow_leading_zeroes || num == "0" || num == "-0" {
             True -> Ok(#(json, num))
@@ -398,7 +417,7 @@ fn do_parse_int(
               case
                 string.starts_with(num, "0") || string.starts_with(num, "-0")
               {
-                True -> Error(Nil)
+                True -> Error(InvalidNumber(num, -1))
                 False -> Ok(#(json, num))
               }
             }
