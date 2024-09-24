@@ -10,13 +10,22 @@ import gleam/result
 import gleam/string
 import simplejson
 import simplejson/jsonvalue.{
-  InvalidCharacter, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
-  JsonString,
+  InvalidCharacter, InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber,
+  JsonObject, JsonString, UnexpectedCharacter,
 }
 import simplifile
 import startest.{describe, it}
 import startest/expect
 
+// The below tests all fail with the linked errors
+// Most of the errors are due to Erlang deeming
+// D800-DFFF as invalid
+// There are a couple of BOM entries in there in which 
+// BOMs (or the Zero-Width No-Break Space) are not actually
+// valid whitespace characters in JSON. However these (FFEF and FFFE) should
+// arguably just be ignored as they are not actually part of the
+// contents on the string, rather just markers as to how the string
+// should have been read
 const failing_tests = [
   #(
     "./test/testfiles/y_string_last_surrogates_1_and_2.json",
@@ -42,6 +51,64 @@ const failing_tests = [
     "./test/testfiles/y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json",
     Error(InvalidCharacter("D834", "D834\\uDd1e\"]", 4)),
   ),
+  #(
+    "./test/testfiles/i_string_incomplete_surrogates_escape_valid.json",
+    Error(InvalidCharacter("D800", "D800\\uD800\\n\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_string_UTF-16LE_with_BOM.json",
+    Error(UnexpectedCharacter("\u{FEFF}", "\u{FEFF}[\"é\"]", 0)),
+  ),
+  #(
+    "./test/testfiles/i_string_invalid_surrogate.json",
+    Error(InvalidCharacter("d800", "d800abc\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_object_key_lone_2nd_surrogate.json",
+    Error(InvalidCharacter("DFAA", "DFAA\":0}", 4)),
+  ),
+  #(
+    "./test/testfiles/i_string_1st_surrogate_but_2nd_missing.json",
+    Error(InvalidCharacter("DADA", "DADA\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_string_invalid_lonely_surrogate.json",
+    Error(InvalidCharacter("d800", "d800\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_structure_UTF-8_BOM_empty_object.json",
+    Error(UnexpectedCharacter("\u{FEFF}", "\u{FEFF}{}", 0)),
+  ),
+  #(
+    "./test/testfiles/i_string_incomplete_surrogate_pair.json",
+    Error(InvalidCharacter("Dd1e", "Dd1ea\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_string_incomplete_surrogate_and_escape_valid.json",
+    Error(InvalidCharacter("D800", "D800\\n\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_string_lone_second_surrogate.json",
+    Error(InvalidCharacter("DFAA", "DFAA\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_string_1st_valid_surrogate_2nd_invalid.json",
+    Error(InvalidCharacter("D888", "D888\\u1234\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_string_inverted_surrogates_U+1D11E.json",
+    Error(InvalidCharacter("Dd1e", "Dd1e\\uD834\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/i_number_huge_exp.json",
+    Error(
+      InvalidNumber(
+        "0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006",
+        "0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006]",
+        1,
+      ),
+    ),
+  ),
 ]
 
 pub fn main() {
@@ -49,7 +116,7 @@ pub fn main() {
 }
 
 // gleeunit test functions end in `_test`
-pub fn simplejson_testsz() {
+pub fn simplejson_tests() {
   io.debug("Running tests")
   simplifile.get_files("./test/testfiles")
   |> expect.to_be_ok
@@ -62,11 +129,7 @@ pub fn simplejson_testsz() {
         Ok("n" <> _) -> {
           parsed |> result.map_error(fn(_) { Nil }) |> expect.to_be_error
         }
-        Ok("i" <> _) -> {
-          // parsed |> expect.to_be_ok
-          Nil
-        }
-        Ok("y" <> _) -> {
+        Ok("i" <> _) | Ok("y" <> _) -> {
           case list.find(failing_tests, fn(e) { e.0 == name }) {
             Ok(#(_, err)) -> {
               parsed |> expect.to_equal(err)
