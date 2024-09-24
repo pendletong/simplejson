@@ -1,13 +1,18 @@
 import file_streams/file_stream
 @target(erlang)
 import file_streams/text_encoding
+import gleam/dict
 import gleam/io
 import gleam/list
+import gleam/option.{None, Some}
 @target(erlang)
 import gleam/result
 import gleam/string
 import simplejson
-import simplejson/jsonvalue.{InvalidCharacter}
+import simplejson/jsonvalue.{
+  InvalidCharacter, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
+  JsonString,
+}
 import simplifile
 import startest.{describe, it}
 import startest/expect
@@ -44,7 +49,7 @@ pub fn main() {
 }
 
 // gleeunit test functions end in `_test`
-pub fn simplejson_tests() {
+pub fn simplejson_testsz() {
   io.debug("Running tests")
   simplifile.get_files("./test/testfiles")
   |> expect.to_be_ok
@@ -80,6 +85,150 @@ pub fn simplejson_tests() {
     })
   })
   |> describe("Parse testfiles", _)
+}
+
+pub fn parse_array_tests() {
+  describe("Array Parsing - Successful", [
+    it("Empty Array", fn() {
+      simplejson.parse("[]")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonArray([]))
+    }),
+    it("Array with String", fn() {
+      simplejson.parse("[\"a\"]")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonArray([JsonString("a")]))
+    }),
+    it("Array with Multiple Strings", fn() {
+      simplejson.parse("[\"a\", \"z\"]")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonArray([JsonString("a"), JsonString("z")]))
+    }),
+    it("Array with String and Spaces", fn() {
+      simplejson.parse(" [ \"a\" ] ")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonArray([JsonString("a")]))
+    }),
+    it("Array with Int", fn() {
+      simplejson.parse("[123]")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonArray([JsonNumber(Some(123), None, Some("123"))]))
+    }),
+    it("Array with Multiple Ints", fn() {
+      simplejson.parse("[999, 111]")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonArray([
+          JsonNumber(Some(999), None, Some("999")),
+          JsonNumber(Some(111), None, Some("111")),
+        ]),
+      )
+    }),
+    it("Array with Float", fn() {
+      simplejson.parse("[123.5]")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonArray([JsonNumber(None, Some(123.5), Some("123.5"))]),
+      )
+    }),
+    it("Array with Multiple Floats", fn() {
+      simplejson.parse("[999.5, 111.5]")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonArray([
+          JsonNumber(None, Some(999.5), Some("999.5")),
+          JsonNumber(None, Some(111.5), Some("111.5")),
+        ]),
+      )
+    }),
+    it("Array with Multiple JsonValues", fn() {
+      simplejson.parse("[999, \"111\", {}]")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonArray([
+          JsonNumber(Some(999), None, Some("999")),
+          JsonString("111"),
+          JsonObject(dict.from_list([])),
+        ]),
+      )
+    }),
+    it("Array inside Object", fn() {
+      simplejson.parse("{\"a\": []}")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonObject(dict.from_list([#("a", JsonArray([]))])))
+    }),
+  ])
+}
+
+pub fn parse_object_tests() {
+  describe("Object Parsing - Successful", [
+    it("Empty Object", fn() {
+      simplejson.parse("{}")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonObject(dict.from_list([])))
+    }),
+    it("Empty Object with Spaces", fn() {
+      simplejson.parse("{\n}\t ")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonObject(dict.from_list([])))
+    }),
+    it("Object with Boolean value", fn() {
+      simplejson.parse("{\"test\":true}")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonObject(dict.from_list([#("test", JsonBool(True))])),
+      )
+    }),
+    it("Object with String value", fn() {
+      simplejson.parse("{\"test\":\"true\"}")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonObject(dict.from_list([#("test", JsonString("true"))])),
+      )
+    }),
+    it("Object with Null value", fn() {
+      simplejson.parse("{\"test\":  null}")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonObject(dict.from_list([#("test", JsonNull)])))
+    }),
+    it("Object with Number value", fn() {
+      simplejson.parse("{\"test\":999}")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonObject(
+          dict.from_list([#("test", JsonNumber(Some(999), None, Some("999")))]),
+        ),
+      )
+    }),
+    it("Object with Object value", fn() {
+      simplejson.parse("{\"test\":{}}")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonObject(dict.from_list([#("test", JsonObject(dict.from_list([])))])),
+      )
+    }),
+    it("Object with Multiple values", fn() {
+      simplejson.parse("{\"1\":true, \"2\":false}")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonObject(
+          dict.from_list([#("1", JsonBool(True)), #("2", JsonBool(False))]),
+        ),
+      )
+    }),
+    it("Object with Multiple values and duplicate", fn() {
+      simplejson.parse("{\"1\":true, \"2\":false, \"1\":123}")
+      |> expect.to_be_ok
+      |> expect.to_equal(
+        JsonObject(
+          dict.from_list([
+            #("1", JsonNumber(Some(123), None, Some("123"))),
+            #("2", JsonBool(False)),
+          ]),
+        ),
+      )
+    }),
+  ])
 }
 
 @target(javascript)
