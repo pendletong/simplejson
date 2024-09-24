@@ -11,7 +11,7 @@ import gleam/string
 import simplejson
 import simplejson/jsonvalue.{
   InvalidCharacter, InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber,
-  JsonObject, JsonString, UnexpectedCharacter,
+  JsonObject, JsonString, UnexpectedCharacter, UnexpectedEnd,
 }
 import simplifile
 import startest.{describe, it}
@@ -219,6 +219,34 @@ pub fn parse_array_tests() {
       simplejson.parse("{\"a\": []}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(dict.from_list([#("a", JsonArray([]))])))
+    }),
+  ])
+
+  describe("Array Parsing - Errors", [
+    it("Unclosed Array", fn() {
+      simplejson.parse("[")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedEnd)
+    }),
+    it("Unclosed Array with Space", fn() {
+      simplejson.parse("[\n\n\r\t ")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedEnd)
+    }),
+    it("Invalid item in Array", fn() {
+      simplejson.parse("[\"]")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedEnd)
+    }),
+    it("Invalid item in Array", fn() {
+      simplejson.parse("[-]")
+      |> expect.to_be_error
+      |> expect.to_equal(InvalidNumber("-]", "-]", 1))
+    }),
+    it("Invalid closing of Array", fn() {
+      simplejson.parse("[{\"a\":1]}")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedCharacter("]", "]}", 7))
     }),
   ])
 }

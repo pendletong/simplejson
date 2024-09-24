@@ -48,7 +48,6 @@ fn create_error(
   rest: String,
   char: String,
 ) -> ParseError {
-  // io.debug("JSON " <> json <> " char " <> int.to_string(string.length(char)))
   let assert Ok(first_char) = case char {
     "" -> string.first(rest)
     _ -> Ok(char)
@@ -153,7 +152,7 @@ fn do_parse_object(
       }
     }
     "" -> Error(UnexpectedEnd)
-    _ -> Error(Unknown)
+    _ -> Error(UnexpectedCharacter("", trimmed_json, -1))
   }
 }
 
@@ -512,7 +511,7 @@ fn do_parse_int(
                 _ -> ""
               }
             },
-            json,
+            num <> json,
             -1,
           ))
         }
@@ -523,7 +522,7 @@ fn do_parse_int(
               case
                 string.starts_with(num, "0") || string.starts_with(num, "-0")
               {
-                True -> Error(InvalidNumber(num, json, -1))
+                True -> Error(InvalidNumber(num, num <> json, -1))
                 False -> Ok(#(json, num))
               }
             }
