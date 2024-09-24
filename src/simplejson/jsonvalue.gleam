@@ -11,11 +11,11 @@ pub type JsonValue {
 }
 
 pub type ParseError {
-  UnexpectedCharacter(char: String, pos: Int)
+  UnexpectedCharacter(char: String, rest: String, pos: Int)
   Unknown
   UnexpectedEnd
-  InvalidEscapeCharacter(char: String, pos: Int)
-  InvalidCharacter(char: String, pos: Int)
-  InvalidHex(hex: String, pos: Int)
-  InvalidNumber(num: String, pos: Int)
+  InvalidEscapeCharacter(char: String, rest: String, pos: Int)
+  InvalidCharacter(char: String, rest: String, pos: Int)
+  InvalidHex(hex: String, rest: String, pos: Int)
+  InvalidNumber(num: String, rest: String, pos: Int)
 }

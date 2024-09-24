@@ -2,7 +2,6 @@ import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order.{Eq, Gt, Lt}
@@ -21,21 +20,42 @@ pub fn parse(json: String) -> Result(JsonValue, ParseError) {
       let rest = do_trim_whitespace(rest)
       case rest {
         "" -> Ok(json_value)
-        _ -> Error(unexpected_character(json, rest))
+        _ -> Error(create_error(UnexpectedCharacter, json, rest, ""))
       }
     }
-    Error(UnexpectedCharacter(char, _)) -> {
-      Error(unexpected_character(json, char))
+    Error(UnexpectedCharacter(char, rest, -1)) -> {
+      Error(create_error(UnexpectedCharacter, json, rest, char))
+    }
+    Error(InvalidNumber(num, rest, -1)) -> {
+      Error(create_error(InvalidNumber, json, rest, num))
+    }
+    Error(InvalidCharacter(char, rest, -1)) -> {
+      Error(create_error(InvalidCharacter, json, rest, char))
+    }
+    Error(InvalidHex(hex, rest, -1)) -> {
+      Error(create_error(InvalidCharacter, json, rest, hex))
+    }
+    Error(InvalidEscapeCharacter(esc_char, rest, -1)) -> {
+      Error(create_error(InvalidCharacter, json, rest, esc_char))
     }
     Error(_ as parse_error) -> Error(parse_error)
   }
 }
 
-fn unexpected_character(json: String, char: String) -> ParseError {
+fn create_error(
+  constructor: fn(String, String, Int) -> ParseError,
+  json: String,
+  rest: String,
+  char: String,
+) -> ParseError {
   // io.debug("JSON " <> json <> " char " <> int.to_string(string.length(char)))
-  let assert Ok(first_char) = string.first(char)
-  let assert Ok(#(initial_str, _)) = string.split_once(json, char)
-  UnexpectedCharacter(first_char, string.length(initial_str) + 1)
+  let assert Ok(first_char) = case char {
+    "" -> string.first(rest)
+    _ -> Ok(char)
+  }
+  let assert Ok(#(initial_str, _)) =
+    string.split_once(json <> "\u{00}", rest <> "\u{00}")
+  constructor(first_char, rest, string.length(initial_str))
 }
 
 fn do_parse(json: String) -> Result(#(String, JsonValue), ParseError) {
@@ -73,7 +93,7 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), ParseError) {
       do_parse_number(json)
     }
     "" -> Error(UnexpectedEnd)
-    _ -> Error(UnexpectedCharacter(json, -1))
+    _ -> Error(UnexpectedCharacter("", json, -1))
   }
 }
 
@@ -90,11 +110,12 @@ fn do_parse_object(
   obj: Dict(String, JsonValue),
   last_entry: Option(#(Option(Nil), Option(String), Option(JsonValue))),
 ) -> Result(#(String, JsonValue), ParseError) {
-  case do_trim_whitespace(json) {
+  let trimmed_json = do_trim_whitespace(json)
+  case trimmed_json {
     "}" <> rest -> {
       case last_entry {
         None | Some(#(None, None, None)) -> Ok(#(rest, JsonObject(obj)))
-        _ -> Error(UnexpectedCharacter("}", -1))
+        _ -> Error(UnexpectedCharacter("}", trimmed_json, -1))
       }
     }
     "\"" <> rest -> {
@@ -107,7 +128,7 @@ fn do_parse_object(
             Ok(_) -> Error(Unknown)
           }
         }
-        _ -> Error(UnexpectedCharacter("\"", -1))
+        _ -> Error(UnexpectedCharacter("\"", trimmed_json, -1))
       }
     }
     ":" <> rest -> {
@@ -120,7 +141,7 @@ fn do_parse_object(
             Some(#(None, None, None)),
           )
         }
-        _ -> Error(UnexpectedCharacter(":", -1))
+        _ -> Error(UnexpectedCharacter(":", trimmed_json, -1))
       }
     }
     "," <> rest -> {
@@ -128,7 +149,7 @@ fn do_parse_object(
         Some(#(None, None, None)) -> {
           do_parse_object(rest, obj, Some(#(Some(Nil), None, None)))
         }
-        _ -> Error(UnexpectedCharacter(",", -1))
+        _ -> Error(UnexpectedCharacter(",", trimmed_json, -1))
       }
     }
     "" -> Error(UnexpectedEnd)
@@ -159,7 +180,7 @@ fn do_parse_string(
         "" -> Error(UnexpectedEnd)
         _ -> {
           let assert Ok(first_char) = string.first(rest)
-          Error(InvalidEscapeCharacter(first_char, -1))
+          Error(InvalidEscapeCharacter(first_char, json, -1))
         }
       }
     }
@@ -195,7 +216,8 @@ fn do_parse_string(
     | "\u{1D}" <> _
     | "\u{1E}" <> _
     | "\u{1F}" <> _ -> {
-      Error(InvalidCharacter(json, -1))
+      let assert Ok(first_char) = string.first(json)
+      Error(InvalidCharacter(first_char, json, -1))
     }
     _ -> {
       use #(char, rest) <- result.try(
@@ -211,14 +233,15 @@ fn parse_hex(json: String) -> Result(#(String, String), ParseError) {
   use <- bool.guard(string.length(hex) < 4, return: Error(UnexpectedEnd))
   let rest = string.drop_left(json, 4)
   use parsed <- result.try(
-    int.base_parse(hex, 16) |> result.map_error(fn(_) { InvalidHex(hex, -1) }),
+    int.base_parse(hex, 16)
+    |> result.map_error(fn(_) { InvalidHex(hex, json, -1) }),
   )
   case parsed {
     65_534 | 65_535 -> Ok(#(rest, ""))
     _ -> {
       use utf8 <- result.try(
         string.utf_codepoint(parsed)
-        |> result.map_error(fn(_) { InvalidHex(hex, -1) }),
+        |> result.map_error(fn(_) { InvalidHex(hex, json, -1) }),
       )
       Ok(#(rest, string.from_utf_codepoints([utf8])))
     }
@@ -230,11 +253,12 @@ fn do_parse_list(
   list: List(JsonValue),
   last_value: Option(JsonValue),
 ) -> Result(#(String, JsonValue), ParseError) {
-  case do_trim_whitespace(json) {
+  let trimmed_json = do_trim_whitespace(json)
+  case trimmed_json {
     "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
     "," <> rest -> {
       case last_value {
-        None -> Error(InvalidCharacter(",", -1))
+        None -> Error(InvalidCharacter(",", trimmed_json, -1))
         Some(_) -> {
           use #(rest, next_item) <- result.try(do_parse(rest))
           do_parse_list(rest, [next_item, ..list], Some(next_item))
@@ -248,29 +272,59 @@ fn do_parse_list(
           use #(rest, next_item) <- result.try(do_parse(json))
           do_parse_list(rest, [next_item, ..list], Some(next_item))
         }
-        Some(_) -> Error(UnexpectedCharacter(json, -1))
+        Some(_) -> Error(UnexpectedCharacter("", trimmed_json, -1))
       }
     }
   }
 }
 
-fn do_parse_number(json: String) -> Result(#(String, JsonValue), ParseError) {
-  use #(json, num) <- result.try(case json {
+fn do_parse_number(
+  original_json: String,
+) -> Result(#(String, JsonValue), ParseError) {
+  use #(json, num) <- result.try(case original_json {
     "-" <> rest -> {
       do_parse_int(rest, False, "-")
     }
-    _ -> do_parse_int(json, False, "")
+    json -> do_parse_int(json, False, "")
   })
 
-  use #(json, fraction) <- result.try(case json {
-    "." <> rest -> do_parse_int(rest, True, "")
-    _ -> Ok(#(json, ""))
-  })
+  use #(json, fraction) <- result.try(
+    case json {
+      "." <> rest -> do_parse_int(rest, True, "")
+      _ -> Ok(#(json, ""))
+    }
+    |> result.map_error(fn(err) {
+      case err {
+        InvalidNumber(fraction, _, _) ->
+          InvalidNumber(num <> "." <> fraction, original_json, -1)
+        _ -> err
+      }
+    }),
+  )
 
-  use #(json, exp) <- result.try(case json {
-    "e" <> rest | "E" <> rest -> do_parse_exponent(rest)
-    _ -> Ok(#(json, ""))
-  })
+  use #(json, exp) <- result.try(
+    case json {
+      "e" <> rest | "E" <> rest -> do_parse_exponent(rest)
+      _ -> Ok(#(json, ""))
+    }
+    |> result.map_error(fn(err) {
+      case err {
+        InvalidNumber(exp, _, _) -> {
+          let invalid_num =
+            num
+            <> {
+              case fraction {
+                "" -> ""
+                _ -> "." <> fraction
+              }
+            }
+
+          InvalidNumber(invalid_num <> "e" <> exp, original_json, -1)
+        }
+        _ -> err
+      }
+    }),
+  )
 
   let original =
     Some(
@@ -409,7 +463,19 @@ fn do_parse_int(
     }
     _ -> {
       case num {
-        "" | "-" -> Error(InvalidNumber(num, -1))
+        "" | "-" -> {
+          Error(InvalidNumber(
+            num
+              <> {
+              case string.first(json) {
+                Ok(char) -> char
+                _ -> ""
+              }
+            },
+            json,
+            -1,
+          ))
+        }
         _ -> {
           case allow_leading_zeroes || num == "0" || num == "-0" {
             True -> Ok(#(json, num))
@@ -417,7 +483,7 @@ fn do_parse_int(
               case
                 string.starts_with(num, "0") || string.starts_with(num, "-0")
               {
-                True -> Error(InvalidNumber(num, -1))
+                True -> Error(InvalidNumber(num, json, -1))
                 False -> Ok(#(json, num))
               }
             }
