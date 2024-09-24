@@ -1,9 +1,10 @@
-@target(erlang)
 import file_streams/file_stream
 @target(erlang)
 import file_streams/text_encoding
 import gleam/io
 import gleam/list
+@target(erlang)
+import gleam/result
 import gleam/string
 import simplejson
 import simplifile
@@ -26,7 +27,7 @@ pub fn simplejson_tests() {
       let parsed = simplejson.parse(json)
       case list.last(string.split(name, "/")) {
         Ok("n" <> _) -> {
-          parsed |> expect.to_be_error
+          parsed |> result.map_error(fn(_) { Nil }) |> expect.to_be_error
         }
         Ok("i" <> _) -> {
           // parsed |> expect.to_be_ok

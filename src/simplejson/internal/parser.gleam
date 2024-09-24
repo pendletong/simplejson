@@ -8,31 +8,32 @@ import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import gleam/string
 import simplejson/jsonvalue.{
-  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
-  JsonString,
+  type JsonValue, type ParseError, JsonArray, JsonBool, JsonNull, JsonNumber,
+  JsonObject, JsonString, UnexpectedCharacter, Unknown,
 }
 
-pub fn parse(json: String) -> Result(JsonValue, Nil) {
+pub fn parse(json: String) -> Result(JsonValue, ParseError) {
   case do_parse(json) {
     Ok(#(rest, json_value)) -> {
-      case check_end(rest) {
-        False -> Error(Nil)
-        True -> Ok(json_value)
+      let rest = do_trim_whitespace(rest)
+      case rest {
+        "" -> Ok(json_value)
+        _ -> Error(unexpected_character(json, rest))
       }
     }
-    _ -> Error(Nil)
+    Error(UnexpectedCharacter(char, _)) ->
+      Error(unexpected_character(json, char))
+    Error(_ as parse_error) -> Error(parse_error)
   }
 }
 
-fn check_end(json: String) -> Bool {
-  case json {
-    " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest -> check_end(rest)
-    "" -> True
-    _ -> False
-  }
+fn unexpected_character(json: String, char: String) -> ParseError {
+  let assert Ok(first_char) = string.first(char)
+  let assert Ok(#(initial_str, _)) = string.split_once(json, char)
+  UnexpectedCharacter(first_char, string.length(initial_str) + 1)
 }
 
-fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
+fn do_parse(json: String) -> Result(#(String, JsonValue), ParseError) {
   let json = do_trim_whitespace(json)
   case json {
     "[" <> rest -> {
@@ -67,7 +68,7 @@ fn do_parse(json: String) -> Result(#(String, JsonValue), Nil) {
       do_parse_number(json)
     }
 
-    _ -> Error(Nil)
+    _ -> Error(UnexpectedCharacter(json, -1))
   }
 }
 
@@ -83,7 +84,7 @@ fn do_parse_object(
   json: String,
   obj: Dict(String, JsonValue),
   last_entry: Option(#(Option(Nil), Option(String), Option(JsonValue))),
-) -> Result(#(String, JsonValue), Nil) {
+) -> Result(#(String, JsonValue), ParseError) {
   case do_trim_whitespace(json) {
     "}" <> rest -> {
       case last_entry {
@@ -133,7 +134,7 @@ fn do_parse_object(
 fn do_parse_string(
   json: String,
   str: String,
-) -> Result(#(String, JsonValue), Nil) {
+) -> Result(#(String, JsonValue), ParseError) {
   case json {
     "\"" <> rest -> Ok(#(rest, JsonString(str)))
     "\\" <> rest -> {
@@ -192,7 +193,7 @@ fn do_parse_string(
   }
 }
 
-fn parse_hex(json: String) -> Result(#(String, String), Nil) {
+fn parse_hex(json: String) -> Result(#(String, String), ParseError) {
   let hex = string.slice(json, 0, 4)
   use <- bool.guard(string.length(hex) < 4, return: Error(Nil))
   let rest = string.drop_left(json, 4)
@@ -210,7 +211,7 @@ fn do_parse_list(
   json: String,
   list: List(JsonValue),
   last_value: Option(JsonValue),
-) -> Result(#(String, JsonValue), Nil) {
+) -> Result(#(String, JsonValue), ParseError) {
   case do_trim_whitespace(json) {
     "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
     "," <> rest -> {
@@ -234,7 +235,7 @@ fn do_parse_list(
   }
 }
 
-fn do_parse_number(json: String) -> Result(#(String, JsonValue), Nil) {
+fn do_parse_number(json: String) -> Result(#(String, JsonValue), ParseError) {
   use #(json, num) <- result.try(case json {
     "-" <> rest -> {
       do_parse_int(rest, False, "-")
@@ -359,7 +360,7 @@ fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
   }
 }
 
-fn do_parse_exponent(json: String) -> Result(#(String, String), Nil) {
+fn do_parse_exponent(json: String) -> Result(#(String, String), ParseError) {
   use #(json, exp) <- result.try(case json {
     "+" <> rest -> do_parse_int(rest, True, "")
     "-" <> rest -> do_parse_int(rest, True, "-")
@@ -373,7 +374,7 @@ fn do_parse_int(
   json: String,
   allow_leading_zeroes: Bool,
   num: String,
-) -> Result(#(String, String), Nil) {
+) -> Result(#(String, String), ParseError) {
   case json {
     "0" as n <> rest
     | "1" as n <> rest

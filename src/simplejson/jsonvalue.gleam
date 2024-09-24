@@ -9,3 +9,8 @@ pub type JsonValue {
   JsonArray(List(JsonValue))
   JsonObject(Dict(String, JsonValue))
 }
+
+pub type ParseError {
+  UnexpectedCharacter(char: String, pos: Int)
+  Unknown
+}

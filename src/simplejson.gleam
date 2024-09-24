@@ -4,7 +4,7 @@
 
 import simplejson/internal/parser
 import simplejson/internal/stringify
-import simplejson/jsonvalue.{type JsonValue}
+import simplejson/jsonvalue.{type JsonValue, type ParseError}
 
 /// Parse a given string into a JsonValue Result
 /// Or return Error if unable. This currently returns
@@ -23,7 +23,7 @@ import simplejson/jsonvalue.{type JsonValue}
 /// // -> Ok(JsonArray([JsonNumber(Some(1), None, Some("1")), JsonNumber(Some(2), None, Some("2")), JsonNumber(Some(3), None, Some("3"))]))
 /// ```
 /// 
-pub fn parse(json: String) -> Result(JsonValue, Nil) {
+pub fn parse(json: String) -> Result(JsonValue, ParseError) {
   parser.parse(json)
 }
 
