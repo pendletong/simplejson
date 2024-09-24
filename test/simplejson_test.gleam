@@ -221,7 +221,9 @@ pub fn parse_array_tests() {
       |> expect.to_equal(JsonObject(dict.from_list([#("a", JsonArray([]))])))
     }),
   ])
+}
 
+pub fn parse_array_error_tests() {
   describe("Array Parsing - Errors", [
     it("Unclosed Array", fn() {
       simplejson.parse("[")
@@ -320,7 +322,9 @@ pub fn parse_object_tests() {
       )
     }),
   ])
+}
 
+pub fn parse_object_error_tests() {
   describe("Object Parsing - Errors", [
     it("Unclosed Object", fn() {
       simplejson.parse("{")
