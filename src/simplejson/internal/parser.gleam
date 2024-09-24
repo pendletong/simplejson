@@ -33,10 +33,10 @@ pub fn parse(json: String) -> Result(JsonValue, ParseError) {
       Error(create_error(InvalidCharacter, json, rest, char))
     }
     Error(InvalidHex(hex, rest, -1)) -> {
-      Error(create_error(InvalidCharacter, json, rest, hex))
+      Error(create_error(InvalidHex, json, rest, hex))
     }
     Error(InvalidEscapeCharacter(esc_char, rest, -1)) -> {
-      Error(create_error(InvalidCharacter, json, rest, esc_char))
+      Error(create_error(InvalidEscapeCharacter, json, rest, esc_char))
     }
     Error(_ as parse_error) -> Error(parse_error)
   }
