@@ -320,6 +320,29 @@ pub fn parse_object_tests() {
       )
     }),
   ])
+
+  describe("Object Parsing - Errors", [
+    it("Unclosed Object", fn() {
+      simplejson.parse("{")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedEnd)
+    }),
+    it("Unclosed Key", fn() {
+      simplejson.parse("{\"")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedEnd)
+    }),
+    it("Just Key", fn() {
+      simplejson.parse("{\"key\"")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedEnd)
+    }),
+    it("Just Key and Colon", fn() {
+      simplejson.parse("{\"key\": }")
+      |> expect.to_be_error
+      |> expect.to_equal(UnexpectedCharacter("}", "}", 8))
+    }),
+  ])
 }
 
 @target(javascript)
