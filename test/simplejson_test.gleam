@@ -7,9 +7,37 @@ import gleam/list
 import gleam/result
 import gleam/string
 import simplejson
+import simplejson/jsonvalue.{InvalidCharacter}
 import simplifile
 import startest.{describe, it}
 import startest/expect
+
+const failing_tests = [
+  #(
+    "./test/testfiles/y_string_last_surrogates_1_and_2.json",
+    Error(InvalidCharacter("DBFF", "DBFF\\uDFFF\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/y_string_accepted_surrogate_pair.json",
+    Error(InvalidCharacter("D801", "D801\\udc37\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/y_string_unicode_U+1FFFE_nonchar.json",
+    Error(InvalidCharacter("D83F", "D83F\\uDFFE\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/y_string_unicode_U+10FFFE_nonchar.json",
+    Error(InvalidCharacter("DBFF", "DBFF\\uDFFE\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/y_string_accepted_surrogate_pairs.json",
+    Error(InvalidCharacter("d83d", "d83d\\ude39\\ud83d\\udc8d\"]", 4)),
+  ),
+  #(
+    "./test/testfiles/y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json",
+    Error(InvalidCharacter("D834", "D834\\uDd1e\"]", 4)),
+  ),
+]
 
 pub fn main() {
   startest.run(startest.default_config())
@@ -34,8 +62,16 @@ pub fn simplejson_tests() {
           Nil
         }
         Ok("y" <> _) -> {
-          parsed |> expect.to_be_ok
-          Nil
+          case list.find(failing_tests, fn(e) { e.0 == name }) {
+            Ok(#(_, err)) -> {
+              parsed |> expect.to_equal(err)
+              Nil
+            }
+            Error(_) -> {
+              parsed |> expect.to_be_ok
+              Nil
+            }
+          }
         }
         _ -> {
           Nil
