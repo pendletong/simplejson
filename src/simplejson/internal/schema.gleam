@@ -24,6 +24,8 @@ pub type Schema {
 pub opaque type ValidationProperty {
   StringProperty(name: String, value: String)
   IntProperty(name: String, value: Int)
+  FloatProperty(name: String, value: Float)
+  NumberProperty(name: String, value: Option(Int), or_value: Option(Float))
 }
 
 pub opaque type ValidationNode {
@@ -132,26 +134,6 @@ fn generate_specified_validation(
   }
 }
 
-const string_properties: List(
-  #(
-    String,
-    fn(String, Dict(String, JsonValue)) ->
-      Result(Option(ValidationProperty), InvalidEntry),
-    fn(ValidationProperty) ->
-      Result(fn(String) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry),
-  ),
-) = [
-  #("minLength", get_int_property, string_min_length),
-  #("maxLength", get_int_property, string_max_length),
-  #("pattern", get_pattern_property, string_pattern),
-  #("format", get_string_property, string_format),
-]
-
-// const string_properties = [
-//   #("minLength", get_int_property, string_min_length), #("maxLength", get_int_property, string_max_length),
-//   #("pattern", get_pattern_property, string_pattern), #("format", get_string_property, string_format),
-// ]
-
 fn generate_string_validation(
   dict: Dict(String, JsonValue),
   sub_schema: Dict(String, Schema),
@@ -184,6 +166,7 @@ fn generate_string_validation(
   ))
 }
 
+/// Property retrieval
 fn get_int_property(
   property: String,
   dict: Dict(String, JsonValue),
@@ -191,6 +174,35 @@ fn get_int_property(
   case dict.get(dict, property) {
     Ok(JsonNumber(Some(val), _, _)) -> {
       Ok(Some(IntProperty(property, val)))
+    }
+    Ok(_) -> Error(InvalidSchema(6))
+    _ -> Ok(None)
+  }
+}
+
+fn get_float_property(
+  property: String,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(ValidationProperty), InvalidEntry) {
+  case dict.get(dict, property) {
+    Ok(JsonNumber(_, Some(val), _)) -> {
+      Ok(Some(FloatProperty(property, val)))
+    }
+    Ok(_) -> Error(InvalidSchema(6))
+    _ -> Ok(None)
+  }
+}
+
+fn get_number_property(
+  property: String,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(ValidationProperty), InvalidEntry) {
+  case dict.get(dict, property) {
+    Ok(JsonNumber(_, Some(val), _)) -> {
+      Ok(Some(NumberProperty(property, None, Some(val))))
+    }
+    Ok(JsonNumber(Some(val), _, _)) -> {
+      Ok(Some(NumberProperty(property, Some(val), None)))
     }
     Ok(_) -> Error(InvalidSchema(6))
     _ -> Ok(None)
@@ -224,10 +236,7 @@ fn get_pattern_property(
           Options(case_insensitive: False, multi_line: False),
         )
       {
-        Error(_) as err -> {
-          io.debug(err)
-          Error(InvalidSchema(8))
-        }
+        Error(_) -> Error(InvalidSchema(8))
         Ok(_) -> Ok(pattern)
       }
     }
@@ -235,6 +244,22 @@ fn get_pattern_property(
     Some(_) -> Error(InvalidSchema(9))
   }
 }
+
+/// String validation
+const string_properties: List(
+  #(
+    String,
+    fn(String, Dict(String, JsonValue)) ->
+      Result(Option(ValidationProperty), InvalidEntry),
+    fn(ValidationProperty) ->
+      Result(fn(String) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry),
+  ),
+) = [
+  #("minLength", get_int_property, string_min_length),
+  #("maxLength", get_int_property, string_max_length),
+  #("pattern", get_pattern_property, string_pattern),
+  #("format", get_string_property, string_format),
+]
 
 fn string_min_length(
   value: ValidationProperty,
@@ -296,13 +321,7 @@ fn string_format(
   }
 }
 
-// fn generate_object_validation(
-//   dict: Dict(String, JsonValue),
-//   sub_schema: Dict(String, Schema),
-// ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
-
-// }
-
+/// Perform validation
 fn do_validate(json: String, schema: Schema) -> #(Bool, List(InvalidEntry)) {
   case parser.parse(json) {
     Error(err) -> #(False, [InvalidJson(err)])
