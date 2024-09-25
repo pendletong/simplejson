@@ -77,12 +77,38 @@ pub fn main() {
   //   |> io.debug
   //   parser.parse("{\"key\": }") |> io.debug
   //   io.debug(string.length("{\"key\": }"))
-  schema.validate("{}", "{}")
+  // schema.validate("{}", "{}")
+  // |> io.debug
+  // schema.validate("{}", "true")
+  // |> io.debug
+  // schema.validate("{}", "false")
+  // |> io.debug
+  // schema.validate("{{[[]}", "true")
+  // |> io.debug
+  // schema.validate("123", "{\"type\":\"string\"}")
+  // |> io.debug
+  // schema.validate("\"123\"", "{\"type\":\"string\",\"minLength\":2}")
+  // |> io.debug
+  // schema.validate("\"123\"", "{\"type\":\"string\",\"minLength\":4}")
+  // |> io.debug
+  // schema.validate(
+  //   "\"12345\"",
+  //   "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7}",
+  // )
+  // |> io.debug
+  // schema.validate(
+  //   "\"12345678\"",
+  //   "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7}",
+  // )
+  // |> io.debug
+  schema.validate(
+    "\"123-567\"",
+    "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7,\"pattern\":\"\\\\d+-\\\\d+\"}",
+  )
   |> io.debug
-  schema.validate("{}", "true")
-  |> io.debug
-  schema.validate("{}", "false")
-  |> io.debug
-  schema.validate("{{[[]}", "true")
+  schema.validate(
+    "\"123567\"",
+    "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7,\"pattern\":\"\\\\d+-\\\\d+\"}",
+  )
   |> io.debug
 }
