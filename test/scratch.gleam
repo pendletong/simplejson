@@ -1,6 +1,13 @@
+import gleam/int
 import gleam/io
+import gleam/list
+import gleam/result
+import gleam/string
 import simplejson/internal/parser
+import simplejson/internal/schema
 import simplejson/internal/stringify
+import simplejson/jsonvalue
+import simplifile
 
 pub fn main() {
   //   parser.parse(
@@ -36,8 +43,46 @@ pub fn main() {
   // |> io.debug
   // |> ieee_float.multiply(ieee_float.parse("1.0e109"))
   // |> io.debug
-  parser.parse(
-    "[-0.000000000000000000000000000000000000000000000000000000000000000000000000000001]\n",
-  )
+  //   parser.parse("[0.3ez]\n")
+  //   parser.parse(
+  //     "[0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006]",
+  //   )
+  //   |> io.debug
+  //   case
+  //     parser.parse(
+  //       simplifile.read(
+  //         "./test/testfiles/i_structure_UTF-8_BOM_empty_object.json",
+  //       )
+  //       |> result.unwrap(""),
+  //     )
+  //   {
+  //     Error(jsonvalue.UnexpectedCharacter(a, b, c)) -> {
+  //       io.debug(string.byte_size(a))
+  //       io.debug(string.to_graphemes(a))
+  //       a |> string.to_utf_codepoints |> io.debug
+  //       Nil
+  //     }
+  //     _ as b -> {
+  //       io.debug(b)
+  //       Nil
+  //     }
+  //   }
+  //   simplifile.read("./test/testfiles/i_structure_UTF-8_BOM_empty_object.json")
+  //   |> result.unwrap("")
+  //   |> string.to_utf_codepoints
+  //   |> io.debug
+  //   simplifile.read("./test/testfiles/n_structure_open_array_object.json")
+  //   |> result.unwrap("")
+  //   |> parser.parse
+  //   |> io.debug
+  //   parser.parse("{\"key\": }") |> io.debug
+  //   io.debug(string.length("{\"key\": }"))
+  schema.validate("{}", "{}")
+  |> io.debug
+  schema.validate("{}", "true")
+  |> io.debug
+  schema.validate("{}", "false")
+  |> io.debug
+  schema.validate("{{[[]}", "true")
   |> io.debug
 }
