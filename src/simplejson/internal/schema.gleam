@@ -1,4 +1,6 @@
 import gleam/dict.{type Dict}
+import gleam/float
+import gleam/int
 import gleam/io
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
@@ -21,6 +23,10 @@ pub type Schema {
   )
 }
 
+pub opaque type Number {
+  Number(int: Option(Int), float: Option(Float))
+}
+
 pub opaque type ValidationProperty {
   StringProperty(name: String, value: String)
   IntProperty(name: String, value: Int)
@@ -33,6 +39,10 @@ pub opaque type ValidationNode {
   MultiNode(validations: List(ValidationNode))
   StringNode(
     properties: List(fn(String) -> Option(fn(JsonValue) -> InvalidEntry)),
+  )
+  // IntNode(properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)))
+  NumberNode(
+    properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)),
   )
 }
 
@@ -130,8 +140,90 @@ fn generate_specified_validation(
     "string" -> {
       generate_string_validation(dict, sub_schema)
     }
+    "integer" -> {
+      generate_int_validation(dict, sub_schema)
+    }
+    "number" -> {
+      generate_number_validation(dict, sub_schema)
+    }
     _ -> todo
   }
+}
+
+fn generate_number_validation(
+  dict: Dict(String, JsonValue),
+  sub_schema: Dict(String, Schema),
+) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+  use props <- result.try(
+    list.try_map(int_properties, fn(prop) {
+      use valid_prop <- result.try(prop.1(prop.0, dict))
+
+      case valid_prop {
+        Some(valid_prop) -> {
+          use final_fn <- result.try(prop.2(valid_prop))
+          Ok(Some(final_fn))
+        }
+        None -> Ok(None)
+      }
+    }),
+  )
+
+  Ok(#(
+    NumberNode(
+      props
+      |> list.filter_map(fn(prop) {
+        case prop {
+          Some(prop) -> Ok(prop)
+          None -> Error(Nil)
+        }
+      }),
+    ),
+    sub_schema,
+  ))
+}
+
+fn generate_int_validation(
+  dict: Dict(String, JsonValue),
+  sub_schema: Dict(String, Schema),
+) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+  use props <- result.try(
+    list.try_map(int_properties, fn(prop) {
+      use valid_prop <- result.try(prop.1(prop.0, dict))
+
+      case valid_prop {
+        Some(valid_prop) -> {
+          use final_fn <- result.try(prop.2(valid_prop))
+          Ok(Some(final_fn))
+        }
+        None -> Ok(None)
+      }
+    }),
+  )
+
+  Ok(#(
+    NumberNode([
+      fn(num) {
+        case num {
+          Number(Some(i), _) -> None
+          Number(_, Some(f)) -> {
+            case f == int.to_float(float.truncate(f)) {
+              True -> None
+              False -> Some(fn(json_value) { InvalidDataType(json_value) })
+            }
+          }
+          Number(None, None) -> Some(fn(_) { InvalidSchema(16) })
+        }
+      },
+      ..props
+      |> list.filter_map(fn(prop) {
+        case prop {
+          Some(prop) -> Ok(prop)
+          None -> Error(Nil)
+        }
+      })
+    ]),
+    sub_schema,
+  ))
 }
 
 fn generate_string_validation(
@@ -245,16 +337,48 @@ fn get_pattern_property(
   }
 }
 
+/// Int validation
+const int_properties = [
+  #("multipleOf", get_number_property, number_multiple_of),
+]
+
+fn number_multiple_of(
+  value: ValidationProperty,
+) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+  case value {
+    NumberProperty(_, i, f) -> {
+      Ok(fn(v) {
+        case i {
+          Some(_) -> {
+            case is_multiple(v, Number(i, f)) {
+              True -> None
+              False -> Some(FailedProperty(value, _))
+            }
+          }
+          None -> {
+            case f {
+              Some(_) -> {
+                case is_multiple(v, Number(i, f)) {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              None -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+        }
+      })
+    }
+    _ -> Error(InvalidSchema(14))
+  }
+}
+
+fn is_multiple(num: Number, of: Number) -> Bool {
+  todo
+}
+
 /// String validation
-const string_properties: List(
-  #(
-    String,
-    fn(String, Dict(String, JsonValue)) ->
-      Result(Option(ValidationProperty), InvalidEntry),
-    fn(ValidationProperty) ->
-      Result(fn(String) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry),
-  ),
-) = [
+const string_properties = [
   #("minLength", get_int_property, string_min_length),
   #("maxLength", get_int_property, string_max_length),
   #("pattern", get_pattern_property, string_pattern),
@@ -340,6 +464,9 @@ fn validate_node(
     StringNode(props) -> {
       validate_string(node, props)
     }
+    NumberNode(props) -> {
+      validate_number(node, props)
+    }
     SimpleValidation(True) -> {
       #(True, [])
     }
@@ -384,6 +511,28 @@ fn validate_string(
       let result =
         list.try_each(properties, fn(validate) {
           case validate(str) {
+            Some(e) -> Error(e)
+            None -> Ok(Nil)
+          }
+        })
+      case result {
+        Ok(Nil) -> #(True, [])
+        Error(err) -> #(False, [err(node)])
+      }
+    }
+    _ -> #(False, [InvalidDataType(node)])
+  }
+}
+
+fn validate_number(
+  node: JsonValue,
+  properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)),
+) -> #(Bool, List(InvalidEntry)) {
+  case node {
+    JsonNumber(i, f, _) -> {
+      let result =
+        list.try_each(properties, fn(validate) {
+          case validate(Number(i, f)) {
             Some(e) -> Error(e)
             None -> Ok(Nil)
           }

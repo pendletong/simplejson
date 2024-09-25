@@ -111,4 +111,16 @@ pub fn main() {
     "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7,\"pattern\":\"\\\\d+-\\\\d+\"}",
   )
   |> io.debug
+  schema.validate("\"123567\"", "{\"type\":\"number\"}")
+  |> io.debug
+  schema.validate("123567", "{\"type\":\"number\"}")
+  |> io.debug
+  schema.validate("123567.3", "{\"type\":\"number\"}")
+  |> io.debug
+  schema.validate("123567.3", "{\"type\":\"integer\"}")
+  |> io.debug
+  schema.validate("50005", "{\"type\":\"number\",\"multipleOf\":5}")
+  |> io.debug
+  schema.validate("50006", "{\"type\":\"number\",\"multipleOf\":5}")
+  |> io.debug
 }
