@@ -1,5 +1,5 @@
-import gleam/bool
 import gleam/dict.{type Dict}
+import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None}
 import gleam/result
 import simplejson/internal/parser
@@ -19,6 +19,7 @@ pub type Schema {
 
 pub opaque type ValidationNode {
   SimpleValidation(valid: Bool)
+  MultiNode(List(ValidationNode))
   StringNode(
     min_length: Option(Int),
     max_length: Option(Int),
@@ -64,7 +65,7 @@ fn generate_validation(
       case dict.is_empty(dict) {
         True -> Ok(#(SimpleValidation(True), sub_schema))
         False -> {
-          Error(InvalidSchema)
+          todo
         }
       }
     }
@@ -72,25 +73,18 @@ fn generate_validation(
   }
 }
 
+// fn generate_object_validation(
+//   dict: Dict(String, JsonValue),
+//   sub_schema: Dict(String, Schema),
+// ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+
+// }
+
 fn do_validate(json: String, schema: Schema) -> #(Bool, List(InvalidEntry)) {
   case parser.parse(json) {
     Error(err) -> #(False, [InvalidJson(err)])
     Ok(json) -> {
       validate_node(json, schema.validation, schema.sub_schema)
-      //   use <- bool.guard(
-      //     when: schema.schema == JsonObject(dict.from_list([])),
-      //     return: #(True, []),
-      //   )
-      //   use <- bool.guard(
-      //     when: schema.schema == JsonBool(True),
-      //     return: #(True, []),
-      //   )
-      //   use <- bool.guard(
-      //     when: schema.schema == JsonBool(False),
-      //     return: #(False, [FalseSchema]),
-      //   )
-      //   #(False, [InvalidEntry(json)])
-      //   validate_node()
     }
   }
 }
@@ -109,6 +103,32 @@ fn validate_node(
     }
     SimpleValidation(False) -> {
       #(False, [FalseSchema])
+    }
+    MultiNode(v_nodes) -> {
+      case
+        list.fold_until(v_nodes, [], fn(errors, v_node) {
+          case validate_node(node, v_node, sub_schema) {
+            #(True, _) -> Stop([])
+            #(False, err) -> Continue(list.append(err, errors))
+          }
+        })
+      {
+        [] -> #(True, [])
+        errors -> {
+          // Filtering the invalid data types should remove
+          // any nodes that type didn't match and keep the node type
+          // that matched and its error
+          #(
+            False,
+            list.filter(errors, fn(err) {
+              case err {
+                InvalidDataType(_) -> False
+                _ -> True
+              }
+            }),
+          )
+        }
+      }
     }
   }
 }

@@ -1,7 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
-import gleam/io
 import gleam/option.{None, Some}
 import gleam/string
 import simplejson/jsonvalue.{

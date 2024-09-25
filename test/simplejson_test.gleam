@@ -12,9 +12,9 @@ import gleam/result
 import gleam/string
 import simplejson
 import simplejson/jsonvalue.{
-  type JsonValue, type ParseError, InvalidCharacter, InvalidEscapeCharacter,
-  InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber,
-  JsonObject, JsonString, UnexpectedCharacter, UnexpectedEnd,
+  type ParseError, InvalidCharacter, InvalidEscapeCharacter, InvalidHex,
+  InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
+  JsonString, UnexpectedCharacter, UnexpectedEnd,
 }
 import simplifile
 import startest.{describe, it}
