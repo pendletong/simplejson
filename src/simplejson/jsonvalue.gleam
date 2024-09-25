@@ -18,4 +18,5 @@ pub type ParseError {
   InvalidCharacter(char: String, rest: String, pos: Int)
   InvalidHex(hex: String, rest: String, pos: Int)
   InvalidNumber(num: String, rest: String, pos: Int)
+  NestingDepth(num_levels: Int)
 }

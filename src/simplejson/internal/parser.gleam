@@ -10,12 +10,15 @@ import gleam/string
 import simplejson/jsonvalue.{
   type JsonValue, type ParseError, InvalidCharacter, InvalidEscapeCharacter,
   InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber,
-  JsonObject, JsonString, UnexpectedCharacter, UnexpectedEnd, Unknown,
+  JsonObject, JsonString, NestingDepth, UnexpectedCharacter, UnexpectedEnd,
+  Unknown,
 }
+
+const max_depth = 512
 
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
   let json = do_trim_whitespace(json)
-  case do_parse(json) {
+  case do_parse(json, 0) {
     Ok(#(rest, json_value)) -> {
       let rest = do_trim_whitespace(rest)
       case rest {
@@ -57,14 +60,17 @@ fn create_error(
   constructor(first_char, rest, string.length(initial_str))
 }
 
-fn do_parse(json: String) -> Result(#(String, JsonValue), ParseError) {
+fn do_parse(
+  json: String,
+  current_depth: Int,
+) -> Result(#(String, JsonValue), ParseError) {
   let json = do_trim_whitespace(json)
   case json {
     "[" <> rest -> {
-      do_parse_list(rest, [], None)
+      do_parse_list(rest, [], None, current_depth + 1)
     }
     "{" <> rest -> {
-      do_parse_object(rest, dict.new(), None)
+      do_parse_object(rest, dict.new(), None, current_depth + 1)
     }
     "\"" <> rest -> {
       do_parse_string(rest, "")
@@ -108,7 +114,12 @@ fn do_parse_object(
   json: String,
   obj: Dict(String, JsonValue),
   last_entry: Option(#(Option(Nil), Option(String), Option(JsonValue))),
+  current_depth: Int,
 ) -> Result(#(String, JsonValue), ParseError) {
+  use <- bool.guard(
+    when: current_depth > max_depth,
+    return: Error(NestingDepth(current_depth)),
+  )
   let trimmed_json = do_trim_whitespace(json)
   case trimmed_json {
     "}" <> rest -> {
@@ -122,7 +133,12 @@ fn do_parse_object(
         None | Some(#(Some(Nil), None, None)) -> {
           case do_parse_string(rest, "") {
             Ok(#(rest, JsonString(key))) ->
-              do_parse_object(rest, obj, Some(#(Some(Nil), Some(key), None)))
+              do_parse_object(
+                rest,
+                obj,
+                Some(#(Some(Nil), Some(key), None)),
+                current_depth,
+              )
             Error(e) -> Error(e)
             Ok(_) -> Error(Unknown)
           }
@@ -133,11 +149,12 @@ fn do_parse_object(
     ":" <> rest -> {
       case last_entry {
         Some(#(Some(Nil), Some(key), None)) -> {
-          use #(rest, value) <- result.try(do_parse(rest))
+          use #(rest, value) <- result.try(do_parse(rest, current_depth))
           do_parse_object(
             rest,
             dict.insert(obj, key, value),
             Some(#(None, None, None)),
+            current_depth,
           )
         }
         _ -> Error(UnexpectedCharacter(":", trimmed_json, -1))
@@ -146,7 +163,12 @@ fn do_parse_object(
     "," <> rest -> {
       case last_entry {
         Some(#(None, None, None)) -> {
-          do_parse_object(rest, obj, Some(#(Some(Nil), None, None)))
+          do_parse_object(
+            rest,
+            obj,
+            Some(#(Some(Nil), None, None)),
+            current_depth,
+          )
         }
         _ -> Error(UnexpectedCharacter(",", trimmed_json, -1))
       }
@@ -251,7 +273,12 @@ fn do_parse_list(
   json: String,
   list: List(JsonValue),
   last_value: Option(JsonValue),
+  current_depth: Int,
 ) -> Result(#(String, JsonValue), ParseError) {
+  use <- bool.guard(
+    when: current_depth > max_depth,
+    return: Error(NestingDepth(current_depth)),
+  )
   let trimmed_json = do_trim_whitespace(json)
   case trimmed_json {
     "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
@@ -259,8 +286,13 @@ fn do_parse_list(
       case last_value {
         None -> Error(InvalidCharacter(",", trimmed_json, -1))
         Some(_) -> {
-          use #(rest, next_item) <- result.try(do_parse(rest))
-          do_parse_list(rest, [next_item, ..list], Some(next_item))
+          use #(rest, next_item) <- result.try(do_parse(rest, current_depth))
+          do_parse_list(
+            rest,
+            [next_item, ..list],
+            Some(next_item),
+            current_depth,
+          )
         }
       }
     }
@@ -268,8 +300,13 @@ fn do_parse_list(
     _ -> {
       case last_value {
         None -> {
-          use #(rest, next_item) <- result.try(do_parse(json))
-          do_parse_list(rest, [next_item, ..list], Some(next_item))
+          use #(rest, next_item) <- result.try(do_parse(json, current_depth))
+          do_parse_list(
+            rest,
+            [next_item, ..list],
+            Some(next_item),
+            current_depth,
+          )
         }
         Some(_) -> Error(UnexpectedCharacter("", trimmed_json, -1))
       }
@@ -415,7 +452,7 @@ fn do_parse_number(
   Ok(#(json, ret))
 }
 
-pub fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
+fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
   let assert Ok(int_val) = int.parse(int_val)
   let #(int_val, exp) = case fraction {
     "" -> #(int_val, exp)
