@@ -340,7 +340,211 @@ fn get_pattern_property(
 /// Int validation
 const int_properties = [
   #("multipleOf", get_number_property, number_multiple_of),
+  #("minimum", get_number_property, number_minimum),
+  #("exclusiveMinimum", get_number_property, number_exclusiveminimum),
+  #("maximum", get_number_property, number_maximum),
+  #("exclusiveMaximum", get_number_property, number_exclusivemaximum),
 ]
+
+fn number_minimum(
+  value: ValidationProperty,
+) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+  case value {
+    NumberProperty(_, i, f) -> {
+      Ok(fn(v) {
+        case i, f {
+          Some(i1), None -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case i2 >= i1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 >=. int.to_float(i1) {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+          None, Some(f1) -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case int.to_float(i2) >=. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 >=. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+
+          _, _ -> Some(fn(_) { InvalidSchema(15) })
+        }
+      })
+    }
+    _ -> Error(InvalidSchema(14))
+  }
+}
+
+fn number_exclusiveminimum(
+  value: ValidationProperty,
+) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+  case value {
+    NumberProperty(_, i, f) -> {
+      Ok(fn(v) {
+        case i, f {
+          Some(i1), None -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case i2 > i1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 >. int.to_float(i1) {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+          None, Some(f1) -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case int.to_float(i2) >. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 >. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+
+          _, _ -> Some(fn(_) { InvalidSchema(15) })
+        }
+      })
+    }
+    _ -> Error(InvalidSchema(14))
+  }
+}
+
+fn number_maximum(
+  value: ValidationProperty,
+) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+  case value {
+    NumberProperty(_, i, f) -> {
+      Ok(fn(v) {
+        case i, f {
+          Some(i1), None -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case i2 < i1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 <. int.to_float(i1) {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+          None, Some(f1) -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case int.to_float(i2) <. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 <. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+
+          _, _ -> Some(fn(_) { InvalidSchema(15) })
+        }
+      })
+    }
+    _ -> Error(InvalidSchema(14))
+  }
+}
+
+fn number_exclusivemaximum(
+  value: ValidationProperty,
+) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+  case value {
+    NumberProperty(_, i, f) -> {
+      Ok(fn(v) {
+        case i, f {
+          Some(i1), None -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case i2 <= i1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 <=. int.to_float(i1) {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+          None, Some(f1) -> {
+            case v {
+              Number(Some(i2), _) -> {
+                case int.to_float(i2) <=. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              Number(_, Some(f2)) -> {
+                case f2 <=. f1 {
+                  True -> None
+                  False -> Some(FailedProperty(value, _))
+                }
+              }
+              _ -> Some(fn(_) { InvalidSchema(15) })
+            }
+          }
+
+          _, _ -> Some(fn(_) { InvalidSchema(15) })
+        }
+      })
+    }
+    _ -> Error(InvalidSchema(14))
+  }
+}
 
 fn number_multiple_of(
   value: ValidationProperty,
@@ -348,26 +552,23 @@ fn number_multiple_of(
   case value {
     NumberProperty(_, i, f) -> {
       Ok(fn(v) {
-        case i {
-          Some(_) -> {
+        case i, f {
+          Some(_), None -> {
             case is_multiple(v, Number(i, f)) {
               Ok(True) -> None
               Ok(False) -> Some(FailedProperty(value, _))
               Error(err) -> Some(fn(_) { err })
             }
           }
-          None -> {
-            case f {
-              Some(_) -> {
-                case is_multiple(v, Number(i, f)) {
-                  Ok(True) -> None
-                  Ok(False) -> Some(FailedProperty(value, _))
-                  Error(err) -> Some(fn(_) { err })
-                }
-              }
-              None -> Some(fn(_) { InvalidSchema(15) })
+          None, Some(_) -> {
+            case is_multiple(v, Number(i, f)) {
+              Ok(True) -> None
+              Ok(False) -> Some(FailedProperty(value, _))
+              Error(err) -> Some(fn(_) { err })
             }
           }
+
+          _, _ -> Some(fn(_) { InvalidSchema(15) })
         }
       })
     }

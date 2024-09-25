@@ -129,4 +129,14 @@ pub fn main() {
   |> io.debug
   schema.validate("10", "{\"type\":\"number\",\"multipleOf\":2.5}")
   |> io.debug
+  schema.validate("10", "{\"type\":\"number\",\"minimum\":5}")
+  |> io.debug
+  schema.validate("10", "{\"type\":\"number\",\"minimum\":10}")
+  |> io.debug
+  schema.validate("10", "{\"type\":\"number\",\"exclusiveMinimum\":10}")
+  |> io.debug
+  schema.validate("10.00001", "{\"type\":\"number\",\"exclusiveMinimum\":10}")
+  |> io.debug
+  schema.validate("10", "{\"type\":\"number\",\"minimum\":15}")
+  |> io.debug
 }
