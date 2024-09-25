@@ -123,4 +123,10 @@ pub fn main() {
   |> io.debug
   schema.validate("50006", "{\"type\":\"number\",\"multipleOf\":5}")
   |> io.debug
+  schema.validate("5.5", "{\"type\":\"number\",\"multipleOf\":1.1}")
+  |> io.debug
+  schema.validate("5.6", "{\"type\":\"number\",\"multipleOf\":1.1}")
+  |> io.debug
+  schema.validate("10", "{\"type\":\"number\",\"multipleOf\":2.5}")
+  |> io.debug
 }

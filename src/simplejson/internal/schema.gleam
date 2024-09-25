@@ -351,16 +351,18 @@ fn number_multiple_of(
         case i {
           Some(_) -> {
             case is_multiple(v, Number(i, f)) {
-              True -> None
-              False -> Some(FailedProperty(value, _))
+              Ok(True) -> None
+              Ok(False) -> Some(FailedProperty(value, _))
+              Error(err) -> Some(fn(_) { err })
             }
           }
           None -> {
             case f {
               Some(_) -> {
                 case is_multiple(v, Number(i, f)) {
-                  True -> None
-                  False -> Some(FailedProperty(value, _))
+                  Ok(True) -> None
+                  Ok(False) -> Some(FailedProperty(value, _))
+                  Error(err) -> Some(fn(_) { err })
                 }
               }
               None -> Some(fn(_) { InvalidSchema(15) })
@@ -373,8 +375,46 @@ fn number_multiple_of(
   }
 }
 
-fn is_multiple(num: Number, of: Number) -> Bool {
-  todo
+fn is_multiple(num: Number, of: Number) -> Result(Bool, InvalidEntry) {
+  case num {
+    Number(Some(i1), None) -> {
+      case of {
+        Number(Some(i2), None) -> {
+          Ok(i1 % i2 == 0)
+        }
+        Number(None, Some(f2)) -> {
+          let f1 = int.to_float(i1)
+          case float.modulo(f1, f2) {
+            Ok(0.0) -> Ok(True)
+            Ok(_) -> Ok(False)
+            _ -> Error(InvalidSchema(18))
+          }
+        }
+        _ -> Error(InvalidSchema(17))
+      }
+    }
+    Number(None, Some(f1)) -> {
+      case of {
+        Number(Some(i2), None) -> {
+          let f2 = int.to_float(i2)
+          case float.modulo(f1, f2) {
+            Ok(0.0) -> Ok(True)
+            Ok(_) -> Ok(False)
+            _ -> Error(InvalidSchema(18))
+          }
+        }
+        Number(None, Some(f2)) -> {
+          case float.modulo(f1, f2) {
+            Ok(0.0) -> Ok(True)
+            Ok(_) -> Ok(False)
+            _ -> Error(InvalidSchema(18))
+          }
+        }
+        _ -> Error(InvalidSchema(17))
+      }
+    }
+    _ -> Error(InvalidSchema(19))
+  }
 }
 
 /// String validation
