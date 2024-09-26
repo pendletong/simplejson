@@ -126,13 +126,13 @@ fn number_maximum(
           Some(i1), None -> {
             case v {
               Number(Some(i2), _) -> {
-                case i2 < i1 {
+                case i2 <= i1 {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
               }
               Number(_, Some(f2)) -> {
-                case f2 <. int.to_float(i1) {
+                case f2 <=. int.to_float(i1) {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
@@ -143,13 +143,13 @@ fn number_maximum(
           None, Some(f1) -> {
             case v {
               Number(Some(i2), _) -> {
-                case int.to_float(i2) <. f1 {
+                case int.to_float(i2) <=. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
               }
               Number(_, Some(f2)) -> {
-                case f2 <. f1 {
+                case f2 <=. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
@@ -176,13 +176,13 @@ fn number_exclusivemaximum(
           Some(i1), None -> {
             case v {
               Number(Some(i2), _) -> {
-                case i2 <= i1 {
+                case i2 < i1 {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
               }
               Number(_, Some(f2)) -> {
-                case f2 <=. int.to_float(i1) {
+                case f2 <. int.to_float(i1) {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
@@ -193,13 +193,13 @@ fn number_exclusivemaximum(
           None, Some(f1) -> {
             case v {
               Number(Some(i2), _) -> {
-                case int.to_float(i2) <=. f1 {
+                case int.to_float(i2) <. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
               }
               Number(_, Some(f2)) -> {
-                case f2 <=. f1 {
+                case f2 <. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, _))
                 }
