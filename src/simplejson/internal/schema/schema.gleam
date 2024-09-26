@@ -4,10 +4,11 @@ import gleam/io
 import gleam/list
 import gleam/result
 import simplejson/internal/parser
+import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type Schema, type ValidationNode, BooleanNode,
+  type InvalidEntry, type Schema, type ValidationNode, ArrayNode, BooleanNode,
   InvalidDataType, InvalidSchema, MultiNode, NullNode, Number, NumberNode,
   Schema, SimpleValidation, StringNode,
 }
@@ -21,7 +22,7 @@ import gleam/option.{None, Some}
 
 pub fn validate(json: String, schema: String) -> #(Bool, List(InvalidEntry)) {
   case generate_schema(schema) {
-    Error(_) -> #(False, [InvalidSchema(1)])
+    Error(err) -> #(False, [err])
     Ok(schema) -> validator.do_validate(json, schema)
   }
 }
@@ -110,10 +111,31 @@ fn generate_specified_validation(
     "number" -> {
       generate_number_validation(dict, sub_schema)
     }
+    "array" -> {
+      generate_array_validation(dict, sub_schema)
+    }
     "boolean" -> Ok(#(BooleanNode, sub_schema))
     "null" -> Ok(#(NullNode, sub_schema))
     _ -> todo
   }
+}
+
+fn generate_array_validation(
+  dict: Dict(String, JsonValue),
+  sub_schema: Dict(String, Schema),
+) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+  use val_nodes <- result.try(case dict.get(dict, "items") {
+    Ok(json) -> {
+      use #(vn, sub) <- result.try(generate_validation(json, sub_schema))
+
+      Ok(#([vn], dict.merge(sub_schema, sub)))
+    }
+    Error(_) -> {
+      Ok(#([], sub_schema))
+    }
+  })
+
+  Ok(#(ArrayNode([], [SimpleValidation(True)]), val_nodes.1))
 }
 
 fn generate_number_validation(

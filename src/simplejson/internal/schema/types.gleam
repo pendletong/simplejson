@@ -13,6 +13,7 @@ pub type ValidationProperty {
   IntProperty(name: String, value: Int)
   FloatProperty(name: String, value: Float)
   NumberProperty(name: String, value: Option(Int), or_value: Option(Float))
+  ObjectProperty(name: String, value: Dict(String, JsonValue))
 }
 
 pub type ValidationNode {
@@ -23,6 +24,12 @@ pub type ValidationNode {
   )
   NumberNode(
     properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)),
+  )
+  ArrayNode(
+    properties: List(
+      fn(List(JsonValue)) -> Option(fn(JsonValue) -> InvalidEntry),
+    ),
+    child_validators: List(ValidationNode),
   )
   BooleanNode
   NullNode

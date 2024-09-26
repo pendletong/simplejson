@@ -3,12 +3,12 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/parser
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type Number, type Schema, type ValidationNode, BooleanNode,
-  FalseSchema, InvalidDataType, InvalidJson, MultiNode, NullNode, Number,
-  NumberNode, Schema, SimpleValidation, StringNode,
+  type InvalidEntry, type Number, type Schema, type ValidationNode, ArrayNode,
+  BooleanNode, FalseSchema, InvalidDataType, InvalidJson, MultiNode, NullNode,
+  Number, NumberNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/jsonvalue.{
-  type JsonValue, JsonBool, JsonNull, JsonNumber, JsonString,
+  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonString,
 }
 
 pub fn do_validate(json: String, schema: Schema) -> #(Bool, List(InvalidEntry)) {
@@ -31,6 +31,9 @@ fn validate_node(
     }
     NumberNode(props) -> {
       validate_number(node, props)
+    }
+    ArrayNode(props, _validators) -> {
+      validate_array(node, props)
     }
     BooleanNode -> {
       validate_boolean(node)
@@ -133,6 +136,18 @@ fn validate_boolean(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
 fn validate_null(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
   case node {
     JsonNull -> #(True, [])
+    _ -> #(False, [InvalidDataType(node)])
+  }
+}
+
+fn validate_array(
+  node: JsonValue,
+  properties: List(fn(List(JsonValue)) -> Option(fn(JsonValue) -> InvalidEntry)),
+) -> #(Bool, List(InvalidEntry)) {
+  case node {
+    JsonArray(l) -> {
+      #(True, [])
+    }
     _ -> #(False, [InvalidDataType(node)])
   }
 }

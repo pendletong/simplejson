@@ -153,4 +153,13 @@ pub fn main() {
   |> io.debug
   schema.validate("123", "{\"type\":[\"null\", \"boolean\"],\"minimum\":15}")
   |> io.debug
+  schema.validate("null", "{\"type\":\"array\",\"minimum\":15}")
+  |> io.debug
+  schema.validate("[]", "{\"type\":\"array\",\"minimum\":15}")
+  |> io.debug
+  schema.validate(
+    "[1,2,   4]",
+    "{\"type\":\"array\",\"items\":{\"type\":\"number\"},\"minimum\":15}",
+  )
+  |> io.debug
 }

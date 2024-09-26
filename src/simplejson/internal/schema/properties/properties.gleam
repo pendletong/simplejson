@@ -5,9 +5,9 @@ import gleam/regex.{Options}
 import gleam/result
 import simplejson/internal/schema/types.{
   type InvalidEntry, type ValidationProperty, FloatProperty, IntProperty,
-  InvalidSchema, NumberProperty, StringProperty,
+  InvalidSchema, NumberProperty, ObjectProperty, StringProperty,
 }
-import simplejson/jsonvalue.{type JsonValue, JsonNumber, JsonString}
+import simplejson/jsonvalue.{type JsonValue, JsonNumber, JsonObject, JsonString}
 
 pub fn get_int_property(
   property: String,
@@ -16,6 +16,19 @@ pub fn get_int_property(
   case dict.get(dict, property) {
     Ok(JsonNumber(Some(val), _, _)) -> {
       Ok(Some(IntProperty(property, val)))
+    }
+    Ok(_) -> Error(InvalidSchema(6))
+    _ -> Ok(None)
+  }
+}
+
+pub fn get_object_property(
+  property: String,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(ValidationProperty), InvalidEntry) {
+  case dict.get(dict, property) {
+    Ok(JsonObject(val)) -> {
+      Ok(Some(ObjectProperty(property, val)))
     }
     Ok(_) -> Error(InvalidSchema(6))
     _ -> Ok(None)
