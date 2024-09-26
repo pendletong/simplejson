@@ -84,20 +84,20 @@ fn validate_node(
 
 fn validate_string(
   node: JsonValue,
-  properties: List(fn(String) -> Option(fn(JsonValue) -> InvalidEntry)),
+  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonString(str) -> {
+    JsonString(_) -> {
       let result =
         list.try_each(properties, fn(validate) {
-          case validate(str) {
+          case validate(node) {
             Some(e) -> Error(e)
             None -> Ok(Nil)
           }
         })
       case result {
         Ok(Nil) -> #(True, [])
-        Error(err) -> #(False, [err(node)])
+        Error(err) -> #(False, [err])
       }
     }
     _ -> #(False, [InvalidDataType(node)])
@@ -106,20 +106,20 @@ fn validate_string(
 
 fn validate_number(
   node: JsonValue,
-  properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)),
+  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonNumber(i, f, _) -> {
+    JsonNumber(_, _, _) -> {
       let result =
         list.try_each(properties, fn(validate) {
-          case validate(Number(i, f)) {
+          case validate(node) {
             Some(e) -> Error(e)
             None -> Ok(Nil)
           }
         })
       case result {
         Ok(Nil) -> #(True, [])
-        Error(err) -> #(False, [err(node)])
+        Error(err) -> #(False, [err])
       }
     }
     _ -> #(False, [InvalidDataType(node)])
