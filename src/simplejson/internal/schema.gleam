@@ -9,8 +9,8 @@ import gleam/result
 import gleam/string
 import simplejson/internal/parser
 import simplejson/jsonvalue.{
-  type JsonValue, type ParseError, JsonArray, JsonBool, JsonNumber, JsonObject,
-  JsonString,
+  type JsonValue, type ParseError, JsonArray, JsonBool, JsonNull, JsonNumber,
+  JsonObject, JsonString,
 }
 
 pub type Schema {
@@ -44,6 +44,7 @@ pub opaque type ValidationNode {
     properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)),
   )
   BooleanNode
+  NullNode
 }
 
 pub type InvalidEntry {
@@ -147,6 +148,7 @@ fn generate_specified_validation(
       generate_number_validation(dict, sub_schema)
     }
     "boolean" -> Ok(#(BooleanNode, sub_schema))
+    "null" -> Ok(#(NullNode, sub_schema))
     _ -> todo
   }
 }
@@ -712,6 +714,9 @@ fn validate_node(
     BooleanNode -> {
       validate_boolean(node)
     }
+    NullNode -> {
+      validate_null(node)
+    }
     SimpleValidation(True) -> {
       #(True, [])
     }
@@ -794,6 +799,13 @@ fn validate_number(
 fn validate_boolean(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
   case node {
     JsonBool(_) -> #(True, [])
+    _ -> #(False, [InvalidDataType(node)])
+  }
+}
+
+fn validate_null(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
+  case node {
+    JsonNull -> #(True, [])
     _ -> #(False, [InvalidDataType(node)])
   }
 }
