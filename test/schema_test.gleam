@@ -2,8 +2,8 @@ import gleam/list
 import gleam/option.{None, Some}
 import simplejson/internal/schema/schema
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type ValidationProperty, IntProperty, NumberProperty,
-  StringProperty,
+  type InvalidEntry, type ValidationProperty, FalseSchema, IntProperty,
+  NumberProperty, StringProperty,
 }
 import startest.{describe, it}
 import startest/expect
@@ -62,6 +62,52 @@ pub fn schema_string_tests() {
       contains_failed_property_error(errors, StringProperty("pattern", "text"))
       |> expect.to_be_true
     }),
+  ])
+}
+
+pub fn schema_basic_tests() {
+  describe("Schema Basic Tests", [
+    describe("Anything", [
+      it("Basic Obj Match", fn() {
+        schema.validate("[123,5,null]", "{}")
+        |> expect.to_equal(#(True, []))
+      }),
+      it("Basic True Match", fn() {
+        schema.validate("[false, 5, \"no\"]", "true")
+        |> expect.to_equal(#(True, []))
+      }),
+      it("Basic False Fail", fn() {
+        let #(pass, errors) = schema.validate("[1,2,3]", "false")
+        pass |> expect.to_be_false
+        errors |> expect.list_to_contain(FalseSchema)
+      }),
+    ]),
+    describe("Null", [
+      it("Basic Null Match", fn() {
+        schema.validate("null", "{\"type\":\"null\"}")
+        |> expect.to_equal(#(True, []))
+      }),
+      it("Basic Null Match Fail", fn() {
+        let #(pass, errors) = schema.validate("123", "{\"type\":\"null\"}")
+        pass |> expect.to_be_false
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+    ]),
+    describe("Boolean", [
+      it("Basic True Match", fn() {
+        schema.validate("true", "{\"type\":\"boolean\"}")
+        |> expect.to_equal(#(True, []))
+      }),
+      it("Basic False Match", fn() {
+        schema.validate("false", "{\"type\":\"boolean\"}")
+        |> expect.to_equal(#(True, []))
+      }),
+      it("Basic Bool Match Fail", fn() {
+        let #(pass, errors) = schema.validate("123", "{\"type\":\"boolean\"}")
+        pass |> expect.to_be_false
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+    ]),
   ])
 }
 
