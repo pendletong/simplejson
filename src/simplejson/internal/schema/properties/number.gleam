@@ -6,7 +6,7 @@ import simplejson/internal/schema/types.{
   type InvalidEntry, type Number, type ValidationProperty, FailedProperty,
   InvalidSchema, Number, NumberProperty,
 }
-import simplejson/jsonvalue.{type JsonValue}
+import simplejson/jsonvalue.{type JsonValue, JsonNumber}
 
 pub const int_properties = [
   #("multipleOf", get_number_property, number_multiple_of),
@@ -18,47 +18,47 @@ pub const int_properties = [
 
 fn number_minimum(
   value: ValidationProperty,
-) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     NumberProperty(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case i2 >= i1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 >=. int.to_float(i1) {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
           None, Some(f1) -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case int.to_float(i2) >=. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 >=. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
 
-          _, _ -> Some(fn(_) { InvalidSchema(15) })
+          _, _ -> Some(InvalidSchema(15))
         }
       })
     }
@@ -68,47 +68,47 @@ fn number_minimum(
 
 fn number_exclusiveminimum(
   value: ValidationProperty,
-) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     NumberProperty(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case i2 > i1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 >. int.to_float(i1) {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
           None, Some(f1) -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case int.to_float(i2) >. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 >. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
 
-          _, _ -> Some(fn(_) { InvalidSchema(15) })
+          _, _ -> Some(InvalidSchema(15))
         }
       })
     }
@@ -118,47 +118,47 @@ fn number_exclusiveminimum(
 
 fn number_maximum(
   value: ValidationProperty,
-) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     NumberProperty(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case i2 <= i1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 <=. int.to_float(i1) {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
           None, Some(f1) -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case int.to_float(i2) <=. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 <=. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
 
-          _, _ -> Some(fn(_) { InvalidSchema(15) })
+          _, _ -> Some(InvalidSchema(15))
         }
       })
     }
@@ -168,47 +168,47 @@ fn number_maximum(
 
 fn number_exclusivemaximum(
   value: ValidationProperty,
-) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     NumberProperty(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case i2 < i1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 <. int.to_float(i1) {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
           None, Some(f1) -> {
             case v {
-              Number(Some(i2), _) -> {
+              JsonNumber(Some(i2), _, _) -> {
                 case int.to_float(i2) <. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              Number(_, Some(f2)) -> {
+              JsonNumber(_, Some(f2), _) -> {
                 case f2 <. f1 {
                   True -> None
-                  False -> Some(FailedProperty(value, _))
+                  False -> Some(FailedProperty(value, v))
                 }
               }
-              _ -> Some(fn(_) { InvalidSchema(15) })
+              _ -> Some(InvalidSchema(15))
             }
           }
 
-          _, _ -> Some(fn(_) { InvalidSchema(15) })
+          _, _ -> Some(InvalidSchema(15))
         }
       })
     }
@@ -218,7 +218,7 @@ fn number_exclusivemaximum(
 
 fn number_multiple_of(
   value: ValidationProperty,
-) -> Result(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     NumberProperty(_, i, f) -> {
       Ok(fn(v) {
@@ -226,19 +226,19 @@ fn number_multiple_of(
           Some(_), None -> {
             case is_multiple(v, Number(i, f)) {
               Ok(True) -> None
-              Ok(False) -> Some(FailedProperty(value, _))
-              Error(err) -> Some(fn(_) { err })
+              Ok(False) -> Some(FailedProperty(value, v))
+              Error(err) -> Some(err)
             }
           }
           None, Some(_) -> {
             case is_multiple(v, Number(i, f)) {
               Ok(True) -> None
-              Ok(False) -> Some(FailedProperty(value, _))
-              Error(err) -> Some(fn(_) { err })
+              Ok(False) -> Some(FailedProperty(value, v))
+              Error(err) -> Some(err)
             }
           }
 
-          _, _ -> Some(fn(_) { InvalidSchema(15) })
+          _, _ -> Some(InvalidSchema(15))
         }
       })
     }
@@ -246,9 +246,9 @@ fn number_multiple_of(
   }
 }
 
-fn is_multiple(num: Number, of: Number) -> Result(Bool, InvalidEntry) {
+fn is_multiple(num: JsonValue, of: Number) -> Result(Bool, InvalidEntry) {
   case num {
-    Number(Some(i1), None) -> {
+    JsonNumber(Some(i1), _, _) -> {
       case of {
         Number(Some(i2), None) -> {
           Ok(i1 % i2 == 0)
@@ -264,7 +264,7 @@ fn is_multiple(num: Number, of: Number) -> Result(Bool, InvalidEntry) {
         _ -> Error(InvalidSchema(17))
       }
     }
-    Number(None, Some(f1)) -> {
+    JsonNumber(_, Some(f1), _) -> {
       case of {
         Number(Some(i2), None) -> {
           let f2 = int.to_float(i2)
