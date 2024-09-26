@@ -19,12 +19,8 @@ pub type ValidationProperty {
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
   MultiNode(validations: List(ValidationNode))
-  StringNode(
-    properties: List(fn(String) -> Option(fn(JsonValue) -> InvalidEntry)),
-  )
-  NumberNode(
-    properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)),
-  )
+  StringNode(properties: List(fn(JsonValue) -> Option(InvalidEntry)))
+  NumberNode(properties: List(fn(JsonValue) -> Option(InvalidEntry)))
   ArrayNode(
     properties: List(
       fn(List(JsonValue)) -> Option(fn(JsonValue) -> InvalidEntry),

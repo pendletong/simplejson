@@ -14,7 +14,7 @@ import simplejson/internal/schema/types.{
 import simplejson/internal/schema/validator
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{
-  type JsonValue, JsonArray, JsonBool, JsonObject, JsonString,
+  type JsonValue, JsonArray, JsonBool, JsonNumber, JsonObject, JsonString,
 }
 
 import gleam/dict.{type Dict}
@@ -196,14 +196,14 @@ fn generate_int_validation(
     NumberNode([
       fn(num) {
         case num {
-          Number(Some(i), _) -> None
-          Number(_, Some(f)) -> {
+          JsonNumber(Some(_), _, _) -> None
+          JsonNumber(_, Some(f), _) -> {
             case f == int.to_float(float.truncate(f)) {
               True -> None
-              False -> Some(fn(json_value) { InvalidDataType(json_value) })
+              False -> Some(InvalidDataType(num))
             }
           }
-          Number(None, None) -> Some(fn(_) { InvalidSchema(16) })
+          _ -> Some(InvalidSchema(16))
         }
       },
       ..props
