@@ -139,4 +139,8 @@ pub fn main() {
   |> io.debug
   schema.validate("10", "{\"type\":\"number\",\"minimum\":15}")
   |> io.debug
+  schema.validate("10", "{\"type\":\"boolean\",\"minimum\":15}")
+  |> io.debug
+  schema.validate("true", "{\"type\":\"boolean\",\"minimum\":15}")
+  |> io.debug
 }

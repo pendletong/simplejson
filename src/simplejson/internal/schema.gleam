@@ -40,10 +40,10 @@ pub opaque type ValidationNode {
   StringNode(
     properties: List(fn(String) -> Option(fn(JsonValue) -> InvalidEntry)),
   )
-  // IntNode(properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)))
   NumberNode(
     properties: List(fn(Number) -> Option(fn(JsonValue) -> InvalidEntry)),
   )
+  BooleanNode
 }
 
 pub type InvalidEntry {
@@ -146,6 +146,7 @@ fn generate_specified_validation(
     "number" -> {
       generate_number_validation(dict, sub_schema)
     }
+    "boolean" -> Ok(#(BooleanNode, sub_schema))
     _ -> todo
   }
 }
@@ -708,6 +709,9 @@ fn validate_node(
     NumberNode(props) -> {
       validate_number(node, props)
     }
+    BooleanNode -> {
+      validate_boolean(node)
+    }
     SimpleValidation(True) -> {
       #(True, [])
     }
@@ -783,6 +787,13 @@ fn validate_number(
         Error(err) -> #(False, [err(node)])
       }
     }
+    _ -> #(False, [InvalidDataType(node)])
+  }
+}
+
+fn validate_boolean(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
+  case node {
+    JsonBool(_) -> #(True, [])
     _ -> #(False, [InvalidDataType(node)])
   }
 }
