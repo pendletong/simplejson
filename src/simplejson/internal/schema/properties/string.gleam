@@ -8,7 +8,7 @@ import simplejson/internal/schema/types.{
   type InvalidEntry, type ValidationProperty, FailedProperty, IntProperty,
   InvalidSchema, StringProperty,
 }
-import simplejson/jsonvalue.{type JsonValue}
+import simplejson/jsonvalue.{type JsonValue, JsonString}
 
 pub const string_properties = [
   #("minLength", get_int_property, string_min_length),
@@ -19,13 +19,13 @@ pub const string_properties = [
 
 fn string_min_length(
   value: ValidationProperty,
-) -> Result(fn(String) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     IntProperty(_, int_value) -> {
       Ok(fn(v) {
-        case string.length(v) >= int_value {
+        case perform_check(v, fn(str) { string.length(str) >= int_value }) {
           True -> None
-          False -> Some(FailedProperty(value, _))
+          False -> Some(FailedProperty(value, v))
         }
       })
     }
@@ -35,13 +35,13 @@ fn string_min_length(
 
 fn string_max_length(
   value: ValidationProperty,
-) -> Result(fn(String) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     IntProperty(_, int_value) -> {
       Ok(fn(v) {
-        case string.length(v) <= int_value {
+        case perform_check(v, fn(str) { string.length(str) <= int_value }) {
           True -> None
-          False -> Some(FailedProperty(value, _))
+          False -> Some(FailedProperty(value, v))
         }
       })
     }
@@ -51,14 +51,14 @@ fn string_max_length(
 
 fn string_pattern(
   value: ValidationProperty,
-) -> Result(fn(String) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     StringProperty(_, str_value) -> {
       Ok(fn(v) {
         let assert Ok(re) = regex.from_string(str_value)
-        case regex.check(re, v) {
+        case perform_check(v, fn(str) { regex.check(re, str) }) {
           True -> None
-          False -> Some(FailedProperty(value, _))
+          False -> Some(FailedProperty(value, v))
         }
       })
     }
@@ -66,12 +66,19 @@ fn string_pattern(
   }
 }
 
+fn perform_check(v: JsonValue, check: fn(String) -> Bool) -> Bool {
+  case v {
+    JsonString(str) -> check(str)
+    _ -> False
+  }
+}
+
 fn string_format(
   value: ValidationProperty,
-) -> Result(fn(String) -> Option(fn(JsonValue) -> InvalidEntry), InvalidEntry) {
+) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
     StringProperty(_, _) -> {
-      Ok(fn(_) { None })
+      Ok(fn(_v) { None })
     }
     _ -> Error(InvalidSchema(13))
   }
