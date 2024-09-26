@@ -737,15 +737,21 @@ fn validate_node(
           // Filtering the invalid data types should remove
           // any nodes that type didn't match and keep the node type
           // that matched and its error
-          #(
-            False,
+          let errors =
             list.filter(errors, fn(err) {
               case err {
                 InvalidDataType(_) -> False
                 _ -> True
               }
-            }),
-          )
+            })
+
+          // If there are no errors then the issue must be
+          // data type matching so return that error
+          let errors = case errors {
+            [] -> [InvalidDataType(node)]
+            _ -> errors
+          }
+          #(False, errors)
         }
       }
     }
