@@ -4,7 +4,7 @@ import gleam/list
 import gleam/result
 import gleam/string
 import simplejson/internal/parser
-import simplejson/internal/schema
+import simplejson/internal/schema/schema
 import simplejson/internal/stringify
 import simplejson/jsonvalue
 import simplifile
