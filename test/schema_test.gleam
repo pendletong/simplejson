@@ -193,6 +193,30 @@ pub fn schema_number_tests() {
         |> expect.to_be_true
       }),
     ]),
+    describe("Basic Number Multiples", [
+      it("Basic Number Multiple Property", fn() {
+        schema.validate("125", "{\"type\":\"number\", \"multipleOf\":25}")
+        |> expect.to_equal(#(True, []))
+      }),
+      it("Basic Number Multiple Float Property", fn() {
+        schema.validate("125", "{\"type\":\"number\", \"multipleOf\":6.25}")
+        |> expect.to_equal(#(True, []))
+      }),
+      it("Basic Number Multiple Property Fails", fn() {
+        let #(pass, errors) =
+          schema.validate("125", "{\"type\":\"number\", \"multipleOf\":20}")
+        pass |> expect.to_be_false
+        contains_failed_property_error(
+          errors,
+          NumberProperty("multipleOf", Some(20), None),
+        )
+        |> expect.to_be_true
+      }),
+      it("Basic Float Multiple Property", fn() {
+        schema.validate("10.8", "{\"type\":\"number\", \"multipleOf\":3.6}")
+        |> expect.to_equal(#(True, []))
+      }),
+    ]),
   ])
 }
 
