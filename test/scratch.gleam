@@ -162,4 +162,7 @@ pub fn main() {
     "{\"type\":\"array\",\"items\":{\"type\":\"number\"},\"minimum\":15}",
   )
   |> io.debug
+  io.println(
+    "{\"type\":\"string\", \"pattern\":\"\\\\d\\\\d\\\\d-\\\\d\\\\d\\\\d\"}",
+  )
 }
