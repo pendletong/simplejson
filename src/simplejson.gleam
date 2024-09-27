@@ -2,9 +2,15 @@
 //// 
 //// Basic JSON library for Gleam
 
+import gleam/dict
+import gleam/io
+import gleam/list
 import simplejson/internal/parser
 import simplejson/internal/stringify
-import simplejson/jsonvalue.{type JsonValue, type ParseError}
+import simplejson/jsonvalue.{
+  type JsonValue, type ParseError, JsonArray, JsonBool, JsonNull, JsonNumber,
+  JsonObject, JsonString, NoMD,
+}
 
 /// Parse a given string into a JsonValue Result
 /// Or return Error if unable. This currently returns
@@ -25,8 +31,20 @@ import simplejson/jsonvalue.{type JsonValue, type ParseError}
 /// 
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
   case parser.parse(json) {
-    Ok(json) -> Ok(json)
+    Ok(json) -> Ok(strip_metadata(json))
     Error(_) as err -> err
+  }
+}
+
+fn strip_metadata(json: JsonValue) -> JsonValue {
+  case json {
+    JsonNull(_) -> JsonNull(NoMD)
+    JsonBool(_, b) -> JsonBool(NoMD, b)
+    JsonString(_, s) -> JsonString(NoMD, s)
+    JsonNumber(_, i, f, o) -> JsonNumber(NoMD, i, f, o)
+    JsonArray(_, l) -> JsonArray(NoMD, list.map(l, strip_metadata))
+    JsonObject(_, d) ->
+      JsonObject(NoMD, dict.map_values(d, fn(_k, v) { strip_metadata(v) }))
   }
 }
 

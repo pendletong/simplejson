@@ -1,4 +1,5 @@
 import gleam/io
+import simplejson
 import simplejson/internal/parser
 import simplejson/internal/schema/schema
 
@@ -160,6 +161,6 @@ pub fn main() {
   // )
   // schema.validate("24", "{\"type\":\"number\",\"multipleOf\":2}")
   // |> io.debug
-  parser.parse("{\"a\": []}")
+  simplejson.parse("{\"a\": []}")
   |> io.debug
 }

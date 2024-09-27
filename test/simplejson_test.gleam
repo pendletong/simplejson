@@ -162,7 +162,7 @@ pub fn simplejson_tests() {
       let json = read_file(name)
       use <- bool.guard(when: json == Error(Nil), return: Nil)
       let assert Ok(json) = json
-      let parsed = simplejson.parse(json)
+      let parsed = simplejson.parse_with_metadata(json)
       case list.last(string.split(name, "/")) {
         Ok("n" <> _) -> {
           parsed |> result.map_error(fn(_) { Nil }) |> expect.to_be_error
@@ -177,7 +177,7 @@ pub fn simplejson_tests() {
               }
               let res = case res {
                 Error(err) -> Error(err)
-                Ok(str) -> simplejson.parse(str)
+                Ok(str) -> simplejson.parse_with_metadata(str)
               }
               parsed |> expect.to_equal(res)
               Nil
@@ -200,19 +200,19 @@ pub fn simplejson_tests() {
 pub fn parse_array_tests() {
   describe("Array Parsing - Successful", [
     it("Empty Array", fn() {
-      simplejson.parse("[]")
+      simplejson.parse_with_metadata("[]")
       |> expect.to_be_ok
       |> expect.to_equal(JsonArray(JsonMetaData(0, 2), []))
     }),
     it("Array with String", fn() {
-      simplejson.parse("[\"a\"]")
+      simplejson.parse_with_metadata("[\"a\"]")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(0, 5), [JsonString(JsonMetaData(1, 4), "a")]),
       )
     }),
     it("Array with Multiple Strings", fn() {
-      simplejson.parse("[\"a\", \"z\"]")
+      simplejson.parse_with_metadata("[\"a\", \"z\"]")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(0, 10), [
@@ -222,14 +222,14 @@ pub fn parse_array_tests() {
       )
     }),
     it("Array with String and Spaces", fn() {
-      simplejson.parse(" [ \"a\" ] ")
+      simplejson.parse_with_metadata(" [ \"a\" ] ")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(1, 8), [JsonString(JsonMetaData(3, 6), "a")]),
       )
     }),
     it("Array with Int", fn() {
-      simplejson.parse("[123]")
+      simplejson.parse_with_metadata("[123]")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(0, 5), [
@@ -238,7 +238,7 @@ pub fn parse_array_tests() {
       )
     }),
     it("Array with Multiple Ints", fn() {
-      simplejson.parse("[999, 111]")
+      simplejson.parse_with_metadata("[999, 111]")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(0, 10), [
@@ -248,7 +248,7 @@ pub fn parse_array_tests() {
       )
     }),
     it("Array with Float", fn() {
-      simplejson.parse("[123.5]")
+      simplejson.parse_with_metadata("[123.5]")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(0, 7), [
@@ -257,7 +257,7 @@ pub fn parse_array_tests() {
       )
     }),
     it("Array with Multiple Floats", fn() {
-      simplejson.parse("[999.5, 111.5]")
+      simplejson.parse_with_metadata("[999.5, 111.5]")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(0, 14), [
@@ -267,7 +267,7 @@ pub fn parse_array_tests() {
       )
     }),
     it("Array with Multiple JsonValues", fn() {
-      simplejson.parse("[999, \"111\", {}]")
+      simplejson.parse_with_metadata("[999, \"111\", {}]")
       |> expect.to_be_ok
       |> expect.to_equal(
         JsonArray(JsonMetaData(0, 16), [
@@ -278,7 +278,7 @@ pub fn parse_array_tests() {
       )
     }),
     it("Array inside Object", fn() {
-      simplejson.parse("{\"a\": []}")
+      simplejson.parse_with_metadata("{\"a\": []}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 9),
@@ -291,27 +291,27 @@ pub fn parse_array_tests() {
 pub fn parse_array_error_tests() {
   describe("Array Parsing - Errors", [
     it("Unclosed Array", fn() {
-      simplejson.parse("[")
+      simplejson.parse_with_metadata("[")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedEnd)
     }),
     it("Unclosed Array with Space", fn() {
-      simplejson.parse("[\n\n\r\t ")
+      simplejson.parse_with_metadata("[\n\n\r\t ")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedEnd)
     }),
     it("Invalid item in Array", fn() {
-      simplejson.parse("[\"]")
+      simplejson.parse_with_metadata("[\"]")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedEnd)
     }),
     it("Invalid item in Array", fn() {
-      simplejson.parse("[-]")
+      simplejson.parse_with_metadata("[-]")
       |> expect.to_be_error
       |> expect.to_equal(InvalidNumber("-]", "-]", 1))
     }),
     it("Invalid closing of Array", fn() {
-      simplejson.parse("[{\"a\":1]}")
+      simplejson.parse_with_metadata("[{\"a\":1]}")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedCharacter("]", "]}", 7))
     }),
@@ -321,17 +321,17 @@ pub fn parse_array_error_tests() {
 pub fn parse_object_tests() {
   describe("Object Parsing - Successful", [
     it("Empty Object", fn() {
-      simplejson.parse("{}")
+      simplejson.parse_with_metadata("{}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(JsonMetaData(0, 2), dict.from_list([])))
     }),
     it("Empty Object with Spaces", fn() {
-      simplejson.parse("{\n}\t ")
+      simplejson.parse_with_metadata("{\n}\t ")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(JsonMetaData(0, 3), dict.from_list([])))
     }),
     it("Object with Boolean value", fn() {
-      simplejson.parse("{\"test\":true}")
+      simplejson.parse_with_metadata("{\"test\":true}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 13),
@@ -339,7 +339,7 @@ pub fn parse_object_tests() {
       ))
     }),
     it("Object with String value", fn() {
-      simplejson.parse("{\"test\":\"true\"}")
+      simplejson.parse_with_metadata("{\"test\":\"true\"}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 15),
@@ -347,7 +347,7 @@ pub fn parse_object_tests() {
       ))
     }),
     it("Object with Null value", fn() {
-      simplejson.parse("{\"test\":  null}")
+      simplejson.parse_with_metadata("{\"test\":  null}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 15),
@@ -355,7 +355,7 @@ pub fn parse_object_tests() {
       ))
     }),
     it("Object with Number value", fn() {
-      simplejson.parse("{\"test\":999}")
+      simplejson.parse_with_metadata("{\"test\":999}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 12),
@@ -368,7 +368,7 @@ pub fn parse_object_tests() {
       ))
     }),
     it("Object with Object value", fn() {
-      simplejson.parse("{\"test\":{}}")
+      simplejson.parse_with_metadata("{\"test\":{}}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 11),
@@ -378,7 +378,7 @@ pub fn parse_object_tests() {
       ))
     }),
     it("Object with Multiple values", fn() {
-      simplejson.parse("{\"1\":true, \"2\":false}")
+      simplejson.parse_with_metadata("{\"1\":true, \"2\":false}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 21),
@@ -389,7 +389,7 @@ pub fn parse_object_tests() {
       ))
     }),
     it("Object with Multiple values and duplicate", fn() {
-      simplejson.parse("{\"1\":true, \"2\":false, \"1\":123}")
+      simplejson.parse_with_metadata("{\"1\":true, \"2\":false, \"1\":123}")
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         JsonMetaData(0, 30),
@@ -405,22 +405,22 @@ pub fn parse_object_tests() {
 pub fn parse_object_error_tests() {
   describe("Object Parsing - Errors", [
     it("Unclosed Object", fn() {
-      simplejson.parse("{")
+      simplejson.parse_with_metadata("{")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedEnd)
     }),
     it("Unclosed Key", fn() {
-      simplejson.parse("{\"")
+      simplejson.parse_with_metadata("{\"")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedEnd)
     }),
     it("Just Key", fn() {
-      simplejson.parse("{\"key\"")
+      simplejson.parse_with_metadata("{\"key\"")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedEnd)
     }),
     it("Just Key and Colon", fn() {
-      simplejson.parse("{\"key\": }")
+      simplejson.parse_with_metadata("{\"key\": }")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedCharacter("}", "}", 8))
     }),
@@ -430,27 +430,27 @@ pub fn parse_object_error_tests() {
 pub fn parse_string_tests() {
   describe("String Parsing - Successful", [
     it("Empty String", fn() {
-      simplejson.parse("\"\"")
+      simplejson.parse_with_metadata("\"\"")
       |> expect.to_be_ok
       |> expect.to_equal(JsonString(JsonMetaData(0, 2), ""))
     }),
     it("Simple String", fn() {
-      simplejson.parse("\"abc\"")
+      simplejson.parse_with_metadata("\"abc\"")
       |> expect.to_be_ok
       |> expect.to_equal(JsonString(JsonMetaData(0, 5), "abc"))
     }),
     it("String with Escaped Chars", fn() {
-      simplejson.parse("\"a\\r\\nb\"")
+      simplejson.parse_with_metadata("\"a\\r\\nb\"")
       |> expect.to_be_ok
       |> expect.to_equal(JsonString(JsonMetaData(0, 8), "a\r\nb"))
     }),
     it("String with Unicode Chars", fn() {
-      simplejson.parse("\"\\u1000\\u2000\"")
+      simplejson.parse_with_metadata("\"\\u1000\\u2000\"")
       |> expect.to_be_ok
       |> expect.to_equal(JsonString(JsonMetaData(0, 14), "\u{1000}\u{2000}"))
     }),
     it("String with Quotes and Backslash", fn() {
-      simplejson.parse("\"a\\\"\\\\b\"")
+      simplejson.parse_with_metadata("\"a\\\"\\\\b\"")
       |> expect.to_be_ok
       |> expect.to_equal(JsonString(JsonMetaData(0, 8), "a\"\\b"))
     }),
@@ -460,17 +460,17 @@ pub fn parse_string_tests() {
 pub fn parse_string_error_tests() {
   describe("String Parsing - Errors", [
     it("Unclosed String", fn() {
-      simplejson.parse("\"")
+      simplejson.parse_with_metadata("\"")
       |> expect.to_be_error
       |> expect.to_equal(UnexpectedEnd)
     }),
     it("Invalid Char", fn() {
-      simplejson.parse("\"\u{05}\"")
+      simplejson.parse_with_metadata("\"\u{05}\"")
       |> expect.to_be_error
       |> expect.to_equal(InvalidCharacter("\u{05}", "\u{05}\"", 1))
     }),
     it("Invalid Escape", fn() {
-      simplejson.parse("\"\\h\"")
+      simplejson.parse_with_metadata("\"\\h\"")
       |> expect.to_be_error
       |> expect.to_equal(InvalidEscapeCharacter("h", "\\h\"", 1))
     }),
