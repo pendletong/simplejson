@@ -15,23 +15,23 @@ pub fn to_string(json: JsonValue) -> String {
 
 fn create_string(json: JsonValue, acc: String) -> String {
   case json {
-    JsonBool(b) -> {
+    JsonBool(_, b) -> {
       case b {
         True -> acc <> "true"
         False -> acc <> "false"
       }
     }
-    JsonString(s) -> {
+    JsonString(_, s) -> {
       acc <> "\"" <> encode_string(s, "") <> "\""
     }
-    JsonArray(l) ->
+    JsonArray(_, l) ->
       acc <> "[" <> encode_list(dict_to_ordered_list(l), "") <> "]"
-    JsonNull -> acc <> "null"
-    JsonNumber(_, _, Some(s)) -> acc <> s
-    JsonNumber(Some(i), _, _) -> acc <> encode_int(i)
-    JsonNumber(_, Some(f), _) -> acc <> encode_float(f)
-    JsonNumber(None, None, _) -> panic
-    JsonObject(o) -> acc <> "{" <> encode_object(o) <> "}"
+    JsonNull(_) -> acc <> "null"
+    JsonNumber(_, _, _, Some(s)) -> acc <> s
+    JsonNumber(_, Some(i), _, _) -> acc <> encode_int(i)
+    JsonNumber(_, _, Some(f), _) -> acc <> encode_float(f)
+    JsonNumber(_, None, None, _) -> panic
+    JsonObject(_, o) -> acc <> "{" <> encode_object(o) <> "}"
   }
 }
 
@@ -137,12 +137,12 @@ fn encode_char(char: String) -> String {
 
 fn encode_list(l: List(JsonValue), acc: String) -> String {
   case l {
-    [JsonArray(_) as el, ..rest]
-    | [JsonBool(_) as el, ..rest]
-    | [JsonNull as el, ..rest]
-    | [JsonObject(_) as el, ..rest]
-    | [JsonString(_) as el, ..rest]
-    | [JsonNumber(_, _, _) as el, ..rest] -> {
+    [JsonArray(_, _) as el, ..rest]
+    | [JsonBool(_, _) as el, ..rest]
+    | [JsonNull(_) as el, ..rest]
+    | [JsonObject(_, _) as el, ..rest]
+    | [JsonString(_, _) as el, ..rest]
+    | [JsonNumber(_, _, _, _) as el, ..rest] -> {
       encode_list(
         rest,
         acc

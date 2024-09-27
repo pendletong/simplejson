@@ -20,13 +20,13 @@ import simplejson/internal/jsonpath.{
 import simplejson/internal/parser
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
-  JsonString,
+  JsonString, NoMD,
 }
 
 pub fn query(json: JsonValue, path: JsonPath, absroot: JsonValue) -> JsonValue {
   query_to_list(json, path, absroot)
   |> parser.list_to_indexed_dict
-  |> JsonArray
+  |> JsonArray(NoMD, _)
 }
 
 fn query_to_list(
@@ -66,11 +66,11 @@ fn process_selectors(
 
 fn get_descendants(list: List(JsonValue), json: JsonValue) -> List(JsonValue) {
   case json {
-    JsonObject(d) -> {
+    JsonObject(_, d) -> {
       let new_list = dict.values(d)
       list.fold(new_list, list.append(list, new_list), get_descendants)
     }
-    JsonArray(d) -> {
+    JsonArray(_, d) -> {
       let new_list = dict.values(d)
       list.fold(new_list, list.append(list, new_list), get_descendants)
     }
@@ -112,10 +112,10 @@ fn do_filter(
   absroot: JsonValue,
 ) -> List(JsonValue) {
   let l = case json {
-    JsonArray(d) -> {
+    JsonArray(_, d) -> {
       stringify.dict_to_ordered_list(d)
     }
-    JsonObject(d) -> dict.values(d)
+    JsonObject(_, d) -> dict.values(d)
     _ -> []
   }
   use <- bool.guard(when: l == [], return: [])
@@ -482,24 +482,24 @@ fn get_comparable(
 
 fn jsonvalue_to_literal(jv: JsonValue) -> Literal {
   case jv {
-    JsonArray(arr) -> Array(arr)
-    JsonObject(obj) -> Object(obj)
-    JsonBool(bool:) -> Boolean(bool)
-    JsonNull -> Null
-    JsonNumber(int: Some(i), float: _, original: _) -> {
+    JsonArray(_, arr) -> Array(arr)
+    JsonObject(_, obj) -> Object(obj)
+    JsonBool(_, bool:) -> Boolean(bool)
+    JsonNull(_) -> Null
+    JsonNumber(_, int: Some(i), float: _, original: _) -> {
       let assert Ok(bd) = bigdecimal.from_string(int.to_string(i))
       Number(bd)
     }
-    JsonNumber(int: _, float: _, original: Some(s)) -> {
+    JsonNumber(_, int: _, float: _, original: Some(s)) -> {
       let assert Ok(#(n, _)) = jsonpath.parse_literal_number(s)
       n
     }
-    JsonNumber(int: _, float: Some(f), original: _) -> {
+    JsonNumber(_, int: _, float: Some(f), original: _) -> {
       Number(bigdecimal.from_float(f))
     }
 
-    JsonString(str:) -> String(str)
-    JsonNumber(int: None, float: None, original: None) -> panic
+    JsonString(_, str:) -> String(str)
+    JsonNumber(_, int: None, float: None, original: None) -> panic
   }
 }
 
@@ -519,7 +519,7 @@ fn do_slice(
   step: Option(Int),
 ) -> List(JsonValue) {
   case json {
-    JsonArray(d) -> {
+    JsonArray(_, d) -> {
       use <- bool.guard(when: step == Some(0), return: [])
       let len = dict.size(d)
       let step = option.unwrap(step, 1)
@@ -599,7 +599,7 @@ fn normalise(i: Int, len: Int) -> Int {
 
 fn do_index(json: JsonValue, index: Int) -> List(JsonValue) {
   case json {
-    JsonArray(d) -> {
+    JsonArray(_, d) -> {
       case index >= 0 {
         True -> {
           case dict.get(d, index) {
@@ -627,15 +627,15 @@ fn do_index(json: JsonValue, index: Int) -> List(JsonValue) {
 
 fn do_wildcard(json: JsonValue) -> List(JsonValue) {
   case json {
-    JsonArray(d) -> stringify.dict_to_ordered_list(d)
-    JsonObject(d) -> dict.values(d)
+    JsonArray(_, d) -> stringify.dict_to_ordered_list(d)
+    JsonObject(_, d) -> dict.values(d)
     _ -> []
   }
 }
 
 fn do_name(json: JsonValue, name: String) -> List(JsonValue) {
   case json {
-    JsonObject(d) -> {
+    JsonObject(_, d) -> {
       case dict.get(d, name) {
         Ok(v) -> [v]
         _ -> []

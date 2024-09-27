@@ -39,6 +39,13 @@ import simplejson/jsonvalue.{type JsonPathError, type JsonValue, type ParseError
 /// // -> Error(UnexpectedCharacter("]", ",2,3,]", 7))
 /// ```
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
+  case parser.parse(json) {
+    Ok(json) -> Ok(json)
+    Error(_) as err -> err
+  }
+}
+
+pub fn parse_with_metadata(json: String) -> Result(JsonValue, ParseError) {
   parser.parse(json)
 }
 

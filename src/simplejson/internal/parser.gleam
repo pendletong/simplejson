@@ -2,6 +2,7 @@ import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order.{Eq, Gt, Lt}
@@ -9,18 +10,26 @@ import gleam/result
 import gleam/string
 import simplejson/jsonvalue.{
   type JsonValue, type ParseError, InvalidCharacter, InvalidEscapeCharacter,
-  InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber,
-  JsonObject, JsonString, NestingDepth, UnexpectedCharacter, UnexpectedEnd,
-  Unknown,
+  InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonMetaData, JsonNull,
+  JsonNumber, JsonObject, JsonString, NestingDepth, UnexpectedCharacter,
+  UnexpectedEnd, Unknown,
 }
 
 const max_depth = 512
 
+type Location {
+  Location(depth: Int, char: Int, block_start: Int)
+}
+
+type ReturnInfo {
+  ReturnInfo(remaining: String, json: JsonValue, location: Location)
+}
+
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
-  let json = do_trim_whitespace(json)
-  case do_parse(json, 0) {
-    Ok(#(rest, json_value)) -> {
-      let rest = do_trim_whitespace(rest)
+  let #(json, current_loc) = do_trim_whitespace(json, Location(0, 0, 0))
+  case do_parse(json, current_loc) {
+    Ok(ReturnInfo(rest, json_value, current_loc)) -> {
+      let #(rest, _) = do_trim_whitespace(rest, current_loc)
       case rest {
         "" -> Ok(json_value)
         _ -> Error(create_error(UnexpectedCharacter, json, rest, ""))
@@ -69,29 +78,83 @@ fn create_error(
   )
 }
 
+fn increment_location(loc: Location, pos: Int, depth: Int) -> Location {
+  Location(loc.depth + depth, loc.char + pos, loc.block_start)
+}
+
+fn increment_location_and_mark_start(
+  loc: Location,
+  pos: Int,
+  depth: Int,
+) -> Location {
+  Location(loc.depth + depth, loc.char + pos, loc.char)
+}
+
+fn unpop_start(return_info: ReturnInfo, original_pos: Location) {
+  let new_location =
+    Location(..return_info.location, block_start: original_pos.block_start)
+  ReturnInfo(..return_info, location: new_location)
+}
+
+fn unpop_depth(return_info: ReturnInfo, original_pos: Location) {
+  let new_location = Location(..return_info.location, depth: original_pos.depth)
+  ReturnInfo(..return_info, location: new_location)
+}
+
 fn do_parse(
   json: String,
-  current_depth: Int,
-) -> Result(#(String, JsonValue), ParseError) {
-  let json = do_trim_whitespace(json)
+  original_pos: Location,
+) -> Result(ReturnInfo, ParseError) {
+  let #(json, current_pos) = do_trim_whitespace(json, original_pos)
   case json {
     "[" <> rest -> {
-      do_parse_list(rest, [], None, current_depth + 1)
+      do_parse_list(
+        rest,
+        [],
+        None,
+        increment_location_and_mark_start(current_pos, 1, 1),
+      )
+      |> result.map(unpop_start(_, original_pos))
+      |> result.map(unpop_depth(_, original_pos))
     }
     "{" <> rest -> {
-      do_parse_object(rest, dict.new(), None, current_depth + 1)
+      do_parse_object(
+        rest,
+        dict.new(),
+        None,
+        increment_location_and_mark_start(current_pos, 1, 1),
+      )
+      |> result.map(unpop_start(_, original_pos))
+      |> result.map(unpop_depth(_, original_pos))
     }
     "\"" <> rest -> {
-      do_parse_string(rest, "")
+      do_parse_string(
+        rest,
+        "",
+        increment_location_and_mark_start(current_pos, 1, 0),
+      )
+      |> result.map(unpop_start(_, original_pos))
     }
     "true" <> rest -> {
-      Ok(#(rest, JsonBool(True)))
+      Ok(ReturnInfo(
+        rest,
+        JsonBool(JsonMetaData(current_pos.char, current_pos.char + 4), True),
+        increment_location(current_pos, 4, 0),
+      ))
     }
     "false" <> rest -> {
-      Ok(#(rest, JsonBool(False)))
+      Ok(ReturnInfo(
+        rest,
+        JsonBool(JsonMetaData(current_pos.char, current_pos.char + 5), False),
+        increment_location(current_pos, 5, 0),
+      ))
     }
     "null" <> rest -> {
-      Ok(#(rest, JsonNull))
+      Ok(ReturnInfo(
+        rest,
+        JsonNull(JsonMetaData(current_pos.char, current_pos.char + 4)),
+        increment_location(current_pos, 4, 0),
+      ))
     }
     "-" <> _rest
     | "0" <> _rest
@@ -104,18 +167,21 @@ fn do_parse(
     | "7" <> _rest
     | "8" <> _rest
     | "9" <> _rest -> {
-      do_parse_number(json)
+      do_parse_number(json, current_pos)
     }
     "" -> Error(UnexpectedEnd)
     _ -> Error(UnexpectedCharacter("", json, -1))
   }
 }
 
-fn do_trim_whitespace(json: String) -> String {
+fn do_trim_whitespace(
+  json: String,
+  current_pos: Location,
+) -> #(String, Location) {
   case json {
     " " <> rest | "\r" <> rest | "\n" <> rest | "\t" <> rest ->
-      do_trim_whitespace(rest)
-    _ -> json
+      do_trim_whitespace(rest, increment_location(current_pos, 1, 0))
+    _ -> #(json, current_pos)
   }
 }
 
@@ -123,33 +189,47 @@ fn do_parse_object(
   json: String,
   obj: Dict(String, JsonValue),
   last_entry: Option(#(Option(Nil), Option(String), Option(JsonValue))),
-  current_depth: Int,
-) -> Result(#(String, JsonValue), ParseError) {
+  current_pos: Location,
+) -> Result(ReturnInfo, ParseError) {
   use <- bool.guard(
-    when: current_depth > max_depth,
-    return: Error(NestingDepth(current_depth)),
+    when: current_pos.depth > max_depth,
+    return: Error(NestingDepth(current_pos.depth)),
   )
-  let trimmed_json = do_trim_whitespace(json)
+  let #(trimmed_json, current_pos) = do_trim_whitespace(json, current_pos)
   case trimmed_json {
     "}" <> rest -> {
       case last_entry {
-        None | Some(#(None, None, None)) -> Ok(#(rest, JsonObject(obj)))
+        None | Some(#(None, None, None)) -> {
+          let current_pos = increment_location(current_pos, 1, 0)
+          Ok(ReturnInfo(
+            rest,
+            JsonObject(
+              JsonMetaData(current_pos.block_start, current_pos.char),
+              obj,
+            ),
+            current_pos,
+          ))
+        }
         _ -> Error(UnexpectedCharacter("}", trimmed_json, -1))
       }
     }
     "\"" <> rest -> {
       case last_entry {
         None | Some(#(Some(Nil), None, None)) -> {
-          case do_parse_string(rest, "") {
-            Ok(#(rest, JsonString(key))) ->
+          case
+            do_parse_string(rest, "", increment_location(current_pos, 1, 0))
+          {
+            Ok(ReturnInfo(rest, JsonString(_, key), loc)) ->
               do_parse_object(
                 rest,
                 obj,
                 Some(#(Some(Nil), Some(key), None)),
-                current_depth,
+                loc,
               )
             Error(e) -> Error(e)
-            Ok(_) -> Error(Unknown)
+            Ok(_) -> {
+              Error(Unknown)
+            }
           }
         }
         _ -> Error(UnexpectedCharacter("\"", trimmed_json, -1))
@@ -158,12 +238,15 @@ fn do_parse_object(
     ":" <> rest -> {
       case last_entry {
         Some(#(Some(Nil), Some(key), None)) -> {
-          use #(rest, value) <- result.try(do_parse(rest, current_depth))
+          use ReturnInfo(rest, value, pos) <- result.try(do_parse(
+            rest,
+            increment_location(current_pos, 1, 0),
+          ))
           do_parse_object(
             rest,
             dict.insert(obj, key, value),
             Some(#(None, None, None)),
-            current_depth,
+            pos,
           )
         }
         _ -> Error(UnexpectedCharacter(":", trimmed_json, -1))
@@ -176,7 +259,7 @@ fn do_parse_object(
             rest,
             obj,
             Some(#(Some(Nil), None, None)),
-            current_depth,
+            increment_location(current_pos, 1, 0),
           )
         }
         _ -> Error(UnexpectedCharacter(",", trimmed_json, -1))
@@ -190,22 +273,74 @@ fn do_parse_object(
 fn do_parse_string(
   json: String,
   str: String,
-) -> Result(#(String, JsonValue), ParseError) {
+  current_pos: Location,
+) -> Result(ReturnInfo, ParseError) {
   case json {
-    "\"" <> rest -> Ok(#(rest, JsonString(str)))
+    "\"" <> rest -> {
+      let current_pos = increment_location(current_pos, 1, 0)
+      Ok(ReturnInfo(
+        rest,
+        JsonString(JsonMetaData(current_pos.block_start, current_pos.char), str),
+        current_pos,
+      ))
+    }
     "\\" <> rest -> {
       case rest {
-        "\"" <> rest -> do_parse_string(rest, str <> "\"")
-        "\\" <> rest -> do_parse_string(rest, str <> "\\")
-        "/" <> rest -> do_parse_string(rest, str <> "/")
-        "b" <> rest -> do_parse_string(rest, str <> "\u{08}")
-        "f" <> rest -> do_parse_string(rest, str <> "\f")
-        "n" <> rest -> do_parse_string(rest, str <> "\n")
-        "r" <> rest -> do_parse_string(rest, str <> "\r")
-        "t" <> rest -> do_parse_string(rest, str <> "\t")
+        "\"" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "\"",
+            increment_location(current_pos, 2, 0),
+          )
+        "\\" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "\\",
+            increment_location(current_pos, 2, 0),
+          )
+        "/" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "/",
+            increment_location(current_pos, 2, 0),
+          )
+        "b" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "\u{08}",
+            increment_location(current_pos, 2, 0),
+          )
+        "f" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "\f",
+            increment_location(current_pos, 2, 0),
+          )
+        "n" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "\n",
+            increment_location(current_pos, 2, 0),
+          )
+        "r" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "\r",
+            increment_location(current_pos, 2, 0),
+          )
+        "t" <> rest ->
+          do_parse_string(
+            rest,
+            str <> "\t",
+            increment_location(current_pos, 2, 0),
+          )
         "u" <> rest -> {
           use #(rest, char) <- result.try(parse_hex(rest))
-          do_parse_string(rest, str <> char)
+          do_parse_string(
+            rest,
+            str <> char,
+            increment_location(current_pos, 6, 0),
+          )
         }
         "" -> Error(UnexpectedEnd)
         _ -> {
@@ -253,7 +388,7 @@ fn do_parse_string(
       use #(char, rest) <- result.try(
         string.pop_grapheme(json) |> result.map_error(fn(_) { UnexpectedEnd }),
       )
-      do_parse_string(rest, str <> char)
+      do_parse_string(rest, str <> char, increment_location(current_pos, 1, 0))
     }
   }
 }
@@ -282,27 +417,34 @@ fn do_parse_list(
   json: String,
   list: List(JsonValue),
   last_value: Option(JsonValue),
-  current_depth: Int,
-) -> Result(#(String, JsonValue), ParseError) {
+  current_pos: Location,
+) -> Result(ReturnInfo, ParseError) {
   use <- bool.guard(
-    when: current_depth > max_depth,
-    return: Error(NestingDepth(current_depth)),
+    when: current_pos.depth > max_depth,
+    return: Error(NestingDepth(current_pos.depth)),
   )
-  let trimmed_json = do_trim_whitespace(json)
+  let #(trimmed_json, current_pos) = do_trim_whitespace(json, current_pos)
   case trimmed_json {
-    "]" <> rest ->
-      Ok(#(rest, JsonArray(list_to_indexed_dict(list.reverse(list)))))
+    "]" <> rest -> {
+      let current_pos = increment_location(current_pos, 1, 0)
+      Ok(ReturnInfo(
+        rest,
+        JsonArray(
+          JsonMetaData(current_pos.block_start, current_pos.char),
+          list_to_indexed_dict(list.reverse(list)),
+        ),
+        current_pos,
+      ))
+    }
     "," <> rest -> {
       case last_value {
         None -> Error(InvalidCharacter(",", trimmed_json, -1))
         Some(_) -> {
-          use #(rest, next_item) <- result.try(do_parse(rest, current_depth))
-          do_parse_list(
+          use ReturnInfo(rest, next_item, current_pos) <- result.try(do_parse(
             rest,
-            [next_item, ..list],
-            Some(next_item),
-            current_depth,
-          )
+            increment_location(current_pos, 1, 0),
+          ))
+          do_parse_list(rest, [next_item, ..list], Some(next_item), current_pos)
         }
       }
     }
@@ -310,13 +452,11 @@ fn do_parse_list(
     _ -> {
       case last_value {
         None -> {
-          use #(rest, next_item) <- result.try(do_parse(json, current_depth))
-          do_parse_list(
-            rest,
-            [next_item, ..list],
-            Some(next_item),
-            current_depth,
-          )
+          use ReturnInfo(rest, next_item, current_pos) <- result.try(do_parse(
+            trimmed_json,
+            current_pos,
+          ))
+          do_parse_list(rest, [next_item, ..list], Some(next_item), current_pos)
         }
         Some(_) -> Error(UnexpectedCharacter("", trimmed_json, -1))
       }
@@ -326,18 +466,21 @@ fn do_parse_list(
 
 fn do_parse_number(
   original_json: String,
-) -> Result(#(String, JsonValue), ParseError) {
-  use #(json, num) <- result.try(case original_json {
+  current_pos: Location,
+) -> Result(ReturnInfo, ParseError) {
+  let original_pos = current_pos
+  use #(json, num, current_pos) <- result.try(case original_json {
     "-" <> rest -> {
-      do_parse_int(rest, False, "-")
+      do_parse_int(rest, False, "-", increment_location(current_pos, 1, 0))
     }
-    json -> do_parse_int(json, False, "")
+    json -> do_parse_int(json, False, "", current_pos)
   })
 
-  use #(json, fraction) <- result.try(
+  use #(json, fraction, current_pos) <- result.try(
     case json {
-      "." <> rest -> do_parse_int(rest, True, "")
-      _ -> Ok(#(json, ""))
+      "." <> rest ->
+        do_parse_int(rest, True, "", increment_location(current_pos, 1, 0))
+      _ -> Ok(#(json, "", current_pos))
     }
     |> result.map_error(fn(err) {
       case err {
@@ -348,10 +491,11 @@ fn do_parse_number(
     }),
   )
 
-  use #(json, exp) <- result.try(
+  use #(json, exp, current_pos) <- result.try(
     case json {
-      "e" <> rest | "E" <> rest -> do_parse_exponent(rest)
-      _ -> Ok(#(json, ""))
+      "e" <> rest | "E" <> rest ->
+        do_parse_exponent(rest, increment_location(current_pos, 1, 0))
+      _ -> Ok(#(json, "", current_pos))
     }
     |> result.map_error(fn(err) {
       case err {
@@ -388,7 +532,13 @@ fn do_parse_number(
     }
 
   use ret <- result.try(case fraction, exp {
-    "", "" -> Ok(JsonNumber(Some(decode_int(num, "", 0)), None, Some(original)))
+    "", "" ->
+      Ok(JsonNumber(
+        JsonMetaData(original_pos.char, current_pos.char),
+        Some(decode_int(num, "", 0)),
+        None,
+        Some(original),
+      ))
 
     "", "-" <> exp -> {
       use exp <- result.try(
@@ -399,9 +549,15 @@ fn do_parse_number(
       // zeroes we can just create an int rather than a float
       case string.ends_with(num, string.repeat("0", exp)) {
         True ->
-          Ok(JsonNumber(Some(decode_int(num, "", -exp)), None, Some(original)))
+          Ok(JsonNumber(
+            JsonMetaData(original_pos.char, current_pos.char),
+            Some(decode_int(num, "", -exp)),
+            None,
+            Some(original),
+          ))
         False ->
           Ok(JsonNumber(
+            JsonMetaData(original_pos.char, current_pos.char),
             None,
             Some(decode_float(num, fraction, -exp)),
             Some(original),
@@ -417,16 +573,27 @@ fn do_parse_number(
         when: exp > 1_000_000,
         return: Error(InvalidNumber(original, original_json, -1)),
       )
-      Ok(JsonNumber(Some(decode_int(num, "", exp)), None, Some(original)))
+      Ok(JsonNumber(
+        JsonMetaData(original_pos.char, current_pos.char),
+        Some(decode_int(num, "", exp)),
+        None,
+        Some(original),
+      ))
     }
     _, "" ->
-      Ok(JsonNumber(None, Some(decode_float(num, fraction, 0)), Some(original)))
+      Ok(JsonNumber(
+        JsonMetaData(original_pos.char, current_pos.char),
+        None,
+        Some(decode_float(num, fraction, 0)),
+        Some(original),
+      ))
     _, "-" <> exp -> {
       use exp <- result.try(
         int.parse(exp)
         |> result.map_error(fn(_) { InvalidNumber(original, original_json, -1) }),
       )
       Ok(JsonNumber(
+        JsonMetaData(original_pos.char, current_pos.char),
         None,
         Some(decode_float(num, fraction, -exp)),
         Some(original),
@@ -445,12 +612,14 @@ fn do_parse_number(
       case exp >= fraction_length {
         True ->
           Ok(JsonNumber(
+            JsonMetaData(original_pos.char, current_pos.char),
             Some(decode_int(num, fraction, exp)),
             None,
             Some(original),
           ))
         False ->
           Ok(JsonNumber(
+            JsonMetaData(original_pos.char, current_pos.char),
             None,
             Some(decode_float(num, fraction, exp)),
             Some(original),
@@ -459,7 +628,7 @@ fn do_parse_number(
     }
   })
 
-  Ok(#(json, ret))
+  Ok(ReturnInfo(json, ret, current_pos))
 }
 
 fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
@@ -519,21 +688,27 @@ fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
   }
 }
 
-fn do_parse_exponent(json: String) -> Result(#(String, String), ParseError) {
-  use #(json, exp) <- result.try(case json {
-    "+" <> rest -> do_parse_int(rest, True, "")
-    "-" <> rest -> do_parse_int(rest, True, "-")
-    _ -> do_parse_int(json, True, "")
+fn do_parse_exponent(
+  json: String,
+  current_pos: Location,
+) -> Result(#(String, String, Location), ParseError) {
+  use #(json, exp, current_pos) <- result.try(case json {
+    "+" <> rest ->
+      do_parse_int(rest, True, "", increment_location(current_pos, 1, 0))
+    "-" <> rest ->
+      do_parse_int(rest, True, "-", increment_location(current_pos, 1, 0))
+    _ -> do_parse_int(json, True, "", current_pos)
   })
 
-  Ok(#(json, exp))
+  Ok(#(json, exp, current_pos))
 }
 
 fn do_parse_int(
   json: String,
   allow_leading_zeroes: Bool,
   num: String,
-) -> Result(#(String, String), ParseError) {
+  current_pos: Location,
+) -> Result(#(String, String, Location), ParseError) {
   case json {
     "0" as n <> rest
     | "1" as n <> rest
@@ -545,7 +720,12 @@ fn do_parse_int(
     | "7" as n <> rest
     | "8" as n <> rest
     | "9" as n <> rest -> {
-      do_parse_int(rest, allow_leading_zeroes, num <> n)
+      do_parse_int(
+        rest,
+        allow_leading_zeroes,
+        num <> n,
+        increment_location(current_pos, 1, 0),
+      )
     }
     _ -> {
       case num {
@@ -564,13 +744,13 @@ fn do_parse_int(
         }
         _ -> {
           case allow_leading_zeroes || num == "0" || num == "-0" {
-            True -> Ok(#(json, num))
+            True -> Ok(#(json, num, current_pos))
             False -> {
               case
                 string.starts_with(num, "0") || string.starts_with(num, "-0")
               {
                 True -> Error(InvalidNumber(num, num <> json, -1))
-                False -> Ok(#(json, num))
+                False -> Ok(#(json, num, current_pos))
               }
             }
           }
