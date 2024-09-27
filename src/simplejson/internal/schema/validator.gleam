@@ -96,7 +96,7 @@ fn validate_string(
   properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonString(_) -> {
+    JsonString(_, _) -> {
       let result =
         list.try_each(properties, fn(validate) {
           case validate(node) {
@@ -118,7 +118,7 @@ fn validate_number(
   properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonNumber(_, _, _) -> {
+    JsonNumber(_, _, _, _) -> {
       let result =
         list.try_each(properties, fn(validate) {
           case validate(node) {
@@ -137,14 +137,14 @@ fn validate_number(
 
 fn validate_boolean(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonBool(_) -> #(True, [])
+    JsonBool(_, _) -> #(True, [])
     _ -> #(False, [InvalidDataType(node)])
   }
 }
 
 fn validate_null(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonNull -> #(True, [])
+    JsonNull(_) -> #(True, [])
     _ -> #(False, [InvalidDataType(node)])
   }
 }
@@ -154,7 +154,7 @@ fn validate_array(
   _properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonArray(_l) -> {
+    JsonArray(_, _l) -> {
       #(True, [])
     }
     _ -> #(False, [InvalidDataType(node)])

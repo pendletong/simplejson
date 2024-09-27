@@ -46,19 +46,19 @@ fn generate_validation(
   root: Option(ValidationNode),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
   case schema {
-    JsonBool(value) -> Ok(#(SimpleValidation(value), sub_schema))
-    JsonObject(obj) -> {
+    JsonBool(_, value) -> Ok(#(SimpleValidation(value), sub_schema))
+    JsonObject(_, obj) -> {
       case dict.is_empty(obj) {
         True -> Ok(#(SimpleValidation(True), sub_schema))
         False -> {
           case dict.get(obj, "type") {
-            Ok(JsonString(data_type)) -> {
+            Ok(JsonString(_, data_type)) -> {
               use #(node, sub_schema) <- result.try(
                 generate_specified_validation(data_type, obj, sub_schema, root),
               )
               Ok(#(node, sub_schema))
             }
-            Ok(JsonArray(data_types)) -> {
+            Ok(JsonArray(_, data_types)) -> {
               generate_multi_node(
                 stringify.dict_to_ordered_list(data_types),
                 obj,
@@ -87,7 +87,7 @@ fn generate_multi_node(
   use multi_node <- result.try(
     list.try_map(data_types, fn(data_type) {
       case data_type {
-        JsonString(data_type) -> {
+        JsonString(_, data_type) -> {
           use #(node, sub_schema) <- result.try(generate_specified_validation(
             data_type,
             obj,
@@ -225,8 +225,8 @@ fn generate_int_validation(
     NumberNode([
       fn(num) {
         case num {
-          JsonNumber(Some(_), _, _) -> None
-          JsonNumber(_, Some(f), _) -> {
+          JsonNumber(_, Some(_), _, _) -> None
+          JsonNumber(_, _, Some(f), _) -> {
             case f == int.to_float(float.truncate(f)) {
               True -> None
               False -> Some(InvalidDataType(num))

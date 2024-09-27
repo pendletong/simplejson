@@ -68,7 +68,7 @@ fn string_pattern(
 
 fn perform_check(v: JsonValue, check: fn(String) -> Bool) -> Bool {
   case v {
-    JsonString(str) -> check(str)
+    JsonString(_, str) -> check(str)
     _ -> False
   }
 }

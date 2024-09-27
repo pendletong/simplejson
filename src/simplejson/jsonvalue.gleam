@@ -1,23 +1,33 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
+pub type JsonMetaData {
+  JsonMetaData(start_position: Int, end_position: Int)
+  NoMD
+}
+
 /// Type that wraps all JSON value types
 pub type JsonValue {
   /// Wraps a string value
-  JsonString(str: String)
+  JsonString(metadata: JsonMetaData, str: String)
   /// Wraps a number value and stores an int or float depending
   /// on the input type.
   /// Also the original is stored as a String if the JSON has been parsed
   /// from text
-  JsonNumber(int: Option(Int), float: Option(Float), original: Option(String))
+  JsonNumber(
+    metadata: JsonMetaData,
+    int: Option(Int),
+    float: Option(Float),
+    original: Option(String),
+  )
   /// Wraps a boolean value
-  JsonBool(bool: Bool)
+  JsonBool(metadata: JsonMetaData, bool: Bool)
   /// Indicates a null value
-  JsonNull
+  JsonNull(metadata: JsonMetaData)
   /// Wraps an array value
-  JsonArray(Dict(Int, JsonValue))
+  JsonArray(metadata: JsonMetaData, array: Dict(Int, JsonValue))
   /// Wraps an object value
-  JsonObject(Dict(String, JsonValue))
+  JsonObject(metadata: JsonMetaData, object: Dict(String, JsonValue))
 }
 
 pub type ParseError {

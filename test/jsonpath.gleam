@@ -4,7 +4,10 @@ import gleam/list
 import simplejson
 import simplejson/internal/jsonpath
 import simplejson/internal/query
-import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject, JsonString}
+import simplejson/jsonvalue.{
+  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
+  JsonString, NoMD,
+}
 import simplifile
 import startest.{describe, it}
 import startest/expect
@@ -64,15 +67,16 @@ pub fn test_folder(folder: String) {
 
 fn run_tests_in_json(json: JsonValue) {
   case json {
-    JsonObject(d) -> {
+    JsonObject(_, d) -> {
       case dict.get(d, "tests") {
-        Ok(JsonArray(a)) -> {
+        Ok(JsonArray(_, a)) -> {
           list.range(0, dict.size(a) - 1)
           |> list.map(fn(i) {
-            let assert Ok(JsonObject(t)) = dict.get(a, i)
+            let assert Ok(jv) = dict.get(a, i)
+            let assert JsonObject(_, t) = jv
             case dict.get(t, "name") {
-              Ok(JsonString(n)) -> {
-                it(n, fn() { run_test_in_json(t) })
+              Ok(JsonString(_, n)) -> {
+                it(n, fn() { run_test_in_json(jv) })
               }
               _ -> panic
             }
@@ -85,11 +89,12 @@ fn run_tests_in_json(json: JsonValue) {
   }
 }
 
-fn run_test_in_json(t) {
-  let assert Ok(JsonString(selector)) = dict.get(t, "selector")
+fn run_test_in_json(jv: JsonValue) {
+  let assert JsonObject(_, t) = jv |> clear_metadata
+  let assert Ok(JsonString(_, selector)) = dict.get(t, "selector")
 
   case dict.get(t, "invalid_selector") {
-    Ok(jsonvalue.JsonBool(True)) -> {
+    Ok(JsonBool(_, True)) -> {
       jsonpath.parse_path(selector) |> expect.to_be_error
       Nil
     }
@@ -98,7 +103,7 @@ fn run_test_in_json(t) {
       let jsonpath =
         jsonpath.parse_path(selector)
         |> expect.to_be_ok
-      let ours = query.query(testjson, jsonpath, testjson)
+      let ours = query.query(testjson, jsonpath, testjson) |> clear_metadata
       case dict.get(t, "result") {
         Ok(result) -> {
           ours
@@ -106,7 +111,7 @@ fn run_test_in_json(t) {
         }
         Error(_) -> {
           case dict.get(t, "results") {
-            Ok(JsonArray(d)) -> {
+            Ok(JsonArray(_, d)) -> {
               expect.list_to_contain(dict.values(d), ours)
             }
             _ -> panic
@@ -115,6 +120,22 @@ fn run_test_in_json(t) {
       }
       Nil
     }
+  }
+}
+
+fn clear_metadata(json: JsonValue) -> JsonValue {
+  case json {
+    JsonArray(_, array:) -> {
+      JsonArray(NoMD, dict.map_values(array, fn(k, v) { clear_metadata(v) }))
+    }
+    JsonObject(_, object:) -> {
+      JsonObject(NoMD, dict.map_values(object, fn(k, v) { clear_metadata(v) }))
+    }
+    JsonString(_, str:) -> JsonString(NoMD, str)
+    JsonBool(_, bool:) -> JsonBool(NoMD, bool)
+    JsonNull(_) -> JsonNull(NoMD)
+    JsonNumber(_, int:, float:, original:) ->
+      JsonNumber(NoMD, int, float, original)
   }
 }
 

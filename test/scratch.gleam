@@ -1,3 +1,4 @@
+import simplejson/internal/parser
 import simplejson/internal/schema/schema
 
 pub fn main() {
@@ -156,6 +157,8 @@ pub fn main() {
   // io.println(
   //   "{\"type\":\"string\", \"pattern\":\"\\\\d\\\\d\\\\d-\\\\d\\\\d\\\\d\"}",
   // )
-  schema.validate("23", "{\"type\":\"number\",\"multipleOf\":-1}")
+  // schema.validate("24", "{\"type\":\"number\",\"multipleOf\":2}")
+  // |> echo
+  parser.parse("{\"a\": []}")
   |> echo
 }
