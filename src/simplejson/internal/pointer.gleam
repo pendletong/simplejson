@@ -74,12 +74,12 @@ pub fn jsonpointer(
     False -> Ok(path_segment)
   })
   case current_json {
-    JsonObject(found_dict) ->
+    JsonObject(_, found_dict) ->
       case dict.get(found_dict, path_segment) {
         Ok(json_found_at_path) -> Ok(json_found_at_path)
         Error(_) -> Error(PathNotFound)
       }
-    JsonArray(found_dict) -> {
+    JsonArray(_, found_dict) -> {
       use i <- result.try(
         int.parse(path_segment)
         |> result.replace_error(ParseError(path_segment <> " is not a number")),

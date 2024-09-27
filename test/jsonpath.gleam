@@ -4,10 +4,7 @@ import gleam/list
 import simplejson
 import simplejson/internal/jsonpath
 import simplejson/internal/query
-import simplejson/jsonvalue.{
-  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
-  JsonString, NoMD,
-}
+import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject, JsonString}
 import simplifile
 import startest.{describe, it}
 import startest/expect
@@ -72,11 +69,10 @@ fn run_tests_in_json(json: JsonValue) {
         Ok(JsonArray(_, a)) -> {
           list.range(0, dict.size(a) - 1)
           |> list.map(fn(i) {
-            let assert Ok(jv) = dict.get(a, i)
-            let assert JsonObject(_, t) = jv
+            let assert Ok(JsonObject(_, t)) = dict.get(a, i)
             case dict.get(t, "name") {
               Ok(JsonString(_, n)) -> {
-                it(n, fn() { run_test_in_json(jv) })
+                it(n, fn() { run_test_in_json(t) })
               }
               _ -> panic
             }
@@ -89,12 +85,11 @@ fn run_tests_in_json(json: JsonValue) {
   }
 }
 
-fn run_test_in_json(jv: JsonValue) {
-  let assert JsonObject(_, t) = jv |> clear_metadata
+fn run_test_in_json(t) {
   let assert Ok(JsonString(_, selector)) = dict.get(t, "selector")
 
   case dict.get(t, "invalid_selector") {
-    Ok(JsonBool(_, True)) -> {
+    Ok(jsonvalue.JsonBool(_, True)) -> {
       jsonpath.parse_path(selector) |> expect.to_be_error
       Nil
     }
@@ -103,7 +98,7 @@ fn run_test_in_json(jv: JsonValue) {
       let jsonpath =
         jsonpath.parse_path(selector)
         |> expect.to_be_ok
-      let ours = query.query(testjson, jsonpath, testjson) |> clear_metadata
+      let ours = query.query(testjson, jsonpath, testjson)
       case dict.get(t, "result") {
         Ok(result) -> {
           ours
@@ -120,22 +115,6 @@ fn run_test_in_json(jv: JsonValue) {
       }
       Nil
     }
-  }
-}
-
-fn clear_metadata(json: JsonValue) -> JsonValue {
-  case json {
-    JsonArray(_, array:) -> {
-      JsonArray(NoMD, dict.map_values(array, fn(k, v) { clear_metadata(v) }))
-    }
-    JsonObject(_, object:) -> {
-      JsonObject(NoMD, dict.map_values(object, fn(k, v) { clear_metadata(v) }))
-    }
-    JsonString(_, str:) -> JsonString(NoMD, str)
-    JsonBool(_, bool:) -> JsonBool(NoMD, bool)
-    JsonNull(_) -> JsonNull(NoMD)
-    JsonNumber(_, int:, float:, original:) ->
-      JsonNumber(NoMD, int, float, original)
   }
 }
 

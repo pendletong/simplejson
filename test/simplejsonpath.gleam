@@ -1,6 +1,6 @@
 import gleam/option.{None, Some}
 import simplejson
-import simplejson/jsonvalue.{JsonMetaData, JsonNumber, NoMD}
+import simplejson/jsonvalue.{JsonNumber, NoMD}
 import startest.{describe, it}
 import startest/expect
 
@@ -18,44 +18,24 @@ pub fn pointer_tests() {
       let assert Ok(json) = simplejson.parse("{\"a\":1}")
       simplejson.jsonpath(json, "a")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        JsonMetaData(5, 6),
-        Some(1),
-        None,
-        Some("1"),
-      ))
+      |> expect.to_equal(JsonNumber(NoMD, Some(1), None, Some("1")))
     }),
 
     it("array pos", fn() {
       let assert Ok(json) = simplejson.parse("[1,2,3]")
       simplejson.jsonpath(json, "#1")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        JsonMetaData(3, 4),
-        Some(2),
-        None,
-        Some("2"),
-      ))
+      |> expect.to_equal(JsonNumber(NoMD, Some(2), None, Some("2")))
       let assert Ok(json) = simplejson.parse("[1,2,3]")
       simplejson.jsonpath(json, "#0")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        JsonMetaData(1, 2),
-        Some(1),
-        None,
-        Some("1"),
-      ))
+      |> expect.to_equal(JsonNumber(NoMD, Some(1), None, Some("1")))
     }),
     it("properties and array pos", fn() {
       let assert Ok(json) = simplejson.parse("{\"a\":[1,2,{\"b\":123}]}")
       simplejson.jsonpath(json, "a.#2.b")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        JsonMetaData(15, 18),
-        Some(123),
-        None,
-        Some("123"),
-      ))
+      |> expect.to_equal(JsonNumber(NoMD, Some(123), None, Some("123")))
     }),
   ])
 }
