@@ -24,6 +24,13 @@ import simplejson/jsonvalue.{type JsonValue, type ParseError}
 /// ```
 /// 
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
+  case parser.parse(json) {
+    Ok(json) -> Ok(json)
+    Error(_) as err -> err
+  }
+}
+
+pub fn parse_with_metadata(json: String) -> Result(JsonValue, ParseError) {
   parser.parse(json)
 }
 

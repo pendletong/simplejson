@@ -1,13 +1,23 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
+pub type JsonMetaData {
+  JsonMetaData(start_position: Int, end_position: Int)
+  NoMD
+}
+
 pub type JsonValue {
-  JsonString(str: String)
-  JsonNumber(int: Option(Int), float: Option(Float), original: Option(String))
-  JsonBool(bool: Bool)
-  JsonNull
-  JsonArray(List(JsonValue))
-  JsonObject(Dict(String, JsonValue))
+  JsonString(metadata: JsonMetaData, str: String)
+  JsonNumber(
+    metadata: JsonMetaData,
+    int: Option(Int),
+    float: Option(Float),
+    original: Option(String),
+  )
+  JsonBool(metadata: JsonMetaData, bool: Bool)
+  JsonNull(metadata: JsonMetaData)
+  JsonArray(metadata: JsonMetaData, List(JsonValue))
+  JsonObject(metadata: JsonMetaData, Dict(String, JsonValue))
 }
 
 pub type ParseError {

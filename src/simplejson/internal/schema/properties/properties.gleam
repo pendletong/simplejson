@@ -14,7 +14,7 @@ pub fn get_int_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   case dict.get(dict, property) {
-    Ok(JsonNumber(Some(val), _, _)) -> {
+    Ok(JsonNumber(_, Some(val), _, _)) -> {
       Ok(Some(IntProperty(property, val)))
     }
     Ok(_) -> Error(InvalidSchema(6))
@@ -27,10 +27,10 @@ pub fn get_positive_int_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   case dict.get(dict, property) {
-    Ok(JsonNumber(Some(val), _, _)) if val >= 0 -> {
+    Ok(JsonNumber(_, Some(val), _, _)) if val >= 0 -> {
       Ok(Some(IntProperty(property, val)))
     }
-    Ok(JsonNumber(Some(_val), _, _)) -> {
+    Ok(JsonNumber(_, Some(_val), _, _)) -> {
       Error(InvalidSchema(20))
     }
     Ok(_) -> Error(InvalidSchema(6))
@@ -43,14 +43,14 @@ pub fn get_more_than_zero_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   case dict.get(dict, property) {
-    Ok(JsonNumber(_, Some(val), _)) if val >. 0.0 -> {
+    Ok(JsonNumber(_, _, Some(val), _)) if val >. 0.0 -> {
       Ok(Some(NumberProperty(property, None, Some(val))))
     }
-    Ok(JsonNumber(_, Some(_val), _)) -> Error(InvalidSchema(6))
-    Ok(JsonNumber(Some(val), _, _)) if val > 0 -> {
+    Ok(JsonNumber(_, _, Some(_val), _)) -> Error(InvalidSchema(6))
+    Ok(JsonNumber(_, Some(val), _, _)) if val > 0 -> {
       Ok(Some(NumberProperty(property, Some(val), None)))
     }
-    Ok(JsonNumber(Some(_val), _, _)) -> Error(InvalidSchema(6))
+    Ok(JsonNumber(_, Some(_val), _, _)) -> Error(InvalidSchema(6))
     Ok(_) -> Error(InvalidSchema(6))
     _ -> Ok(None)
   }
@@ -61,7 +61,7 @@ pub fn get_object_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   case dict.get(dict, property) {
-    Ok(JsonObject(val)) -> {
+    Ok(JsonObject(_, val)) -> {
       Ok(Some(ObjectProperty(property, val)))
     }
     Ok(_) -> Error(InvalidSchema(6))
@@ -74,7 +74,7 @@ pub fn get_float_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   case dict.get(dict, property) {
-    Ok(JsonNumber(_, Some(val), _)) -> {
+    Ok(JsonNumber(_, _, Some(val), _)) -> {
       Ok(Some(FloatProperty(property, val)))
     }
     Ok(_) -> Error(InvalidSchema(6))
@@ -87,10 +87,10 @@ pub fn get_number_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   case dict.get(dict, property) {
-    Ok(JsonNumber(_, Some(val), _)) -> {
+    Ok(JsonNumber(_, _, Some(val), _)) -> {
       Ok(Some(NumberProperty(property, None, Some(val))))
     }
-    Ok(JsonNumber(Some(val), _, _)) -> {
+    Ok(JsonNumber(_, Some(val), _, _)) -> {
       Ok(Some(NumberProperty(property, Some(val), None)))
     }
     Ok(_) -> Error(InvalidSchema(6))
@@ -103,7 +103,7 @@ pub fn get_string_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   case dict.get(dict, property) {
-    Ok(JsonString(val)) -> {
+    Ok(JsonString(_, val)) -> {
       Ok(Some(StringProperty(property, val)))
     }
     Ok(_) -> Error(InvalidSchema(7))
