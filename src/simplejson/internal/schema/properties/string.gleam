@@ -2,7 +2,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/regex
 import gleam/string
 import simplejson/internal/schema/properties/properties.{
-  get_int_property, get_pattern_property, get_string_property,
+  get_int_property, get_pattern_property, get_positive_int_property,
+  get_string_property,
 }
 import simplejson/internal/schema/types.{
   type InvalidEntry, type ValidationProperty, FailedProperty, IntProperty,
@@ -11,8 +12,8 @@ import simplejson/internal/schema/types.{
 import simplejson/jsonvalue.{type JsonValue, JsonString}
 
 pub const string_properties = [
-  #("minLength", get_int_property, string_min_length),
-  #("maxLength", get_int_property, string_max_length),
+  #("minLength", get_positive_int_property, string_min_length),
+  #("maxLength", get_positive_int_property, string_max_length),
   #("pattern", get_pattern_property, string_pattern),
   #("format", get_string_property, string_format),
 ]

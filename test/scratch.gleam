@@ -1,13 +1,5 @@
-import gleam/int
 import gleam/io
-import gleam/list
-import gleam/result
-import gleam/string
-import simplejson/internal/parser
 import simplejson/internal/schema/schema
-import simplejson/internal/stringify
-import simplejson/jsonvalue
-import simplifile
 
 pub fn main() {
   //   parser.parse(
@@ -101,68 +93,70 @@ pub fn main() {
   //   "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7}",
   // )
   // |> io.debug
-  schema.validate(
-    "\"123-567\"",
-    "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7,\"pattern\":\"\\\\d+-\\\\d+\"}",
-  )
+  // schema.validate(
+  //   "\"123-567\"",
+  //   "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7,\"pattern\":\"\\\\d+-\\\\d+\"}",
+  // )
+  // |> io.debug
+  // schema.validate(
+  //   "\"123567\"",
+  //   "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7,\"pattern\":\"\\\\d+-\\\\d+\"}",
+  // )
+  // |> io.debug
+  // schema.validate("\"123567\"", "{\"type\":\"number\"}")
+  // |> io.debug
+  // schema.validate("123567", "{\"type\":\"number\"}")
+  // |> io.debug
+  // schema.validate("123567.3", "{\"type\":\"number\"}")
+  // |> io.debug
+  // schema.validate("123567.3", "{\"type\":\"integer\"}")
+  // |> io.debug
+  // schema.validate("50005", "{\"type\":\"number\",\"multipleOf\":5}")
+  // |> io.debug
+  // schema.validate("50006", "{\"type\":\"number\",\"multipleOf\":5}")
+  // |> io.debug
+  // schema.validate("5.5", "{\"type\":\"number\",\"multipleOf\":1.1}")
+  // |> io.debug
+  // schema.validate("5.6", "{\"type\":\"number\",\"multipleOf\":1.1}")
+  // |> io.debug
+  // schema.validate("10", "{\"type\":\"number\",\"multipleOf\":2.5}")
+  // |> io.debug
+  // schema.validate("10", "{\"type\":\"number\",\"minimum\":5}")
+  // |> io.debug
+  // schema.validate("10", "{\"type\":\"number\",\"minimum\":10}")
+  // |> io.debug
+  // schema.validate("10", "{\"type\":\"number\",\"exclusiveMinimum\":10}")
+  // |> io.debug
+  // schema.validate("10.00001", "{\"type\":\"number\",\"exclusiveMinimum\":10}")
+  // |> io.debug
+  // schema.validate("10", "{\"type\":\"number\",\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("10", "{\"type\":\"boolean\",\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("true", "{\"type\":\"boolean\",\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("true", "{\"type\":\"null\",\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("null", "{\"type\":\"null\",\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("null", "{\"type\":[\"null\", \"boolean\"],\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("true", "{\"type\":[\"null\", \"boolean\"],\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("123", "{\"type\":[\"null\", \"boolean\"],\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("null", "{\"type\":\"array\",\"minimum\":15}")
+  // |> io.debug
+  // schema.validate("[]", "{\"type\":\"array\",\"minimum\":15}")
+  // |> io.debug
+  // schema.validate(
+  //   "[1,2,   4]",
+  //   "{\"type\":\"array\",\"items\":{\"type\":\"number\"},\"minimum\":15}",
+  // )
+  // |> io.debug
+  // io.println(
+  //   "{\"type\":\"string\", \"pattern\":\"\\\\d\\\\d\\\\d-\\\\d\\\\d\\\\d\"}",
+  // )
+  schema.validate("23", "{\"type\":\"number\",\"multipleOf\":-1}")
   |> io.debug
-  schema.validate(
-    "\"123567\"",
-    "{\"type\":\"string\",\"minLength\":4, \"maxLength\":7,\"pattern\":\"\\\\d+-\\\\d+\"}",
-  )
-  |> io.debug
-  schema.validate("\"123567\"", "{\"type\":\"number\"}")
-  |> io.debug
-  schema.validate("123567", "{\"type\":\"number\"}")
-  |> io.debug
-  schema.validate("123567.3", "{\"type\":\"number\"}")
-  |> io.debug
-  schema.validate("123567.3", "{\"type\":\"integer\"}")
-  |> io.debug
-  schema.validate("50005", "{\"type\":\"number\",\"multipleOf\":5}")
-  |> io.debug
-  schema.validate("50006", "{\"type\":\"number\",\"multipleOf\":5}")
-  |> io.debug
-  schema.validate("5.5", "{\"type\":\"number\",\"multipleOf\":1.1}")
-  |> io.debug
-  schema.validate("5.6", "{\"type\":\"number\",\"multipleOf\":1.1}")
-  |> io.debug
-  schema.validate("10", "{\"type\":\"number\",\"multipleOf\":2.5}")
-  |> io.debug
-  schema.validate("10", "{\"type\":\"number\",\"minimum\":5}")
-  |> io.debug
-  schema.validate("10", "{\"type\":\"number\",\"minimum\":10}")
-  |> io.debug
-  schema.validate("10", "{\"type\":\"number\",\"exclusiveMinimum\":10}")
-  |> io.debug
-  schema.validate("10.00001", "{\"type\":\"number\",\"exclusiveMinimum\":10}")
-  |> io.debug
-  schema.validate("10", "{\"type\":\"number\",\"minimum\":15}")
-  |> io.debug
-  schema.validate("10", "{\"type\":\"boolean\",\"minimum\":15}")
-  |> io.debug
-  schema.validate("true", "{\"type\":\"boolean\",\"minimum\":15}")
-  |> io.debug
-  schema.validate("true", "{\"type\":\"null\",\"minimum\":15}")
-  |> io.debug
-  schema.validate("null", "{\"type\":\"null\",\"minimum\":15}")
-  |> io.debug
-  schema.validate("null", "{\"type\":[\"null\", \"boolean\"],\"minimum\":15}")
-  |> io.debug
-  schema.validate("true", "{\"type\":[\"null\", \"boolean\"],\"minimum\":15}")
-  |> io.debug
-  schema.validate("123", "{\"type\":[\"null\", \"boolean\"],\"minimum\":15}")
-  |> io.debug
-  schema.validate("null", "{\"type\":\"array\",\"minimum\":15}")
-  |> io.debug
-  schema.validate("[]", "{\"type\":\"array\",\"minimum\":15}")
-  |> io.debug
-  schema.validate(
-    "[1,2,   4]",
-    "{\"type\":\"array\",\"items\":{\"type\":\"number\"},\"minimum\":15}",
-  )
-  |> io.debug
-  io.println(
-    "{\"type\":\"string\", \"pattern\":\"\\\\d\\\\d\\\\d-\\\\d\\\\d\\\\d\"}",
-  )
 }
