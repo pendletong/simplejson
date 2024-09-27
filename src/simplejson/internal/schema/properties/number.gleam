@@ -27,13 +27,13 @@ fn number_minimum(
         case i, f {
           Some(i1), None -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case i2 >= i1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 >=. int.to_float(i1) {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -44,13 +44,13 @@ fn number_minimum(
           }
           None, Some(f1) -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case int.to_float(i2) >=. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 >=. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -77,13 +77,13 @@ fn number_exclusiveminimum(
         case i, f {
           Some(i1), None -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case i2 > i1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 >. int.to_float(i1) {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -94,13 +94,13 @@ fn number_exclusiveminimum(
           }
           None, Some(f1) -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case int.to_float(i2) >. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 >. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -127,13 +127,13 @@ fn number_maximum(
         case i, f {
           Some(i1), None -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case i2 <= i1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 <=. int.to_float(i1) {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -144,13 +144,13 @@ fn number_maximum(
           }
           None, Some(f1) -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case int.to_float(i2) <=. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 <=. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -177,13 +177,13 @@ fn number_exclusivemaximum(
         case i, f {
           Some(i1), None -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case i2 < i1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 <. int.to_float(i1) {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -194,13 +194,13 @@ fn number_exclusivemaximum(
           }
           None, Some(f1) -> {
             case v {
-              JsonNumber(Some(i2), _, _) -> {
+              JsonNumber(_, Some(i2), _, _) -> {
                 case int.to_float(i2) <. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
                 }
               }
-              JsonNumber(_, Some(f2), _) -> {
+              JsonNumber(_, _, Some(f2), _) -> {
                 case f2 <. f1 {
                   True -> None
                   False -> Some(FailedProperty(value, v))
@@ -250,7 +250,7 @@ fn number_multiple_of(
 
 fn is_multiple(num: JsonValue, of: Number) -> Result(Bool, InvalidEntry) {
   case num {
-    JsonNumber(Some(i1), _, _) -> {
+    JsonNumber(_, Some(i1), _, _) -> {
       case of {
         Number(Some(i2), None) -> {
           Ok(i1 % i2 == 0)
@@ -266,7 +266,7 @@ fn is_multiple(num: JsonValue, of: Number) -> Result(Bool, InvalidEntry) {
         _ -> Error(InvalidSchema(17))
       }
     }
-    JsonNumber(_, Some(f1), _) -> {
+    JsonNumber(_, _, Some(f1), _) -> {
       case of {
         Number(Some(i2), None) -> {
           let f2 = int.to_float(i2)

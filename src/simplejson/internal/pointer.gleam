@@ -27,7 +27,7 @@ pub fn jsonpath(
       case int.parse(array_index) {
         Ok(index) ->
           case current_json {
-            JsonArray(json_list) ->
+            JsonArray(_, json_list) ->
               case dict.get(json_list, index) {
                 Ok(found_json) -> Ok(found_json)
                 Error(_) -> Error(PathNotFound)
@@ -39,7 +39,7 @@ pub fn jsonpath(
     // Path segment is a string, we should expect the given json to be an object
     _ ->
       case current_json {
-        JsonObject(found_dict) ->
+        JsonObject(_, found_dict) ->
           case dict.get(found_dict, path_segment) {
             Ok(json_found_at_path) -> Ok(json_found_at_path)
             Error(_) -> Error(PathNotFound)
