@@ -1,7 +1,9 @@
 import gleam/float
 import gleam/int
 import gleam/option.{type Option, None, Some}
-import simplejson/internal/schema/properties/properties.{get_number_property}
+import simplejson/internal/schema/properties/properties.{
+  get_more_than_zero_property, get_number_property,
+}
 import simplejson/internal/schema/types.{
   type InvalidEntry, type Number, type ValidationProperty, FailedProperty,
   InvalidSchema, Number, NumberProperty,
@@ -9,7 +11,7 @@ import simplejson/internal/schema/types.{
 import simplejson/jsonvalue.{type JsonValue, JsonNumber}
 
 pub const int_properties = [
-  #("multipleOf", get_number_property, number_multiple_of),
+  #("multipleOf", get_more_than_zero_property, number_multiple_of),
   #("minimum", get_number_property, number_minimum),
   #("exclusiveMinimum", get_number_property, number_exclusiveminimum),
   #("maximum", get_number_property, number_maximum),

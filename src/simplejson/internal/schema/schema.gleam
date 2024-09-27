@@ -7,8 +7,8 @@ import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type Schema, type ValidationNode, ArrayNode, BooleanNode,
-  InvalidDataType, InvalidSchema, MultiNode, NullNode, Number, NumberNode,
+  type InvalidEntry, type Schema, type ValidationNode, Any, ArrayNode,
+  BooleanNode, InvalidDataType, InvalidSchema, MultiNode, NullNode, NumberNode,
   Schema, SimpleValidation, StringNode,
 }
 import simplejson/internal/schema/validator
@@ -97,7 +97,7 @@ fn generate_multi_node(
     }),
   )
   // todo Schema merging
-  Ok(#(MultiNode(list.map(multi_node, fn(n) { n.0 })), sub_schema))
+  Ok(#(MultiNode(list.map(multi_node, fn(n) { n.0 }), Any), sub_schema))
 }
 
 fn generate_specified_validation(
