@@ -31,6 +31,7 @@ pub type ValidationNode {
   ArrayNode(
     properties: List(fn(JsonValue) -> Option(InvalidEntry)),
     prefix_items: List(ValidationNode),
+    root: Option(ValidationNode),
   )
   BooleanNode
   NullNode

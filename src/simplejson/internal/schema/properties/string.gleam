@@ -2,8 +2,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/regexp
 import gleam/string
 import simplejson/internal/schema/properties/properties.{
-  get_int_property, get_pattern_property, get_positive_int_property,
-  get_string_property,
+  get_pattern_property, get_positive_int_property, get_string_property,
 }
 import simplejson/internal/schema/types.{
   type InvalidEntry, type ValidationProperty, FailedProperty, IntProperty,

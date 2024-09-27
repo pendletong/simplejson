@@ -18,7 +18,7 @@ import simplejson/jsonvalue.{
 }
 
 import gleam/dict.{type Dict}
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 
 pub fn validate(json: String, schema: String) -> #(Bool, List(InvalidEntry)) {
   case generate_schema(schema) {
@@ -32,7 +32,7 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
     parser.parse(schema) |> result.replace_error(InvalidSchema(2)),
   )
 
-  case generate_validation(schema, dict.new()) {
+  case generate_validation(schema, dict.new(), None) {
     Ok(#(validator, sub_schema)) ->
       Ok(Schema(None, None, schema, validator, sub_schema))
     Error(err) -> Error(err)
@@ -43,6 +43,7 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
 fn generate_validation(
   schema: JsonValue,
   sub_schema: Dict(String, Schema),
+  root: Option(ValidationNode),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
   case schema {
     JsonBool(value) -> Ok(#(SimpleValidation(value), sub_schema))
@@ -53,7 +54,7 @@ fn generate_validation(
           case dict.get(obj, "type") {
             Ok(JsonString(data_type)) -> {
               use #(node, sub_schema) <- result.try(
-                generate_specified_validation(data_type, obj, sub_schema),
+                generate_specified_validation(data_type, obj, sub_schema, root),
               )
               Ok(#(node, sub_schema))
             }
@@ -62,6 +63,7 @@ fn generate_validation(
                 stringify.dict_to_ordered_list(data_types),
                 obj,
                 sub_schema,
+                root,
               )
             }
             Ok(_) -> Error(InvalidSchema(3))
@@ -80,6 +82,7 @@ fn generate_multi_node(
   data_types: List(JsonValue),
   obj: Dict(String, JsonValue),
   sub_schema: Dict(String, Schema),
+  root: Option(ValidationNode),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
   use multi_node <- result.try(
     list.try_map(data_types, fn(data_type) {
@@ -89,6 +92,7 @@ fn generate_multi_node(
             data_type,
             obj,
             sub_schema,
+            root,
           ))
           Ok(#(node, sub_schema))
         }
@@ -104,6 +108,7 @@ fn generate_specified_validation(
   data_type: String,
   dict: Dict(String, JsonValue),
   sub_schema: Dict(String, Schema),
+  root: Option(ValidationNode),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
   case data_type {
     "string" -> {
@@ -116,7 +121,7 @@ fn generate_specified_validation(
       generate_number_validation(dict, sub_schema)
     }
     "array" -> {
-      generate_array_validation(dict, sub_schema)
+      generate_array_validation(dict, sub_schema, root)
     }
     "boolean" -> Ok(#(BooleanNode, sub_schema))
     "null" -> Ok(#(NullNode, sub_schema))
@@ -127,10 +132,11 @@ fn generate_specified_validation(
 fn generate_array_validation(
   dict: Dict(String, JsonValue),
   sub_schema: Dict(String, Schema),
+  root: Option(ValidationNode),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
   use val_nodes <- result.try(case dict.get(dict, "items") {
     Ok(json) -> {
-      use #(vn, sub) <- result.try(generate_validation(json, sub_schema))
+      use #(vn, sub) <- result.try(generate_validation(json, sub_schema, root))
 
       Ok(#([vn], dict.merge(sub_schema, sub)))
     }
@@ -139,7 +145,30 @@ fn generate_array_validation(
     }
   })
 
-  Ok(#(ArrayNode([], [SimpleValidation(True)]), val_nodes.1))
+  use props <- result.try(
+    list.try_map(array_properties, fn(prop) {
+      use valid_prop <- result.try(prop.1(prop.0, dict))
+
+      case valid_prop {
+        Some(valid_prop) -> {
+          use final_fn <- result.try(prop.2(valid_prop))
+          Ok(Some(final_fn))
+        }
+        None -> Ok(None)
+      }
+    }),
+  )
+
+  let props =
+    props
+    |> list.filter_map(fn(prop) {
+      case prop {
+        Some(prop) -> Ok(prop)
+        None -> Error(Nil)
+      }
+    })
+
+  Ok(#(ArrayNode(props, [SimpleValidation(True)], root), val_nodes.1))
 }
 
 fn generate_number_validation(

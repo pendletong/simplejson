@@ -32,7 +32,7 @@ fn validate_node(
     NumberNode(props) -> {
       validate_number(node, props)
     }
-    ArrayNode(props, _validators) -> {
+    ArrayNode(props, _validators, _root) -> {
       validate_array(node, props)
     }
     BooleanNode -> {
@@ -56,7 +56,7 @@ fn validate_node(
 fn validate_multinode(
   node: JsonValue,
   validators: List(ValidationNode),
-  combination: Combination,
+  _combination: Combination,
   sub_schema: Dict(String, Schema),
 ) -> #(Bool, List(InvalidEntry)) {
   case
@@ -151,10 +151,10 @@ fn validate_null(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
 
 fn validate_array(
   node: JsonValue,
-  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+  _properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> #(Bool, List(InvalidEntry)) {
   case node {
-    JsonArray(l) -> {
+    JsonArray(_l) -> {
       #(True, [])
     }
     _ -> #(False, [InvalidDataType(node)])
