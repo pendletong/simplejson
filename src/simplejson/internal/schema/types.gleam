@@ -16,16 +16,21 @@ pub type ValidationProperty {
   ObjectProperty(name: String, value: Dict(String, JsonValue))
 }
 
+pub type Combination {
+  All
+  Any
+  One
+  None
+}
+
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
-  MultiNode(validations: List(ValidationNode))
+  MultiNode(validations: List(ValidationNode), combination: Combination)
   StringNode(properties: List(fn(JsonValue) -> Option(InvalidEntry)))
   NumberNode(properties: List(fn(JsonValue) -> Option(InvalidEntry)))
   ArrayNode(
-    properties: List(
-      fn(List(JsonValue)) -> Option(fn(JsonValue) -> InvalidEntry),
-    ),
-    child_validators: List(ValidationNode),
+    properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+    prefix_items: List(ValidationNode),
   )
   BooleanNode
   NullNode

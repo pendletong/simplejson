@@ -21,6 +21,40 @@ pub fn get_int_property(
   }
 }
 
+pub fn get_positive_int_property(
+  property: String,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(ValidationProperty), InvalidEntry) {
+  case dict.get(dict, property) {
+    Ok(JsonNumber(Some(val), _, _)) if val >= 0 -> {
+      Ok(Some(IntProperty(property, val)))
+    }
+    Ok(JsonNumber(Some(_val), _, _)) -> {
+      Error(InvalidSchema(20))
+    }
+    Ok(_) -> Error(InvalidSchema(6))
+    _ -> Ok(None)
+  }
+}
+
+pub fn get_more_than_zero_property(
+  property: String,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(ValidationProperty), InvalidEntry) {
+  case dict.get(dict, property) {
+    Ok(JsonNumber(_, Some(val), _)) if val >. 0.0 -> {
+      Ok(Some(NumberProperty(property, None, Some(val))))
+    }
+    Ok(JsonNumber(_, Some(_val), _)) -> Error(InvalidSchema(6))
+    Ok(JsonNumber(Some(val), _, _)) if val > 0 -> {
+      Ok(Some(NumberProperty(property, Some(val), None)))
+    }
+    Ok(JsonNumber(Some(_val), _, _)) -> Error(InvalidSchema(6))
+    Ok(_) -> Error(InvalidSchema(6))
+    _ -> Ok(None)
+  }
+}
+
 pub fn get_object_property(
   property: String,
   dict: Dict(String, JsonValue),

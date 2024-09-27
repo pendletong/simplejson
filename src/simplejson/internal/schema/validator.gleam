@@ -3,9 +3,9 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/parser
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type Number, type Schema, type ValidationNode, ArrayNode,
-  BooleanNode, FalseSchema, InvalidDataType, InvalidJson, MultiNode, NullNode,
-  Number, NumberNode, Schema, SimpleValidation, StringNode,
+  type Combination, type InvalidEntry, type Schema, type ValidationNode,
+  ArrayNode, BooleanNode, FalseSchema, InvalidDataType, InvalidJson, MultiNode,
+  NullNode, NumberNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonString,
@@ -47,37 +47,46 @@ fn validate_node(
     SimpleValidation(False) -> {
       #(False, [FalseSchema])
     }
-    MultiNode(v_nodes) -> {
-      case
-        list.fold_until(v_nodes, [], fn(errors, v_node) {
-          case validate_node(node, v_node, sub_schema) {
-            #(True, _) -> Stop([])
-            #(False, err) -> Continue(list.append(err, errors))
+    MultiNode(v_nodes, comb) -> {
+      validate_multinode(node, v_nodes, comb, sub_schema)
+    }
+  }
+}
+
+fn validate_multinode(
+  node: JsonValue,
+  validators: List(ValidationNode),
+  combination: Combination,
+  sub_schema: Dict(String, Schema),
+) -> #(Bool, List(InvalidEntry)) {
+  case
+    list.fold_until(validators, [], fn(errors, v_node) {
+      case validate_node(node, v_node, sub_schema) {
+        #(True, _) -> Stop([])
+        #(False, err) -> Continue(list.append(err, errors))
+      }
+    })
+  {
+    [] -> #(True, [])
+    errors -> {
+      // Filtering the invalid data types should remove
+      // any nodes that type didn't match and keep the node type
+      // that matched and its error
+      let errors =
+        list.filter(errors, fn(err) {
+          case err {
+            InvalidDataType(_) -> False
+            _ -> True
           }
         })
-      {
-        [] -> #(True, [])
-        errors -> {
-          // Filtering the invalid data types should remove
-          // any nodes that type didn't match and keep the node type
-          // that matched and its error
-          let errors =
-            list.filter(errors, fn(err) {
-              case err {
-                InvalidDataType(_) -> False
-                _ -> True
-              }
-            })
 
-          // If there are no errors then the issue must be
-          // data type matching so return that error
-          let errors = case errors {
-            [] -> [InvalidDataType(node)]
-            _ -> errors
-          }
-          #(False, errors)
-        }
+      // If there are no errors then the issue must be
+      // data type matching so return that error
+      let errors = case errors {
+        [] -> [InvalidDataType(node)]
+        _ -> errors
       }
+      #(False, errors)
     }
   }
 }
@@ -142,7 +151,7 @@ fn validate_null(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
 
 fn validate_array(
   node: JsonValue,
-  properties: List(fn(List(JsonValue)) -> Option(fn(JsonValue) -> InvalidEntry)),
+  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> #(Bool, List(InvalidEntry)) {
   case node {
     JsonArray(l) -> {
