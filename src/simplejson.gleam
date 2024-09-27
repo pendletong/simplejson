@@ -4,12 +4,17 @@
 //// To be used for simple conversion from string to a basic JSON structure
 //// and to then output that as a string again.
 
+import gleam/dict
+import gleam/list
 import simplejson/internal/jsonpath.{type JsonPath}
 import simplejson/internal/parser
 import simplejson/internal/pointer
 import simplejson/internal/query
 import simplejson/internal/stringify
-import simplejson/jsonvalue.{type JsonPathError, type JsonValue, type ParseError}
+import simplejson/jsonvalue.{
+  type JsonPathError, type JsonValue, type ParseError, JsonArray, JsonBool,
+  JsonNull, JsonNumber, JsonObject, JsonString, NoMD,
+}
 
 /// Parse a given string into a JsonValue Result.
 /// Or return Error if unable.
@@ -40,8 +45,21 @@ import simplejson/jsonvalue.{type JsonPathError, type JsonValue, type ParseError
 /// ```
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
   case parser.parse(json) {
-    Ok(json) -> Ok(json)
+    Ok(json) -> Ok(strip_metadata(json))
     Error(_) as err -> err
+  }
+}
+
+fn strip_metadata(json: JsonValue) -> JsonValue {
+  case json {
+    JsonNull(_) -> JsonNull(NoMD)
+    JsonBool(_, b) -> JsonBool(NoMD, b)
+    JsonString(_, s) -> JsonString(NoMD, s)
+    JsonNumber(_, i, f, o) -> JsonNumber(NoMD, i, f, o)
+    JsonArray(_, l) ->
+      JsonArray(NoMD, dict.map_values(l, fn(_k, v) { strip_metadata(v) }))
+    JsonObject(_, d) ->
+      JsonObject(NoMD, dict.map_values(d, fn(_k, v) { strip_metadata(v) }))
   }
 }
 

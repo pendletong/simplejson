@@ -1,3 +1,4 @@
+import simplejson
 import simplejson/internal/parser
 import simplejson/internal/schema/schema
 
@@ -159,6 +160,6 @@ pub fn main() {
   // )
   // schema.validate("24", "{\"type\":\"number\",\"multipleOf\":2}")
   // |> echo
-  parser.parse("{\"a\": []}")
+  simplejson.parse("{\"a\": []}")
   |> echo
 }
