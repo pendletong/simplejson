@@ -152,7 +152,7 @@ pub fn main() {
 }
 
 // gleeunit test functions end in `_test`
-pub fn simplejson_testsz() {
+pub fn simplejson_tests() {
   io.debug("Running tests")
   simplifile.get_files("./test/testfiles")
   |> expect.to_be_ok
