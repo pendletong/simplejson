@@ -1,15 +1,15 @@
 import gleam/dict.{type Dict}
 import gleam/list.{Continue, Stop}
-import gleam/option.{type Option, None, Some}
 import simplejson/internal/parser
+import simplejson/internal/schema/properties/array.{validate_array}
+import simplejson/internal/schema/properties/number.{validate_number}
+import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
   type Combination, type InvalidEntry, type Schema, type ValidationNode,
   ArrayNode, BooleanNode, FalseSchema, InvalidDataType, InvalidJson, MultiNode,
   NullNode, NumberNode, Schema, SimpleValidation, StringNode,
 }
-import simplejson/jsonvalue.{
-  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonString,
-}
+import simplejson/jsonvalue.{type JsonValue, JsonBool, JsonNull}
 
 pub fn do_validate(json: String, schema: Schema) -> #(Bool, List(InvalidEntry)) {
   case parser.parse(json) {
@@ -91,50 +91,6 @@ fn validate_multinode(
   }
 }
 
-fn validate_string(
-  node: JsonValue,
-  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
-) -> #(Bool, List(InvalidEntry)) {
-  case node {
-    JsonString(_, _) -> {
-      let result =
-        list.try_each(properties, fn(validate) {
-          case validate(node) {
-            Some(e) -> Error(e)
-            None -> Ok(Nil)
-          }
-        })
-      case result {
-        Ok(Nil) -> #(True, [])
-        Error(err) -> #(False, [err])
-      }
-    }
-    _ -> #(False, [InvalidDataType(node)])
-  }
-}
-
-fn validate_number(
-  node: JsonValue,
-  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
-) -> #(Bool, List(InvalidEntry)) {
-  case node {
-    JsonNumber(_, _, _, _) -> {
-      let result =
-        list.try_each(properties, fn(validate) {
-          case validate(node) {
-            Some(e) -> Error(e)
-            None -> Ok(Nil)
-          }
-        })
-      case result {
-        Ok(Nil) -> #(True, [])
-        Error(err) -> #(False, [err])
-      }
-    }
-    _ -> #(False, [InvalidDataType(node)])
-  }
-}
-
 fn validate_boolean(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
   case node {
     JsonBool(_, _) -> #(True, [])
@@ -145,18 +101,6 @@ fn validate_boolean(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
 fn validate_null(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
   case node {
     JsonNull(_) -> #(True, [])
-    _ -> #(False, [InvalidDataType(node)])
-  }
-}
-
-fn validate_array(
-  node: JsonValue,
-  _properties: List(fn(JsonValue) -> Option(InvalidEntry)),
-) -> #(Bool, List(InvalidEntry)) {
-  case node {
-    JsonArray(_, _l) -> {
-      #(True, [])
-    }
     _ -> #(False, [InvalidDataType(node)])
   }
 }

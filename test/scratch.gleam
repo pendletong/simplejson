@@ -1,6 +1,4 @@
 import simplejson
-import simplejson/internal/parser
-import simplejson/internal/schema/schema
 
 pub fn main() {
   //   parser.parse(

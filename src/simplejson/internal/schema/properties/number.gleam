@@ -1,12 +1,13 @@
 import gleam/float
 import gleam/int
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/schema/properties/properties.{
   get_more_than_zero_property, get_number_property,
 }
 import simplejson/internal/schema/types.{
   type InvalidEntry, type Number, type ValidationProperty, FailedProperty,
-  InvalidSchema, Number, NumberProperty,
+  InvalidDataType, InvalidSchema, Number, NumberProperty,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonNumber}
 
@@ -287,5 +288,27 @@ fn is_multiple(num: JsonValue, of: Number) -> Result(Bool, InvalidEntry) {
       }
     }
     _ -> Error(InvalidSchema(19))
+  }
+}
+
+pub fn validate_number(
+  node: JsonValue,
+  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+) -> #(Bool, List(InvalidEntry)) {
+  case node {
+    JsonNumber(_, _, _, _) -> {
+      let result =
+        list.try_each(properties, fn(validate) {
+          case validate(node) {
+            Some(e) -> Error(e)
+            None -> Ok(Nil)
+          }
+        })
+      case result {
+        Ok(Nil) -> #(True, [])
+        Error(err) -> #(False, [err])
+      }
+    }
+    _ -> #(False, [InvalidDataType(node)])
   }
 }
