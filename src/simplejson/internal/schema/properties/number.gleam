@@ -294,7 +294,7 @@ fn is_multiple(num: JsonValue, of: Number) -> Result(Bool, InvalidEntry) {
 pub fn validate_number(
   node: JsonValue,
   properties: List(fn(JsonValue) -> Option(InvalidEntry)),
-) -> #(Bool, List(InvalidEntry)) {
+) -> Result(Bool, List(InvalidEntry)) {
   case node {
     JsonNumber(_, _, _, _) -> {
       let result =
@@ -305,10 +305,10 @@ pub fn validate_number(
           }
         })
       case result {
-        Ok(Nil) -> #(True, [])
-        Error(err) -> #(False, [err])
+        Ok(Nil) -> Ok(True)
+        Error(err) -> Error([err])
       }
     }
-    _ -> #(False, [InvalidDataType(node)])
+    _ -> Error([InvalidDataType(node)])
   }
 }

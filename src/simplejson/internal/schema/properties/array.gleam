@@ -18,11 +18,11 @@ pub const array_properties: List(
 pub fn validate_array(
   node: JsonValue,
   _properties: List(fn(JsonValue) -> Option(InvalidEntry)),
-) -> #(Bool, List(InvalidEntry)) {
+) -> Result(Bool, List(InvalidEntry)) {
   case node {
     JsonArray(_, _l) -> {
-      #(True, [])
+      Ok(True)
     }
-    _ -> #(False, [InvalidDataType(node)])
+    _ -> Error([InvalidDataType(node)])
   }
 }
