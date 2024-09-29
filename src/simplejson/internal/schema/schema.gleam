@@ -8,9 +8,9 @@ import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type Schema, type ValidationNode, Any, ArrayNode,
-  BooleanNode, InvalidDataType, InvalidSchema, MultiNode, NullNode, NumberNode,
-  Schema, SimpleValidation, StringNode,
+  type InvalidEntry, type Schema, type ValidationNode, All, Any, ArrayNode,
+  BooleanNode, EnumNode, InvalidDataType, InvalidSchema, MultiNode, NullNode,
+  NumberNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/internal/schema/validator
 import simplejson/jsonvalue.{
@@ -20,9 +20,12 @@ import simplejson/jsonvalue.{
 import gleam/dict.{type Dict}
 import gleam/option.{type Option, None, Some}
 
-pub fn validate(json: String, schema: String) -> #(Bool, List(InvalidEntry)) {
+pub fn validate(
+  json: String,
+  schema: String,
+) -> Result(Bool, List(InvalidEntry)) {
   case generate_schema(schema) {
-    Error(err) -> #(False, [err])
+    Error(err) -> Error([err])
     Ok(schema) -> validator.do_validate(json, schema)
   }
 }
@@ -51,7 +54,7 @@ fn generate_validation(
       case dict.is_empty(obj) {
         True -> Ok(#(SimpleValidation(True), sub_schema))
         False -> {
-          case dict.get(obj, "type") {
+          use #(node, sub_schema) <- result.try(case dict.get(obj, "type") {
             Ok(JsonString(_, data_type)) -> {
               use #(node, sub_schema) <- result.try(
                 generate_specified_validation(data_type, obj, sub_schema, root),
@@ -65,6 +68,14 @@ fn generate_validation(
             Error(Nil) -> {
               todo
             }
+          })
+
+          case dict.get(obj, "enum") {
+            Ok(JsonArray(_, values)) -> {
+              Ok(#(MultiNode([node, EnumNode(values)], All), sub_schema))
+            }
+            Ok(_) -> Error(InvalidSchema(23))
+            Error(_) -> Ok(#(node, sub_schema))
           }
         }
       }
