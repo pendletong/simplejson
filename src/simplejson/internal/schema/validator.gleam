@@ -6,14 +6,18 @@ import simplejson/internal/schema/properties/number.{validate_number}
 import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
   type Combination, type InvalidEntry, type Schema, type ValidationNode,
-  ArrayNode, BooleanNode, FalseSchema, InvalidDataType, InvalidJson, MultiNode,
-  NullNode, NumberNode, Schema, SimpleValidation, StringNode,
+  ArrayNode, BooleanNode, EnumNode, FalseSchema, InvalidDataType, InvalidJson,
+  MultiNode, NotMatchEnum, NullNode, NumberNode, Schema, SimpleValidation,
+  StringNode,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonBool, JsonNull}
 
-pub fn do_validate(json: String, schema: Schema) -> #(Bool, List(InvalidEntry)) {
+pub fn do_validate(
+  json: String,
+  schema: Schema,
+) -> Result(Bool, List(InvalidEntry)) {
   case parser.parse(json) {
-    Error(err) -> #(False, [InvalidJson(err)])
+    Error(err) -> Error([InvalidJson(err)])
     Ok(json) -> {
       validate_node(json, schema.validation, schema.sub_schema)
     }
@@ -24,8 +28,11 @@ fn validate_node(
   node: JsonValue,
   with validation_node: ValidationNode,
   and sub_schema: Dict(String, Schema),
-) -> #(Bool, List(InvalidEntry)) {
+) -> Result(Bool, List(InvalidEntry)) {
   case validation_node {
+    EnumNode(values) -> {
+      validate_enum(node, values)
+    }
     StringNode(props) -> {
       validate_string(node, props)
     }
@@ -42,14 +49,24 @@ fn validate_node(
       validate_null(node)
     }
     SimpleValidation(True) -> {
-      #(True, [])
+      Ok(True)
     }
     SimpleValidation(False) -> {
-      #(False, [FalseSchema])
+      Error([FalseSchema])
     }
     MultiNode(v_nodes, comb) -> {
       validate_multinode(node, v_nodes, comb, sub_schema)
     }
+  }
+}
+
+fn validate_enum(
+  node: JsonValue,
+  values: List(JsonValue),
+) -> Result(Bool, List(InvalidEntry)) {
+  case list.find(values, fn(v) { v == node }) {
+    Ok(_) -> Ok(True)
+    Error(_) -> Error([NotMatchEnum(node)])
   }
 }
 
@@ -58,16 +75,16 @@ fn validate_multinode(
   validators: List(ValidationNode),
   _combination: Combination,
   sub_schema: Dict(String, Schema),
-) -> #(Bool, List(InvalidEntry)) {
+) -> Result(Bool, List(InvalidEntry)) {
   case
     list.fold_until(validators, [], fn(errors, v_node) {
       case validate_node(node, v_node, sub_schema) {
-        #(True, _) -> Stop([])
-        #(False, err) -> Continue(list.append(err, errors))
+        Ok(_) -> Stop([])
+        Error(err) -> Continue(list.append(err, errors))
       }
     })
   {
-    [] -> #(True, [])
+    [] -> Ok(True)
     errors -> {
       // Filtering the invalid data types should remove
       // any nodes that type didn't match and keep the node type
@@ -86,21 +103,21 @@ fn validate_multinode(
         [] -> [InvalidDataType(node)]
         _ -> errors
       }
-      #(False, errors)
+      Error(errors)
     }
   }
 }
 
-fn validate_boolean(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
+fn validate_boolean(node: JsonValue) -> Result(Bool, List(InvalidEntry)) {
   case node {
-    JsonBool(_, _) -> #(True, [])
-    _ -> #(False, [InvalidDataType(node)])
+    JsonBool(_, _) -> Ok(True)
+    _ -> Error([InvalidDataType(node)])
   }
 }
 
-fn validate_null(node: JsonValue) -> #(Bool, List(InvalidEntry)) {
+fn validate_null(node: JsonValue) -> Result(Bool, List(InvalidEntry)) {
   case node {
-    JsonNull(_) -> #(True, [])
-    _ -> #(False, [InvalidDataType(node)])
+    JsonNull(_) -> Ok(True)
+    _ -> Error([InvalidDataType(node)])
   }
 }

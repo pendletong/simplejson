@@ -33,6 +33,7 @@ pub type ValidationNode {
     prefix_items: List(ValidationNode),
     root: Option(ValidationNode),
   )
+  EnumNode(value: List(JsonValue))
   BooleanNode
   NullNode
 }
@@ -53,5 +54,6 @@ pub type InvalidEntry {
   InvalidSchema(p: Int)
   InvalidJson(ParseError)
   InvalidDataType(node: JsonValue)
+  NotMatchEnum(node: JsonValue)
   FailedProperty(prop: ValidationProperty, value: JsonValue)
 }
