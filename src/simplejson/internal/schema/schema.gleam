@@ -3,6 +3,7 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/result
+import simplejson
 import simplejson/internal/parser
 import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
@@ -32,7 +33,7 @@ pub fn validate(
 
 fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
   use schema <- result.try(
-    parser.parse(schema) |> result.replace_error(InvalidSchema(2)),
+    simplejson.parse(schema) |> result.replace_error(InvalidSchema(2)),
   )
 
   case generate_validation(schema, dict.new(), None) {

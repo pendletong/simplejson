@@ -1,5 +1,6 @@
 import gleam/io
 import simplejson
+import simplejson/internal/schema/schema
 
 pub fn main() {
   //   parser.parse(
@@ -157,8 +158,11 @@ pub fn main() {
   // io.println(
   //   "{\"type\":\"string\", \"pattern\":\"\\\\d\\\\d\\\\d-\\\\d\\\\d\\\\d\"}",
   // )
-  // schema.validate("24", "{\"type\":\"number\",\"multipleOf\":2}")
-  // |> io.debug
-  simplejson.parse("{\"a\": []}")
+  schema.validate(
+    "24",
+    "{\"enum\":[2,4,6,24],\"type\":\"number\",\"multipleOf\":2}",
+  )
   |> io.debug
+  // simplejson.parse("{\"a\": []}")
+  // |> io.debug
 }
