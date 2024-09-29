@@ -5,7 +5,6 @@
 //// and to then output that as a string again.
 
 import gleam/dict
-import gleam/list
 import simplejson/internal/jsonpath.{type JsonPath}
 import simplejson/internal/parser
 import simplejson/internal/pointer

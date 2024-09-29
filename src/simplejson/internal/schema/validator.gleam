@@ -1,5 +1,7 @@
 import gleam/dict.{type Dict}
+import gleam/io
 import gleam/list.{Continue, Stop}
+import simplejson
 import simplejson/internal/parser
 import simplejson/internal/schema/properties/array.{validate_array}
 import simplejson/internal/schema/properties/number.{validate_number}
@@ -16,7 +18,7 @@ pub fn do_validate(
   json: String,
   schema: Schema,
 ) -> Result(Bool, List(InvalidEntry)) {
-  case parser.parse(json) {
+  case simplejson.parse(json) {
     Error(err) -> Error([InvalidJson(err)])
     Ok(json) -> {
       validate_node(json, schema.validation, schema.sub_schema)
@@ -55,6 +57,7 @@ fn validate_node(
       Error([FalseSchema])
     }
     MultiNode(v_nodes, comb) -> {
+      "Multi" |> echo
       validate_multinode(node, v_nodes, comb, sub_schema)
     }
   }
@@ -64,26 +67,52 @@ fn validate_enum(
   node: JsonValue,
   values: List(JsonValue),
 ) -> Result(Bool, List(InvalidEntry)) {
+  #("validate", node, values) |> echo
   case list.find(values, fn(v) { v == node }) {
     Ok(_) -> Ok(True)
     Error(_) -> Error([NotMatchEnum(node)])
   }
 }
 
+fn validate_all(
+  node: JsonValue,
+  validators: List(ValidationNode),
+  sub_schema: Dict(String, Schema),
+) {
+  list.fold(validators, [], fn(errors, v_node) {
+    case validate_node(node, v_node, sub_schema) {
+      Ok(_) -> errors
+      Error(err) -> list.append(err, errors)
+    }
+  })
+}
+
+fn validate_any(
+  node: JsonValue,
+  validators: List(ValidationNode),
+  sub_schema: Dict(String, Schema),
+) {
+  list.fold_until(validators, [], fn(errors, v_node) {
+    case validate_node(node, v_node, sub_schema) {
+      Ok(_) -> Stop([])
+      Error(err) -> Continue(list.append(err, errors))
+    }
+  })
+}
+
 fn validate_multinode(
   node: JsonValue,
   validators: List(ValidationNode),
-  _combination: Combination,
+  combination: Combination,
   sub_schema: Dict(String, Schema),
 ) -> Result(Bool, List(InvalidEntry)) {
-  case
-    list.fold_until(validators, [], fn(errors, v_node) {
-      case validate_node(node, v_node, sub_schema) {
-        Ok(_) -> Stop([])
-        Error(err) -> Continue(list.append(err, errors))
-      }
-    })
-  {
+  let comp = case combination {
+    types.All -> validate_all
+    types.Any -> validate_any
+    types.None -> todo
+    types.One -> todo
+  }
+  case comp(node, validators, sub_schema) {
     [] -> Ok(True)
     errors -> {
       // Filtering the invalid data types should remove
