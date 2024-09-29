@@ -3,7 +3,6 @@
 //// Basic JSON library for Gleam
 
 import gleam/dict
-import gleam/io
 import gleam/list
 import simplejson/internal/parser
 import simplejson/internal/stringify

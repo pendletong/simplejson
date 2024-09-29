@@ -1,9 +1,9 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type ValidationProperty,
+  type InvalidEntry, type ValidationProperty, InvalidDataType,
 }
-import simplejson/jsonvalue.{type JsonValue}
+import simplejson/jsonvalue.{type JsonValue, JsonArray}
 
 pub const array_properties: List(
   #(
@@ -14,3 +14,15 @@ pub const array_properties: List(
       Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry),
   ),
 ) = []
+
+pub fn validate_array(
+  node: JsonValue,
+  _properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+) -> #(Bool, List(InvalidEntry)) {
+  case node {
+    JsonArray(_, _l) -> {
+      #(True, [])
+    }
+    _ -> #(False, [InvalidDataType(node)])
+  }
+}
