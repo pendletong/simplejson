@@ -1,3 +1,4 @@
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
 import gleam/string
@@ -6,7 +7,7 @@ import simplejson/internal/schema/properties/properties.{
 }
 import simplejson/internal/schema/types.{
   type InvalidEntry, type ValidationProperty, FailedProperty, IntProperty,
-  InvalidSchema, StringProperty,
+  InvalidDataType, InvalidSchema, StringProperty,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonString}
 
@@ -81,5 +82,27 @@ fn string_format(
       Ok(fn(_v) { None })
     }
     _ -> Error(InvalidSchema(13))
+  }
+}
+
+pub fn validate_string(
+  node: JsonValue,
+  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+) -> #(Bool, List(InvalidEntry)) {
+  case node {
+    JsonString(_, _) -> {
+      let result =
+        list.try_each(properties, fn(validate) {
+          case validate(node) {
+            Some(e) -> Error(e)
+            None -> Ok(Nil)
+          }
+        })
+      case result {
+        Ok(Nil) -> #(True, [])
+        Error(err) -> #(False, [err])
+      }
+    }
+    _ -> #(False, [InvalidDataType(node)])
   }
 }
