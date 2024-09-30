@@ -1,9 +1,9 @@
 import gleam/dict.{type Dict}
 import gleam/io
 import gleam/list.{Continue, Stop}
+import gleam/option.{type Option, None, Some}
+import gleam/result
 import simplejson
-import simplejson/internal/parser
-import simplejson/internal/schema/properties/array.{validate_array}
 import simplejson/internal/schema/properties/number.{validate_number}
 import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
@@ -12,7 +12,7 @@ import simplejson/internal/schema/types.{
   MultiNode, NotMatchEnum, NullNode, NumberNode, Schema, SimpleValidation,
   StringNode,
 }
-import simplejson/jsonvalue.{type JsonValue, JsonBool, JsonNull}
+import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonNull}
 
 pub fn do_validate(
   json: String,
@@ -41,8 +41,8 @@ fn validate_node(
     NumberNode(props) -> {
       validate_number(node, props)
     }
-    ArrayNode(props, _validators, _root) -> {
-      validate_array(node, props)
+    ArrayNode(props, items, tuple, _root) -> {
+      validate_array(node, items, tuple, props)
     }
     BooleanNode -> {
       validate_boolean(node)
@@ -57,8 +57,69 @@ fn validate_node(
       Error([FalseSchema])
     }
     MultiNode(v_nodes, comb) -> {
-      io.debug("Multi")
       validate_multinode(node, v_nodes, comb, sub_schema)
+    }
+  }
+}
+
+pub fn validate_array(
+  node: JsonValue,
+  items: Option(ValidationNode),
+  prefix_items: Option(List(ValidationNode)),
+  _properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+) -> Result(Bool, List(InvalidEntry)) {
+  case node {
+    JsonArray(_, l) -> {
+      use remaining_nodes <- result.try(case prefix_items {
+        Some(val_nodes) -> {
+          use rem_nodes <- result.try(validate_items(l, val_nodes, []))
+          Ok(rem_nodes)
+        }
+        None -> Ok(l)
+      })
+      case items {
+        Some(vn) -> {
+          list.try_each(remaining_nodes, fn(n) {
+            validate_node(n, vn, dict.new())
+          })
+          |> result.replace(True)
+        }
+        None -> Ok(True)
+      }
+    }
+    _ -> Error([InvalidDataType(node)])
+  }
+}
+
+fn validate_items(
+  json: List(JsonValue),
+  validators: List(ValidationNode),
+  errors: List(InvalidEntry),
+) -> Result(List(JsonValue), List(InvalidEntry)) {
+  case json {
+    [] -> {
+      case errors {
+        [] -> Ok([])
+        _ -> Error(errors)
+      }
+    }
+    [node, ..rest] -> {
+      case validators {
+        [] -> {
+          case errors {
+            [] -> Ok(json)
+            _ -> Error(errors)
+          }
+        }
+        [v, ..v_rest] -> {
+          let res = validate_node(node, v, dict.new())
+          let errors = case res {
+            Error(err) -> list.append(err, errors)
+            _ -> errors
+          }
+          validate_items(rest, v_rest, errors)
+        }
+      }
     }
   }
 }
