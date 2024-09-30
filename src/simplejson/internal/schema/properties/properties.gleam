@@ -4,10 +4,25 @@ import gleam/option.{type Option, None, Some}
 import gleam/regex.{Options}
 import gleam/result
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type ValidationProperty, FloatProperty, IntProperty,
-  InvalidSchema, NumberProperty, ObjectProperty, StringProperty,
+  type InvalidEntry, type ValidationProperty, BooleanProperty, FloatProperty,
+  IntProperty, InvalidSchema, NumberProperty, ObjectProperty, StringProperty,
 }
-import simplejson/jsonvalue.{type JsonValue, JsonNumber, JsonObject, JsonString}
+import simplejson/jsonvalue.{
+  type JsonValue, JsonBool, JsonNumber, JsonObject, JsonString,
+}
+
+pub fn get_bool_property(
+  property: String,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(ValidationProperty), InvalidEntry) {
+  case dict.get(dict, property) {
+    Ok(JsonBool(_, val)) -> {
+      Ok(Some(BooleanProperty(property, val)))
+    }
+    Ok(_) -> Error(InvalidSchema(6))
+    _ -> Ok(None)
+  }
+}
 
 pub fn get_int_property(
   property: String,
@@ -29,9 +44,6 @@ pub fn get_positive_int_property(
   case dict.get(dict, property) {
     Ok(JsonNumber(_, Some(val), _, _)) if val >= 0 -> {
       Ok(Some(IntProperty(property, val)))
-    }
-    Ok(JsonNumber(_, Some(_val), _, _)) -> {
-      Error(InvalidSchema(20))
     }
     Ok(_) -> Error(InvalidSchema(6))
     _ -> Ok(None)

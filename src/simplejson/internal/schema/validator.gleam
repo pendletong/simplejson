@@ -65,7 +65,7 @@ pub fn validate_array(
   node: JsonValue,
   items: Option(ValidationNode),
   prefix_items: Option(List(ValidationNode)),
-  _properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> Result(Bool, List(InvalidEntry)) {
   case node {
     JsonArray(_, l) -> {
@@ -76,12 +76,24 @@ pub fn validate_array(
         }
         None -> Ok(l)
       })
-      case items {
+      use _ <- result.try(case items {
         Some(vn) -> {
           list.try_each(remaining_nodes, fn(n) { validate_node(n, vn) })
           |> result.replace(True)
         }
         None -> Ok(True)
+      })
+
+      let result =
+        list.try_each(properties, fn(validate) {
+          case validate(node) {
+            Some(e) -> Error(e)
+            None -> Ok(Nil)
+          }
+        })
+      case result {
+        Ok(Nil) -> Ok(True)
+        Error(err) -> Error([err])
       }
     }
     _ -> Error([InvalidDataType(node)])
