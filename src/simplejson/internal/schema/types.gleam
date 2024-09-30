@@ -9,6 +9,7 @@ pub type Number {
 }
 
 pub type ValidationProperty {
+  BooleanProperty(name: String, value: Bool)
   StringProperty(name: String, value: String)
   IntProperty(name: String, value: Int)
   FloatProperty(name: String, value: Float)
