@@ -36,9 +36,8 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
     simplejson.parse(schema) |> result.replace_error(InvalidSchema(2)),
   )
 
-  case generate_validation(schema, dict.new(), None) {
-    Ok(#(validator, sub_schema)) ->
-      Ok(Schema(None, None, schema, validator, sub_schema))
+  case generate_validation(schema, None) {
+    Ok(validator) -> Ok(Schema(None, None, schema, validator))
     Error(err) -> Error(err)
   }
   |> echo
@@ -46,27 +45,27 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
 
 fn generate_validation(
   schema: JsonValue,
-  sub_schema: Dict(String, Schema),
   root: Option(ValidationNode),
-) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+) -> Result(ValidationNode, InvalidEntry) {
   case schema {
-    JsonBool(_, value) -> Ok(#(SimpleValidation(value), sub_schema))
+    JsonBool(_, value) -> Ok(SimpleValidation(value))
     JsonObject(_, obj) -> {
       case dict.is_empty(obj) {
-        True -> Ok(#(SimpleValidation(True), sub_schema))
+        True -> Ok(SimpleValidation(True))
         False -> {
-          use #(node, sub_schema) <- result.try(case dict.get(obj, "type") {
+          use node <- result.try(case dict.get(obj, "type") {
             Ok(JsonString(_, data_type)) -> {
-              use #(node, sub_schema) <- result.try(
-                generate_specified_validation(data_type, obj, sub_schema, root),
-              )
-              Ok(#(node, sub_schema))
+              use node <- result.try(generate_specified_validation(
+                data_type,
+                obj,
+                root,
+              ))
+              Ok(node)
             }
             Ok(JsonArray(_, data_types)) -> {
               generate_multi_node(
                 stringify.dict_to_ordered_list(data_types),
                 obj,
-                sub_schema,
                 root,
               )
             }
@@ -78,16 +77,13 @@ fn generate_validation(
 
           case dict.get(obj, "enum") {
             Ok(JsonArray(_, values)) -> {
-              Ok(#(
-                MultiNode(
-                  [node, EnumNode(stringify.dict_to_ordered_list(values))],
-                  All,
-                ),
-                sub_schema,
+              Ok(MultiNode(
+                [node, EnumNode(stringify.dict_to_ordered_list(values))],
+                All,
               ))
             }
             Ok(_) -> Error(InvalidSchema(23))
-            Error(_) -> Ok(#(node, sub_schema))
+            Error(_) -> Ok(node)
           }
         }
       }
@@ -99,50 +95,46 @@ fn generate_validation(
 fn generate_multi_node(
   data_types: List(JsonValue),
   obj: Dict(String, JsonValue),
-  sub_schema: Dict(String, Schema),
   root: Option(ValidationNode),
-) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+) -> Result(ValidationNode, InvalidEntry) {
   use multi_node <- result.try(
     list.try_map(data_types, fn(data_type) {
       case data_type {
         JsonString(_, data_type) -> {
-          use #(node, sub_schema) <- result.try(generate_specified_validation(
+          use node <- result.try(generate_specified_validation(
             data_type,
             obj,
-            sub_schema,
             root,
           ))
-          Ok(#(node, sub_schema))
+          Ok(node)
         }
         _ -> Error(InvalidSchema(5))
       }
     }),
   )
-  // todo Schema merging
-  Ok(#(MultiNode(list.map(multi_node, fn(n) { n.0 }), Any), sub_schema))
+  Ok(MultiNode(multi_node, Any))
 }
 
 fn generate_specified_validation(
   data_type: String,
   dict: Dict(String, JsonValue),
-  sub_schema: Dict(String, Schema),
   root: Option(ValidationNode),
-) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+) -> Result(ValidationNode, InvalidEntry) {
   case data_type {
     "string" -> {
-      generate_string_validation(dict, sub_schema)
+      generate_string_validation(dict)
     }
     "integer" -> {
-      generate_int_validation(dict, sub_schema)
+      generate_int_validation(dict)
     }
     "number" -> {
-      generate_number_validation(dict, sub_schema)
+      generate_number_validation(dict)
     }
     "array" -> {
-      generate_array_validation(dict, sub_schema, root)
+      generate_array_validation(dict, root)
     }
-    "boolean" -> Ok(#(BooleanNode, sub_schema))
-    "null" -> Ok(#(NullNode, sub_schema))
+    "boolean" -> Ok(BooleanNode)
+    "null" -> Ok(NullNode)
     "object" -> todo
     _ -> Error(InvalidSchema(34))
   }
@@ -150,44 +142,53 @@ fn generate_specified_validation(
 
 fn generate_array_validation(
   dict: Dict(String, JsonValue),
-  sub_schema: Dict(String, Schema),
   root: Option(ValidationNode),
-) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+) -> Result(ValidationNode, InvalidEntry) {
   use val_nodes <- result.try(case dict.get(dict, "items") {
     Ok(JsonObject(_, _) as json) -> {
-      use #(vn, sub) <- result.try(generate_validation(json, sub_schema, root))
+      use vn <- result.try(generate_validation(json, root))
 
-      Ok(#([vn], dict.merge(sub_schema, sub)))
+      Ok([vn])
     }
     Ok(JsonArray(_, l)) -> {
       use val_nodes <- result.try(
         list.try_map(stringify.dict_to_ordered_list(l), fn(v) {
-          generate_validation(v, sub_schema, root)
+          generate_validation(v, root)
         }),
       )
 
-      Ok(
-        list.fold(val_nodes, #([], sub_schema), fn(acc, vn) {
-          let #(val_node, sub) = vn
-          let #(nodes, schemas) = acc
-
-          #([val_node, ..nodes], dict.merge(sub, schemas))
-        }),
-      )
+      Ok(val_nodes)
     }
-    Ok(JsonBool(_, b)) -> Ok(#([SimpleValidation(b)], sub_schema))
+    Ok(JsonBool(_, b)) -> Ok([SimpleValidation(b)])
     Ok(_) -> Error(InvalidSchema(30))
     Error(_) -> {
-      Ok(#([], sub_schema))
+      Ok([])
     }
   })
 
+  use prefix_items <- result.try(case dict.get(dict, "prefixItems") {
+    Ok(JsonArray(_, l)) -> {
+      use val_nodes <- result.try(
+        list.try_map(stringify.dict_to_ordered_list(l), fn(i) {
+          generate_validation(i, root)
+        }),
+      )
+      Ok(val_nodes)
+    }
+    Ok(_) -> Error(InvalidSchema(31))
+    Error(_) -> Ok([])
+  })
+
   use props <- result.try(get_properties(array_properties, dict))
-  let items = case val_nodes.0 {
+  let items = case val_nodes {
     [] -> None
     _ as l -> Some(MultiNode(l, Any))
   }
-  Ok(#(ArrayNode(props, items, None, root), val_nodes.1))
+  let prefix_items = case prefix_items {
+    [] -> None
+    _ -> Some(prefix_items)
+  }
+  Ok(ArrayNode(props, items, prefix_items, root))
 }
 
 fn get_properties(
@@ -229,19 +230,17 @@ fn get_properties(
 
 fn generate_number_validation(
   dict: Dict(String, JsonValue),
-  sub_schema: Dict(String, Schema),
-) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+) -> Result(ValidationNode, InvalidEntry) {
   use props <- result.try(get_properties(int_properties, dict))
-  Ok(#(NumberNode(props), sub_schema))
+  Ok(NumberNode(props))
 }
 
 fn generate_int_validation(
   dict: Dict(String, JsonValue),
-  sub_schema: Dict(String, Schema),
-) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+) -> Result(ValidationNode, InvalidEntry) {
   use props <- result.try(get_properties(int_properties, dict))
 
-  Ok(#(
+  Ok(
     NumberNode([
       fn(num) {
         case num {
@@ -257,15 +256,13 @@ fn generate_int_validation(
       },
       ..props
     ]),
-    sub_schema,
-  ))
+  )
 }
 
 fn generate_string_validation(
   dict: Dict(String, JsonValue),
-  sub_schema: Dict(String, Schema),
-) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
+) -> Result(ValidationNode, InvalidEntry) {
   use props <- result.try(get_properties(string_properties, dict))
 
-  Ok(#(StringNode(props), sub_schema))
+  Ok(StringNode(props))
 }

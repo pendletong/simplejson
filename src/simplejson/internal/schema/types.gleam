@@ -45,7 +45,6 @@ pub type Schema {
     schema_definition: Option(String),
     schema: JsonValue,
     validation: ValidationNode,
-    sub_schema: Dict(String, Schema),
   )
 }
 
