@@ -30,7 +30,8 @@ pub type ValidationNode {
   NumberNode(properties: List(fn(JsonValue) -> Option(InvalidEntry)))
   ArrayNode(
     properties: List(fn(JsonValue) -> Option(InvalidEntry)),
-    prefix_items: List(ValidationNode),
+    items: Option(ValidationNode),
+    prefix_items: Option(List(ValidationNode)),
     root: Option(ValidationNode),
   )
   EnumNode(value: List(JsonValue))
