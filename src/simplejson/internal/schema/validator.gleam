@@ -21,7 +21,7 @@ pub fn do_validate(
   case simplejson.parse(json) {
     Error(err) -> Error([InvalidJson(err)])
     Ok(json) -> {
-      validate_node(json, schema.validation, schema.sub_schema)
+      validate_node(json, schema.validation)
     }
   }
 }
@@ -29,7 +29,6 @@ pub fn do_validate(
 fn validate_node(
   node: JsonValue,
   with validation_node: ValidationNode,
-  and sub_schema: Dict(String, Schema),
 ) -> Result(Bool, List(InvalidEntry)) {
   case validation_node {
     EnumNode(values) -> {
@@ -57,7 +56,7 @@ fn validate_node(
       Error([FalseSchema])
     }
     MultiNode(v_nodes, comb) -> {
-      validate_multinode(node, v_nodes, comb, sub_schema)
+      validate_multinode(node, v_nodes, comb)
     }
   }
 }
@@ -79,9 +78,7 @@ pub fn validate_array(
       })
       case items {
         Some(vn) -> {
-          list.try_each(remaining_nodes, fn(n) {
-            validate_node(n, vn, dict.new())
-          })
+          list.try_each(remaining_nodes, fn(n) { validate_node(n, vn) })
           |> result.replace(True)
         }
         None -> Ok(True)
@@ -112,7 +109,7 @@ fn validate_items(
           }
         }
         [v, ..v_rest] -> {
-          let res = validate_node(node, v, dict.new())
+          let res = validate_node(node, v)
           let errors = case res {
             Error(err) -> list.append(err, errors)
             _ -> errors
@@ -135,26 +132,18 @@ fn validate_enum(
   }
 }
 
-fn validate_all(
-  node: JsonValue,
-  validators: List(ValidationNode),
-  sub_schema: Dict(String, Schema),
-) {
+fn validate_all(node: JsonValue, validators: List(ValidationNode)) {
   list.fold(validators, [], fn(errors, v_node) {
-    case validate_node(node, v_node, sub_schema) {
+    case validate_node(node, v_node) {
       Ok(_) -> errors
       Error(err) -> list.append(err, errors)
     }
   })
 }
 
-fn validate_any(
-  node: JsonValue,
-  validators: List(ValidationNode),
-  sub_schema: Dict(String, Schema),
-) {
+fn validate_any(node: JsonValue, validators: List(ValidationNode)) {
   list.fold_until(validators, [], fn(errors, v_node) {
-    case validate_node(node, v_node, sub_schema) {
+    case validate_node(node, v_node) {
       Ok(_) -> Stop([])
       Error(err) -> Continue(list.append(err, errors))
     }
@@ -165,7 +154,6 @@ fn validate_multinode(
   node: JsonValue,
   validators: List(ValidationNode),
   combination: Combination,
-  sub_schema: Dict(String, Schema),
 ) -> Result(Bool, List(InvalidEntry)) {
   let comp = case combination {
     types.All -> validate_all
@@ -173,7 +161,7 @@ fn validate_multinode(
     types.None -> todo
     types.One -> todo
   }
-  case comp(node, validators, sub_schema) {
+  case comp(node, validators) {
     [] -> Ok(True)
     errors -> {
       // Filtering the invalid data types should remove
