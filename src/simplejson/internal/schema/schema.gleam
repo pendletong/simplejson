@@ -144,25 +144,16 @@ fn generate_array_validation(
   dict: Dict(String, JsonValue),
   root: Option(ValidationNode),
 ) -> Result(ValidationNode, InvalidEntry) {
-  use val_nodes <- result.try(case dict.get(dict, "items") {
+  use items <- result.try(case dict.get(dict, "items") {
     Ok(JsonObject(_, _) as json) -> {
       use vn <- result.try(generate_validation(json, root))
 
-      Ok([vn])
+      Ok(Some(vn))
     }
-    Ok(JsonArray(_, l)) -> {
-      use val_nodes <- result.try(
-        list.try_map(stringify.dict_to_ordered_list(l), fn(v) {
-          generate_validation(v, root)
-        }),
-      )
-
-      Ok(val_nodes)
-    }
-    Ok(JsonBool(_, b)) -> Ok([SimpleValidation(b)])
+    Ok(JsonBool(_, b)) -> Ok(Some(SimpleValidation(b)))
     Ok(_) -> Error(InvalidSchema(30))
     Error(_) -> {
-      Ok([])
+      Ok(None)
     }
   })
 
@@ -180,10 +171,6 @@ fn generate_array_validation(
   })
 
   use props <- result.try(get_properties(array_properties, dict))
-  let items = case val_nodes {
-    [] -> None
-    _ as l -> Some(MultiNode(l, Any))
-  }
   let prefix_items = case prefix_items {
     [] -> None
     _ -> Some(prefix_items)

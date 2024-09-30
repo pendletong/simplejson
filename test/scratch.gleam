@@ -164,7 +164,7 @@ pub fn main() {
 
   schema.validate(
     "[1,2,false]",
-    "{\"type\":\"array\",\"items\":[{\"type\":\"number\"},{\"type\":\"boolean\"}]}",
+    "{\"type\":\"array\",\"prefixItems\":[{\"type\":\"number\"},{\"type\":\"number\"}],\"items\":{\"type\":\"string\"}}",
   )
   |> echo
   // simplejson.parse("{\"a\": []}")
