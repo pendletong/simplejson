@@ -8,9 +8,9 @@ import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type Schema, type ValidationNode, All, Any, ArrayNode,
-  BooleanNode, EnumNode, InvalidDataType, InvalidSchema, MultiNode, NullNode,
-  NumberNode, Schema, SimpleValidation, StringNode,
+  type InvalidEntry, type Schema, type ValidationNode, type ValidationProperty,
+  All, Any, ArrayNode, BooleanNode, EnumNode, InvalidDataType, InvalidSchema,
+  MultiNode, NullNode, NumberNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/internal/schema/validator
 import simplejson/internal/stringify
@@ -143,7 +143,8 @@ fn generate_specified_validation(
     }
     "boolean" -> Ok(#(BooleanNode, sub_schema))
     "null" -> Ok(#(NullNode, sub_schema))
-    _ -> todo
+    "object" -> todo
+    _ -> Error(InvalidSchema(34))
   }
 }
 
@@ -153,18 +154,56 @@ fn generate_array_validation(
   root: Option(ValidationNode),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
   use val_nodes <- result.try(case dict.get(dict, "items") {
-    Ok(json) -> {
+    Ok(JsonObject(_, _) as json) -> {
       use #(vn, sub) <- result.try(generate_validation(json, sub_schema, root))
 
       Ok(#([vn], dict.merge(sub_schema, sub)))
     }
+    Ok(JsonArray(_, l)) -> {
+      use val_nodes <- result.try(
+        list.try_map(stringify.dict_to_ordered_list(l), fn(v) {
+          generate_validation(v, sub_schema, root)
+        }),
+      )
+
+      Ok(
+        list.fold(val_nodes, #([], sub_schema), fn(acc, vn) {
+          let #(val_node, sub) = vn
+          let #(nodes, schemas) = acc
+
+          #([val_node, ..nodes], dict.merge(sub, schemas))
+        }),
+      )
+    }
+    Ok(JsonBool(_, b)) -> Ok(#([SimpleValidation(b)], sub_schema))
+    Ok(_) -> Error(InvalidSchema(30))
     Error(_) -> {
       Ok(#([], sub_schema))
     }
   })
 
+  use props <- result.try(get_properties(array_properties, dict))
+  let items = case val_nodes.0 {
+    [] -> None
+    _ as l -> Some(MultiNode(l, Any))
+  }
+  Ok(#(ArrayNode(props, items, None, root), val_nodes.1))
+}
+
+fn get_properties(
+  properties: List(
+    #(
+      String,
+      fn(String, Dict(String, JsonValue)) ->
+        Result(Option(ValidationProperty), InvalidEntry),
+      fn(ValidationProperty) ->
+        Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry),
+    ),
+  ),
+  dict: Dict(String, JsonValue),
+) {
   use props <- result.try(
-    list.try_map(array_properties, fn(prop) {
+    list.try_map(properties, fn(prop) {
       use valid_prop <- result.try(prop.1(prop.0, dict))
 
       case valid_prop {
@@ -177,67 +216,30 @@ fn generate_array_validation(
     }),
   )
 
-  let props =
+  Ok(
     props
     |> list.filter_map(fn(prop) {
       case prop {
         Some(prop) -> Ok(prop)
         None -> Error(Nil)
       }
-    })
-
-  Ok(#(ArrayNode(props, [SimpleValidation(True)], root), val_nodes.1))
+    }),
+  )
 }
 
 fn generate_number_validation(
   dict: Dict(String, JsonValue),
   sub_schema: Dict(String, Schema),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
-  use props <- result.try(
-    list.try_map(int_properties, fn(prop) {
-      use valid_prop <- result.try(prop.1(prop.0, dict))
-
-      case valid_prop {
-        Some(valid_prop) -> {
-          use final_fn <- result.try(prop.2(valid_prop))
-          Ok(Some(final_fn))
-        }
-        None -> Ok(None)
-      }
-    }),
-  )
-
-  Ok(#(
-    NumberNode(
-      props
-      |> list.filter_map(fn(prop) {
-        case prop {
-          Some(prop) -> Ok(prop)
-          None -> Error(Nil)
-        }
-      }),
-    ),
-    sub_schema,
-  ))
+  use props <- result.try(get_properties(int_properties, dict))
+  Ok(#(NumberNode(props), sub_schema))
 }
 
 fn generate_int_validation(
   dict: Dict(String, JsonValue),
   sub_schema: Dict(String, Schema),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
-  use props <- result.try(
-    list.try_map(int_properties, fn(prop) {
-      use valid_prop <- result.try(prop.1(prop.0, dict))
-
-      case valid_prop {
-        Some(valid_prop) -> {
-          use final_fn <- result.try(prop.2(valid_prop))
-          Ok(Some(final_fn))
-        }
-        None -> Ok(None)
-      }
-    }),
-  )
+  use props <- result.try(get_properties(int_properties, dict))
 
   Ok(#(
     NumberNode([
@@ -254,12 +256,6 @@ fn generate_int_validation(
         }
       },
       ..props
-      |> list.filter_map(fn(prop) {
-        case prop {
-          Some(prop) -> Ok(prop)
-          None -> Error(Nil)
-        }
-      })
     ]),
     sub_schema,
   ))
@@ -269,30 +265,7 @@ fn generate_string_validation(
   dict: Dict(String, JsonValue),
   sub_schema: Dict(String, Schema),
 ) -> Result(#(ValidationNode, Dict(String, Schema)), InvalidEntry) {
-  use props <- result.try(
-    list.try_map(string_properties, fn(prop) {
-      use valid_prop <- result.try(prop.1(prop.0, dict))
+  use props <- result.try(get_properties(string_properties, dict))
 
-      case valid_prop {
-        Some(valid_prop) -> {
-          use final_fn <- result.try(prop.2(valid_prop))
-          Ok(Some(final_fn))
-        }
-        None -> Ok(None)
-      }
-    }),
-  )
-
-  Ok(#(
-    StringNode(
-      props
-      |> list.filter_map(fn(prop) {
-        case prop {
-          Some(prop) -> Ok(prop)
-          None -> Error(Nil)
-        }
-      }),
-    ),
-    sub_schema,
-  ))
+  Ok(#(StringNode(props), sub_schema))
 }

@@ -1,4 +1,3 @@
-import simplejson
 import simplejson/internal/schema/schema
 
 pub fn main() {
@@ -157,9 +156,15 @@ pub fn main() {
   // io.println(
   //   "{\"type\":\"string\", \"pattern\":\"\\\\d\\\\d\\\\d-\\\\d\\\\d\\\\d\"}",
   // )
+  // schema.validate(
+  //   "24",
+  //   "{\"enum\":[2,4,6,24],\"type\":\"number\",\"multipleOf\":2}",
+  // )
+  // |> io.debug
+
   schema.validate(
-    "24",
-    "{\"enum\":[2,4,6,24],\"type\":\"number\",\"multipleOf\":2}",
+    "[1,2,false]",
+    "{\"type\":\"array\",\"items\":[{\"type\":\"number\"},{\"type\":\"boolean\"}]}",
   )
   |> echo
   // simplejson.parse("{\"a\": []}")
