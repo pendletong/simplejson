@@ -1,4 +1,3 @@
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
 import gleam/string
@@ -85,24 +84,9 @@ fn string_format(
   }
 }
 
-pub fn validate_string(
-  node: JsonValue,
-  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
-) -> Result(Bool, List(InvalidEntry)) {
+pub fn validate_string(node: JsonValue) -> Result(Bool, List(InvalidEntry)) {
   case node {
-    JsonString(_, _) -> {
-      let result =
-        list.try_each(properties, fn(validate) {
-          case validate(node) {
-            Some(e) -> Error(e)
-            None -> Ok(Nil)
-          }
-        })
-      case result {
-        Ok(Nil) -> Ok(True)
-        Error(err) -> Error([err])
-      }
-    }
+    JsonString(_, _) -> Ok(True)
     _ -> Error([InvalidDataType(node)])
   }
 }
