@@ -7,7 +7,7 @@ import simplejson/internal/schema/properties/properties.{
 }
 import simplejson/internal/schema/types.{
   type InvalidEntry, type ValidationProperty, BooleanProperty, FailedProperty,
-  IntProperty, InvalidSchema,
+  IntProperty, InvalidDataType, InvalidSchema,
 }
 
 import simplejson/jsonvalue.{type JsonValue, JsonArray}
@@ -41,7 +41,7 @@ fn min_items(
               False -> Some(FailedProperty(value, v))
             }
           }
-          _ -> Some(InvalidSchema(34))
+          _ -> Some(InvalidDataType(v))
         }
       })
     }
@@ -62,7 +62,7 @@ fn max_items(
               False -> Some(FailedProperty(value, v))
             }
           }
-          _ -> Some(InvalidSchema(34))
+          _ -> Some(InvalidSchema(35))
         }
       })
     }
@@ -83,7 +83,7 @@ fn unique_items(
               False -> Some(FailedProperty(value, v))
             }
           }
-          _ -> Some(InvalidSchema(34))
+          _ -> Some(InvalidSchema(36))
         }
       })
     }

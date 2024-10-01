@@ -9,8 +9,9 @@ import simplejson/internal/schema/properties/number.{int_properties}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
   type InvalidEntry, type Schema, type ValidationNode, type ValidationProperty,
-  All, Any, ArrayNode, BooleanNode, EnumNode, InvalidDataType, InvalidSchema,
-  MultiNode, NullNode, NumberNode, Schema, SimpleValidation, StringNode,
+  All, AllBreakAfterFirst, Any, ArrayNode, BooleanNode, EnumNode,
+  InvalidDataType, InvalidSchema, MultiNode, NullNode, NumberNode,
+  PropertiesNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/internal/schema/validator
 import simplejson/jsonvalue.{
@@ -165,7 +166,10 @@ fn generate_array_validation(
     [] -> None
     _ -> Some(prefix_items)
   }
-  Ok(ArrayNode(props, items, prefix_items, root))
+  Ok(MultiNode(
+    [ArrayNode(items, prefix_items), PropertiesNode(props)],
+    AllBreakAfterFirst,
+  ))
 }
 
 fn get_properties(
@@ -180,10 +184,11 @@ fn get_properties(
   ),
   dict: Dict(String, JsonValue),
 ) {
+  io.debug(#("Getting props", properties))
   use props <- result.try(
     list.try_map(properties, fn(prop) {
       use valid_prop <- result.try(prop.1(prop.0, dict))
-
+      io.debug(#("valid", valid_prop, prop.0))
       case valid_prop {
         Some(valid_prop) -> {
           use final_fn <- result.try(prop.2(valid_prop))
@@ -193,7 +198,7 @@ fn get_properties(
       }
     }),
   )
-
+  io.debug(#("props", props))
   Ok(
     props
     |> list.filter_map(fn(prop) {
@@ -209,7 +214,7 @@ fn generate_number_validation(
   dict: Dict(String, JsonValue),
 ) -> Result(ValidationNode, InvalidEntry) {
   use props <- result.try(get_properties(int_properties, dict))
-  Ok(NumberNode(props))
+  Ok(MultiNode([NumberNode, PropertiesNode(props)], AllBreakAfterFirst))
 }
 
 fn generate_int_validation(
@@ -217,23 +222,27 @@ fn generate_int_validation(
 ) -> Result(ValidationNode, InvalidEntry) {
   use props <- result.try(get_properties(int_properties, dict))
 
-  Ok(
-    NumberNode([
-      fn(num) {
-        case num {
-          JsonNumber(_, Some(_), _, _) -> None
-          JsonNumber(_, _, Some(f), _) -> {
-            case f == int.to_float(float.truncate(f)) {
-              True -> None
-              False -> Some(InvalidDataType(num))
+  Ok(MultiNode(
+    [
+      NumberNode,
+      PropertiesNode([
+        fn(num) {
+          case num {
+            JsonNumber(_, Some(_), _, _) -> None
+            JsonNumber(_, _, Some(f), _) -> {
+              case f == int.to_float(float.truncate(f)) {
+                True -> None
+                False -> Some(InvalidDataType(num))
+              }
             }
+            _ -> Some(InvalidSchema(16))
           }
-          _ -> Some(InvalidSchema(16))
-        }
-      },
-      ..props
-    ]),
-  )
+        },
+        ..props
+      ]),
+    ],
+    AllBreakAfterFirst,
+  ))
 }
 
 fn generate_string_validation(
@@ -241,5 +250,5 @@ fn generate_string_validation(
 ) -> Result(ValidationNode, InvalidEntry) {
   use props <- result.try(get_properties(string_properties, dict))
 
-  Ok(StringNode(props))
+  Ok(MultiNode([StringNode, PropertiesNode(props)], AllBreakAfterFirst))
 }

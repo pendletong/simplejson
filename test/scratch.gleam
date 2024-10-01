@@ -164,7 +164,10 @@ pub fn main() {
   // |> io.debug
 
   //\"prefixItems\":[{\"type\":\"number\"},{\"type\":\"number\"}],\"items\":true}",
-  schema.validate("[1,1,false]", "{\"type\":\"array\",\"uniqueItems\":true}")
+  schema.validate(
+    "{\"a\":[{},1,false,1]}",
+    "{\"type\":\"array\",\"minItems\":5, \"uniqueItems\":true}",
+  )
   |> io.debug
   // simplejson.parse("{\"a\": []}")
   // |> io.debug

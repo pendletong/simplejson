@@ -1,4 +1,3 @@
-import gleam/dict.{type Dict}
 import gleam/io
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
@@ -9,8 +8,8 @@ import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
   type Combination, type InvalidEntry, type Schema, type ValidationNode,
   ArrayNode, BooleanNode, EnumNode, FalseSchema, InvalidDataType, InvalidJson,
-  MultiNode, NotMatchEnum, NullNode, NumberNode, Schema, SimpleValidation,
-  StringNode,
+  MultiNode, NotMatchEnum, NullNode, NumberNode, PropertiesNode, Schema,
+  SimpleValidation, StringNode,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonNull}
 
@@ -34,14 +33,17 @@ fn validate_node(
     EnumNode(values) -> {
       validate_enum(node, values)
     }
-    StringNode(props) -> {
-      validate_string(node, props)
+    PropertiesNode(props) -> {
+      validate_properties(props, node)
     }
-    NumberNode(props) -> {
-      validate_number(node, props)
+    StringNode -> {
+      validate_string(node)
     }
-    ArrayNode(props, items, tuple, _root) -> {
-      validate_array(node, items, tuple, props)
+    NumberNode -> {
+      validate_number(node)
+    }
+    ArrayNode(items, tuple) -> {
+      validate_array(node, items, tuple)
     }
     BooleanNode -> {
       validate_boolean(node)
@@ -61,12 +63,29 @@ fn validate_node(
   }
 }
 
+pub fn validate_properties(
+  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
+  node: JsonValue,
+) -> Result(Bool, List(InvalidEntry)) {
+  let result =
+    list.filter_map(properties, fn(validate) {
+      case validate(node) {
+        Some(e) -> Ok(e)
+        None -> Error(Nil)
+      }
+    })
+  case result {
+    [] -> Ok(True)
+    err -> Error(err)
+  }
+}
+
 pub fn validate_array(
   node: JsonValue,
   items: Option(ValidationNode),
   prefix_items: Option(List(ValidationNode)),
-  properties: List(fn(JsonValue) -> Option(InvalidEntry)),
 ) -> Result(Bool, List(InvalidEntry)) {
+  io.debug(#("validating", node))
   case node {
     JsonArray(_, l) -> {
       use remaining_nodes <- result.try(case prefix_items {
@@ -76,24 +95,12 @@ pub fn validate_array(
         }
         None -> Ok(l)
       })
-      use _ <- result.try(case items {
+      case items {
         Some(vn) -> {
           list.try_each(remaining_nodes, fn(n) { validate_node(n, vn) })
           |> result.replace(True)
         }
         None -> Ok(True)
-      })
-
-      let result =
-        list.try_each(properties, fn(validate) {
-          case validate(node) {
-            Some(e) -> Error(e)
-            None -> Ok(Nil)
-          }
-        })
-      case result {
-        Ok(Nil) -> Ok(True)
-        Error(err) -> Error([err])
       }
     }
     _ -> Error([InvalidDataType(node)])
@@ -146,18 +153,39 @@ fn validate_enum(
 
 fn validate_all(node: JsonValue, validators: List(ValidationNode)) {
   list.fold(validators, [], fn(errors, v_node) {
+    io.debug(#("validate", node, v_node))
     case validate_node(node, v_node) {
       Ok(_) -> errors
-      Error(err) -> list.append(err, errors)
+      Error(err) -> {
+        io.debug(#("Error", err, errors))
+        list.append(errors, err)
+      }
     }
   })
+}
+
+fn validate_all_break(node: JsonValue, validators: List(ValidationNode)) {
+  io.debug(#("valilist", list.length(validators)))
+  list.fold_until(validators, #([], 0), fn(errors, v_node) {
+    io.debug(#("validate", v_node))
+    case validate_node(node, v_node) {
+      Ok(_) -> Continue(#(errors.0, errors.1 + 1))
+      Error(err) -> {
+        io.debug(#("Error", err, errors.1))
+        case errors.1 == 0 {
+          True -> Stop(#(err, -1))
+          False -> Continue(#(list.append(errors.0, err), errors.1 + 1))
+        }
+      }
+    }
+  }).0
 }
 
 fn validate_any(node: JsonValue, validators: List(ValidationNode)) {
   list.fold_until(validators, [], fn(errors, v_node) {
     case validate_node(node, v_node) {
       Ok(_) -> Stop([])
-      Error(err) -> Continue(list.append(err, errors))
+      Error(err) -> Continue(list.append(errors, err))
     }
   })
 }
@@ -170,30 +198,15 @@ fn validate_multinode(
   let comp = case combination {
     types.All -> validate_all
     types.Any -> validate_any
+    types.AllBreakAfterFirst -> validate_all_break
     types.None -> todo
     types.One -> todo
   }
   case comp(node, validators) {
     [] -> Ok(True)
     errors -> {
-      // Filtering the invalid data types should remove
-      // any nodes that type didn't match and keep the node type
-      // that matched and its error
-      let errors =
-        list.filter(errors, fn(err) {
-          case err {
-            InvalidDataType(_) -> False
-            _ -> True
-          }
-        })
-
-      // If there are no errors then the issue must be
-      // data type matching so return that error
-      let errors = case errors {
-        [] -> [InvalidDataType(node)]
-        _ -> errors
-      }
-      Error(errors)
+      io.debug(#(list.length(errors), "errors"))
+      Error(list.unique(errors))
     }
   }
 }
