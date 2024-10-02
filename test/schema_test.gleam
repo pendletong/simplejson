@@ -452,6 +452,41 @@ pub fn schema_array_tests() {
         )
         |> expect.to_be_true
       }),
+      it("Basic Unique with Min Match", fn() {
+        schema.validate(
+          "[1,2]",
+          "{\"type\":\"array\",\"uniqueItems\":true, \"minItems\":2}",
+        )
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Unique with Min Fail", fn() {
+        let errors =
+          schema.validate(
+            "[{\"type\":\"array\",\"uniqueItems\":true},1,2,3,4,{\"type\":\"array\",\"uniqueItems\":true}]",
+            "{\"type\":\"array\",\"uniqueItems\":true, \"minItems\":5}",
+          )
+          |> expect.to_be_error
+        contains_failed_property_error(
+          errors,
+          BooleanProperty("uniqueItems", True),
+        )
+        |> expect.to_be_true
+      }),
+      it("Unique with Min, Both Fail", fn() {
+        let errors =
+          schema.validate(
+            "[{\"type\":\"array\",\"uniqueItems\":true},1,2,3,4,{\"type\":\"array\",\"uniqueItems\":true}]",
+            "{\"type\":\"array\",\"uniqueItems\":true, \"minItems\":8}",
+          )
+          |> expect.to_be_error
+        contains_failed_property_error(
+          errors,
+          BooleanProperty("uniqueItems", True),
+        )
+        |> expect.to_be_true
+        contains_failed_property_error(errors, IntProperty("minItems", 8))
+        |> expect.to_be_true
+      }),
     ]),
   ])
 }
