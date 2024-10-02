@@ -28,10 +28,9 @@ pub const array_properties: List(
 fn min_items(
   value: ValidationProperty,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
-  case value |> echo {
+  case value {
     IntProperty(_, i) -> {
       Ok(fn(v) {
-        #("min", v, i) |> echo
         case v {
           JsonArray(_, l) -> {
             case dict.size(l) >= i {
