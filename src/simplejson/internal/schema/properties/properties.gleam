@@ -128,7 +128,7 @@ pub fn get_pattern_property(
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   use pattern <- result.try(get_string_property(property, dict))
 
-  case pattern |> echo {
+  case pattern {
     Some(StringProperty(_, regex_str)) -> {
       case
         regexp.compile(

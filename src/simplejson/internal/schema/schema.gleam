@@ -194,11 +194,9 @@ fn get_properties(
   ),
   dict: Dict(String, JsonValue),
 ) {
-  #("Getting props", properties) |> echo
   use props <- result.try(
     list.try_map(properties, fn(prop) {
       use valid_prop <- result.try(prop.1(prop.0, dict))
-      #("valid", valid_prop, prop.0) |> echo
       case valid_prop {
         Some(valid_prop) -> {
           use final_fn <- result.try(prop.2(valid_prop))
@@ -208,7 +206,6 @@ fn get_properties(
       }
     }),
   )
-  #("props", props) |> echo
   Ok(
     props
     |> list.filter_map(fn(prop) {

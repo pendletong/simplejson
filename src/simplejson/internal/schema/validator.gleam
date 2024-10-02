@@ -1,4 +1,3 @@
-import gleam/io
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -86,7 +85,6 @@ pub fn validate_array(
   items: Option(ValidationNode),
   prefix_items: Option(List(ValidationNode)),
 ) -> Result(Bool, List(InvalidEntry)) {
-  #("validating", node) |> echo
   case node {
     JsonArray(_, l) -> {
       use remaining_nodes <- result.try(case prefix_items {
@@ -147,7 +145,6 @@ fn validate_enum(
   node: JsonValue,
   values: List(JsonValue),
 ) -> Result(Bool, List(InvalidEntry)) {
-  #("validate", node, values) |> echo
   case list.find(values, fn(v) { v == node }) {
     Ok(_) -> Ok(True)
     Error(_) -> Error([NotMatchEnum(node)])
@@ -156,11 +153,9 @@ fn validate_enum(
 
 fn validate_all(node: JsonValue, validators: List(ValidationNode)) {
   list.fold(validators, [], fn(errors, v_node) {
-    #("validate", node, v_node) |> echo
     case validate_node(node, v_node) {
       Ok(_) -> errors
       Error(err) -> {
-        #("Error", err, errors) |> echo
         list.append(errors, err)
       }
     }
@@ -168,13 +163,10 @@ fn validate_all(node: JsonValue, validators: List(ValidationNode)) {
 }
 
 fn validate_all_break(node: JsonValue, validators: List(ValidationNode)) {
-  #("valilist", list.length(validators)) |> echo
   list.fold_until(validators, #([], 0), fn(errors, v_node) {
-    #("validate", v_node) |> echo
     case validate_node(node, v_node) {
       Ok(_) -> Continue(#(errors.0, errors.1 + 1))
       Error(err) -> {
-        #("Error", err, errors.1) |> echo
         case errors.1 == 0 {
           True -> Stop(#(err, -1))
           False -> Continue(#(list.append(errors.0, err), errors.1 + 1))
@@ -208,7 +200,6 @@ fn validate_multinode(
   case comp(node, validators) {
     [] -> Ok(True)
     errors -> {
-      #(list.length(errors), "errors") |> echo
       Error(list.unique(errors))
     }
   }
