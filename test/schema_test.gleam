@@ -1,9 +1,10 @@
+import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
 import simplejson/internal/schema/schema
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type ValidationProperty, FalseSchema, IntProperty,
-  NumberProperty, StringProperty,
+  type InvalidEntry, type ValidationProperty, BooleanProperty, FalseSchema,
+  IntProperty, NumberProperty, StringProperty,
 }
 import startest.{describe, it}
 import startest/expect
@@ -264,6 +265,192 @@ pub fn schema_number_tests() {
       it("Basic Float Multiple Property", fn() {
         schema.validate("10.8", "{\"type\":\"number\", \"multipleOf\":3.6}")
         |> expect.to_equal(Ok(True))
+      }),
+    ]),
+  ])
+}
+
+pub fn schema_array_tests() {
+  describe("Schema Array Tests", [
+    describe("Basic Arrays", [
+      it("Basic Array Match", fn() {
+        schema.validate("[]", "{\"type\":\"array\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Basic Array Fail", fn() {
+        let errors =
+          schema.validate("\"123\"", "{\"type\":\"array\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+      describe("Arrays Item Numbers", [
+        it("Basic Min Match", fn() {
+          schema.validate("[1,2]", "{\"type\":\"array\",\"minItems\":2}")
+          |> expect.to_equal(Ok(True))
+        }),
+        it("Basic Max Match", fn() {
+          schema.validate("[1,2]", "{\"type\":\"array\",\"maxItems\":2}")
+          |> expect.to_equal(Ok(True))
+        }),
+        it("Basic Min/Max Match", fn() {
+          schema.validate(
+            "[1,2,3,4,5]",
+            "{\"type\":\"array\",\"minItems\":2,\"maxItems\":5}",
+          )
+          |> expect.to_equal(Ok(True))
+        }),
+        it("Basic Min Fail", fn() {
+          let errors =
+            schema.validate("[1]", "{\"type\":\"array\",\"minItems\":2}")
+            |> expect.to_be_error
+          io.debug(errors)
+          contains_failed_property_error(errors, IntProperty("minItems", 2))
+          |> expect.to_be_true
+        }),
+        it("Basic Max Fail", fn() {
+          let errors =
+            schema.validate("[1,2,3]", "{\"type\":\"array\",\"maxItems\":2}")
+            |> expect.to_be_error
+          contains_failed_property_error(errors, IntProperty("maxItems", 2))
+          |> expect.to_be_true
+        }),
+        it("Basic Min/Max Min Fail", fn() {
+          let errors =
+            schema.validate(
+              "[1,2,3,4,5]",
+              "{\"type\":\"array\",\"minItems\":6,\"maxItems\":10}",
+            )
+            |> expect.to_be_error
+          contains_failed_property_error(errors, IntProperty("minItems", 6))
+          |> expect.to_be_true
+        }),
+        it("Basic Min/Max Max Fail", fn() {
+          let errors =
+            schema.validate(
+              "[1,2,3,4,5,6]",
+              "{\"type\":\"array\",\"minItems\":2,\"maxItems\":5}",
+            )
+            |> expect.to_be_error
+          contains_failed_property_error(errors, IntProperty("maxItems", 5))
+          |> expect.to_be_true
+        }),
+        it("Basic Min/Max Same Match", fn() {
+          schema.validate(
+            "[1,2,3,4,5]",
+            "{\"type\":\"array\",\"minItems\":5,\"maxItems\":5}",
+          )
+          |> expect.to_equal(Ok(True))
+        }),
+        it("Basic Min/Max Same Fail", fn() {
+          let errors =
+            schema.validate(
+              "[1,2,3,4,5,6]",
+              "{\"type\":\"array\",\"minItems\":5,\"maxItems\":5}",
+            )
+            |> expect.to_be_error
+          contains_failed_property_error(errors, IntProperty("maxItems", 5))
+          |> expect.to_be_true
+        }),
+        it("Basic Min/Max Same Fail 2", fn() {
+          let errors =
+            schema.validate(
+              "[1,2,3,4]",
+              "{\"type\":\"array\",\"minItems\":5,\"maxItems\":5}",
+            )
+            |> expect.to_be_error
+          contains_failed_property_error(errors, IntProperty("minItems", 5))
+          |> expect.to_be_true
+        }),
+      ]),
+    ]),
+    describe("Arrays Item Uniqueness", [
+      it("Empty Unique Match", fn() {
+        schema.validate("[]", "{\"type\":\"array\",\"uniqueItems\":true}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Basic Unique Match", fn() {
+        schema.validate("[1,2]", "{\"type\":\"array\",\"uniqueItems\":true}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Unique Not Needed Match", fn() {
+        schema.validate("[1,2]", "{\"type\":\"array\",\"uniqueItems\":false}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Unique Not Needed Match 2", fn() {
+        schema.validate("[1,2,1]", "{\"type\":\"array\",\"uniqueItems\":false}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("More Complicated Unique Match", fn() {
+        schema.validate(
+          "[[1,2,3],[3,2,1],{},false]",
+          "{\"type\":\"array\",\"uniqueItems\":true}",
+        )
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Basic Unique Fail", fn() {
+        let errors =
+          schema.validate(
+            "[1,2,1]",
+            "{\"type\":\"array\",\"uniqueItems\":true}",
+          )
+          |> expect.to_be_error
+        contains_failed_property_error(
+          errors,
+          BooleanProperty("uniqueItems", True),
+        )
+        |> expect.to_be_true
+      }),
+      it("More Complicated Unique Fail", fn() {
+        let errors =
+          schema.validate(
+            "[[],[],3]",
+            "{\"type\":\"array\",\"uniqueItems\":true}",
+          )
+          |> expect.to_be_error
+        contains_failed_property_error(
+          errors,
+          BooleanProperty("uniqueItems", True),
+        )
+        |> expect.to_be_true
+      }),
+      it("Unique Fail", fn() {
+        let errors =
+          schema.validate(
+            "[true,true,123]",
+            "{\"type\":\"array\",\"uniqueItems\":true}",
+          )
+          |> expect.to_be_error
+        contains_failed_property_error(
+          errors,
+          BooleanProperty("uniqueItems", True),
+        )
+        |> expect.to_be_true
+      }),
+      it("Unique Fail 2", fn() {
+        let errors =
+          schema.validate(
+            "[[1,2,3],2,[1,2,3]]",
+            "{\"type\":\"array\",\"uniqueItems\":true}",
+          )
+          |> expect.to_be_error
+        contains_failed_property_error(
+          errors,
+          BooleanProperty("uniqueItems", True),
+        )
+        |> expect.to_be_true
+      }),
+      it("Unique Fail 3", fn() {
+        let errors =
+          schema.validate(
+            "[{\"type\":\"array\",\"uniqueItems\":true},1,2,3,4,{\"type\":\"array\",\"uniqueItems\":true}]",
+            "{\"type\":\"array\",\"uniqueItems\":true}",
+          )
+          |> expect.to_be_error
+        contains_failed_property_error(
+          errors,
+          BooleanProperty("uniqueItems", True),
+        )
+        |> expect.to_be_true
       }),
     ]),
   ])
