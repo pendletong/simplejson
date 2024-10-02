@@ -1,5 +1,4 @@
 import gleam/dict.{type Dict}
-import gleam/io
 import gleam/option.{type Option, None, Some}
 import gleam/regex.{Options}
 import gleam/result
@@ -128,7 +127,6 @@ pub fn get_pattern_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   use pattern <- result.try(get_string_property(property, dict))
-  io.debug(pattern)
   case pattern {
     Some(StringProperty(_, regex_str)) -> {
       case

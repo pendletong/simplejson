@@ -5,7 +5,6 @@ import file_streams/text_encoding
 
 import gleam/bool
 import gleam/dict
-import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -153,7 +152,6 @@ pub fn main() {
 
 // gleeunit test functions end in `_test`
 pub fn simplejson_tests() {
-  io.debug("Running tests")
   simplifile.get_files("./test/testfiles")
   |> expect.to_be_ok
   // |> list.filter(fn(name) { string.contains(name, "n_array_invalid_utf8.json") })

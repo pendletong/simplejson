@@ -1,5 +1,4 @@
 import gleam/dict.{type Dict}
-import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/schema/properties/properties.{
@@ -29,11 +28,9 @@ pub const array_properties: List(
 fn min_items(
   value: ValidationProperty,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
-  io.debug(value)
   case value {
     IntProperty(_, i) -> {
       Ok(fn(v) {
-        io.debug(#("min", v, i))
         case v {
           JsonArray(_, l) -> {
             case list.length(l) >= i {

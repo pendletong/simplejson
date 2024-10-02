@@ -1,4 +1,3 @@
-import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
 import simplejson/internal/schema/schema
@@ -303,7 +302,6 @@ pub fn schema_array_tests() {
           let errors =
             schema.validate("[1]", "{\"type\":\"array\",\"minItems\":2}")
             |> expect.to_be_error
-          io.debug(errors)
           contains_failed_property_error(errors, IntProperty("minItems", 2))
           |> expect.to_be_true
         }),
