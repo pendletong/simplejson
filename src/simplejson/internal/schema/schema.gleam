@@ -53,36 +53,48 @@ fn generate_validation(
       case dict.is_empty(obj) {
         True -> Ok(SimpleValidation(True))
         False -> {
-          use node <- result.try(case dict.get(obj, "type") {
+          use type_node <- result.try(case dict.get(obj, "type") {
             Ok(JsonString(_, data_type)) -> {
               use node <- result.try(generate_specified_validation(
                 data_type,
                 obj,
                 root,
               ))
-              Ok(node)
+              Ok(Some(node))
             }
             Ok(JsonArray(_, data_types)) -> {
               generate_multi_node(data_types, obj, root)
+              |> result.map(fn(n) { Some(n) })
             }
             Ok(_) -> Error(InvalidSchema(3))
             Error(Nil) -> {
-              todo
+              Ok(None)
             }
           })
 
-          case dict.get(obj, "enum") {
+          use enum_node <- result.try(case dict.get(obj, "enum") {
             Ok(JsonArray(_, values)) -> {
-              Ok(MultiNode([node, EnumNode(values)], All))
+              Ok(Some(EnumNode(values)))
             }
             Ok(_) -> Error(InvalidSchema(23))
-            Error(_) -> Ok(node)
-          }
+            Error(_) -> Ok(None)
+          })
+
+          Ok(MultiNode(combine_nodes([type_node, enum_node]), All))
         }
       }
     }
     _ -> Error(InvalidSchema(4))
   }
+}
+
+fn combine_nodes(nodes: List(Option(ValidationNode))) -> List(ValidationNode) {
+  list.filter_map(nodes, fn(n) {
+    case n {
+      Some(n) -> Ok(n)
+      _ -> Error(Nil)
+    }
+  })
 }
 
 fn generate_multi_node(
