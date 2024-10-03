@@ -2,14 +2,147 @@ import gleam/list
 import gleam/option.{None, Some}
 import simplejson/internal/schema/schema
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type ValidationProperty, BooleanProperty, FalseSchema,
-  IntProperty, NumberProperty, StringProperty,
+  type InvalidEntry, type ValidationProperty, BooleanProperty, FailedProperty,
+  FalseSchema, IntProperty, InvalidDataType, NotMatchEnum, NumberProperty,
+  StringProperty,
 }
 import startest.{describe, it}
 import startest/expect
 
 pub fn main() {
   startest.run(startest.default_config())
+}
+
+pub fn schema_types_tests() {
+  describe("Schema Types Tests", [
+    describe("Single Types", [
+      it("String Match", fn() {
+        schema.validate("\"123-567\"", "{\"type\":\"string\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("String Fail", fn() {
+        let errors =
+          schema.validate("123", "{\"type\":\"string\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+      it("Number Match", fn() {
+        schema.validate("12", "{\"type\":\"number\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Number Match 2", fn() {
+        schema.validate("12.3", "{\"type\":\"number\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Number Fail", fn() {
+        let errors =
+          schema.validate("\"123\"", "{\"type\":\"number\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+      it("Integer Match", fn() {
+        schema.validate("12", "{\"type\":\"integer\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Integer Fail", fn() {
+        let errors =
+          schema.validate("\"123\"", "{\"type\":\"integer\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+      it("Integer Fail 2", fn() {
+        let errors =
+          schema.validate("123.4", "{\"type\":\"integer\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+      it("Boolean Match", fn() {
+        schema.validate("true", "{\"type\":\"boolean\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Boolean Match 2", fn() {
+        schema.validate("false", "{\"type\":\"boolean\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Boolean Fail", fn() {
+        let errors =
+          schema.validate("123", "{\"type\":\"boolean\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+      it("Null Match", fn() {
+        schema.validate("null", "{\"type\":\"null\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Null Fail", fn() {
+        let errors =
+          schema.validate("\"123\"", "{\"type\":\"null\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+      it("Array Match", fn() {
+        schema.validate("[1,2,3]", "{\"type\":\"array\"}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Array Fail", fn() {
+        let errors =
+          schema.validate("\"[1,2,3]\"", "{\"type\":\"array\"}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+    ]),
+    describe("Multiple Types", [
+      it("Multiple Match", fn() {
+        schema.validate("null", "{\"type\":[\"null\",\"string\"]}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Multiple Match 2", fn() {
+        schema.validate("\"123\"", "{\"type\":[\"null\",\"string\"]}")
+        |> expect.to_equal(Ok(True))
+      }),
+      it("Multiple Fail", fn() {
+        let errors =
+          schema.validate("123", "{\"type\":[\"null\",\"string\"]}")
+          |> expect.to_be_error
+        contains_invalid_data_type_error(errors) |> expect.to_be_true
+      }),
+    ]),
+  ])
+}
+
+pub fn schema_enum_tests() {
+  describe("Schema Enum Tests", [
+    it("Basic Enum Match", fn() {
+      schema.validate("1", "{\"enum\":[1,2,3]}")
+      |> expect.to_equal(Ok(True))
+    }),
+    it("Basic Enum Match", fn() {
+      schema.validate("\"2\"", "{\"enum\":[1,\"2\",3]}")
+      |> expect.to_equal(Ok(True))
+    }),
+    it("Object Enum Match", fn() {
+      schema.validate("{\"test\":2}", "{\"enum\":[1,2,{\"test\":2}]}")
+      |> expect.to_equal(Ok(True))
+    }),
+    it("Object Enum Fail", fn() {
+      let errors =
+        schema.validate("{\"test\":3}", "{\"enum\":[1,2,{\"test\":2}]}")
+        |> expect.to_be_error
+      contains_enum_error(errors)
+      |> expect.to_be_true
+    }),
+    it("Object Enum and Type Fail", fn() {
+      let errors =
+        schema.validate(
+          "{\"test\":3}",
+          "{\"type\":\"number\",\"enum\":[1,2,{\"test\":2}]}",
+        )
+        |> expect.to_be_error
+      contains_enum_error(errors)
+      |> expect.to_be_true
+      contains_invalid_data_type_error(errors) |> expect.to_be_true
+    }),
+  ])
 }
 
 pub fn schema_string_tests() {
@@ -494,7 +627,22 @@ fn contains_invalid_data_type_error(errors: List(InvalidEntry)) -> Bool {
     errors
     |> list.find(fn(err) {
       case err {
-        types.InvalidDataType(_) -> True
+        InvalidDataType(_) -> True
+        _ -> False
+      }
+    })
+  case err {
+    Ok(_) -> True
+    _ -> False
+  }
+}
+
+fn contains_enum_error(errors: List(InvalidEntry)) -> Bool {
+  let err =
+    errors
+    |> list.find(fn(err) {
+      case err {
+        NotMatchEnum(_) -> True
         _ -> False
       }
     })
@@ -512,7 +660,7 @@ fn contains_failed_property_error(
     errors
     |> list.find(fn(err) {
       case err {
-        types.FailedProperty(prop, _) -> {
+        FailedProperty(prop, _) -> {
           prop == fail_prop
         }
         _ -> False
