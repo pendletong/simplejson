@@ -154,18 +154,7 @@ fn generate_array_validation(
   dict: Dict(String, JsonValue),
   root: Option(ValidationNode),
 ) -> Result(ValidationNode, InvalidEntry) {
-  use items <- result.try(case dict.get(dict, "items") {
-    Ok(JsonObject(_, _) as json) -> {
-      use vn <- result.try(generate_validation(json, root))
-
-      Ok(Some(vn))
-    }
-    Ok(JsonBool(_, b)) -> Ok(Some(SimpleValidation(b)))
-    Ok(_) -> Error(InvalidSchema(30))
-    Error(_) -> {
-      Ok(None)
-    }
-  })
+  use items <- result.try(get_meta(dict, root, "items"))
 
   use prefix_items <- result.try(case dict.get(dict, "prefixItems") {
     Ok(JsonArray(_, l)) -> {
@@ -180,6 +169,8 @@ fn generate_array_validation(
     Error(_) -> Ok([])
   })
 
+  use contains <- result.try(get_meta(dict, root, "contains"))
+
   use props <- result.try(get_properties(array_properties, dict))
   let prefix_items = case prefix_items {
     [] -> None
@@ -189,6 +180,25 @@ fn generate_array_validation(
     [ArrayNode(items, prefix_items), PropertiesNode(props)],
     AllBreakAfterFirst,
   ))
+}
+
+fn get_meta(
+  dict: Dict(String, JsonValue),
+  root: Option(ValidationNode),
+  prop_name: String,
+) {
+  case dict.get(dict, prop_name) {
+    Ok(JsonObject(_, _) as json) -> {
+      use vn <- result.try(generate_validation(json, root))
+
+      Ok(Some(vn))
+    }
+    Ok(JsonBool(_, b)) -> Ok(Some(SimpleValidation(b)))
+    Ok(_) -> Error(InvalidSchema(30))
+    Error(_) -> {
+      Ok(None)
+    }
+  }
 }
 
 fn get_properties(
