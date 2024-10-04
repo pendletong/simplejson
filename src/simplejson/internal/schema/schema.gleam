@@ -9,7 +9,7 @@ import simplejson/internal/schema/properties/number.{int_properties}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
   type InvalidEntry, type Schema, type ValidationNode, type ValidationProperty,
-  All, AllBreakAfterFirst, Any, ArrayNode, BooleanNode, EnumNode,
+  All, AllBreakAfterFirst, Any, ArrayNode, BooleanNode, ContainsNode, EnumNode,
   InvalidDataType, InvalidSchema, MultiNode, NullNode, NumberNode,
   PropertiesNode, Schema, SimpleValidation, StringNode,
 }
@@ -169,17 +169,22 @@ fn generate_array_validation(
     Error(_) -> Ok([])
   })
 
-  use contains <- result.try(get_meta(dict, root, "contains"))
-
   use props <- result.try(get_properties(array_properties, dict))
   let prefix_items = case prefix_items {
     [] -> None
     _ -> Some(prefix_items)
   }
-  Ok(MultiNode(
-    [ArrayNode(items, prefix_items), PropertiesNode(props)],
-    AllBreakAfterFirst,
-  ))
+
+  use contains <- result.try(get_meta(dict, root, "contains"))
+
+  let nodes =
+    case contains {
+      Some(vn) -> [ContainsNode(vn, None, None)]
+      None -> []
+    }
+    |> list.append([ArrayNode(items, prefix_items), PropertiesNode(props)])
+
+  Ok(MultiNode(nodes, AllBreakAfterFirst))
 }
 
 fn get_meta(
