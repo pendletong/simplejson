@@ -35,6 +35,7 @@ pub type ValidationNode {
     items: Option(ValidationNode),
     prefix_items: Option(List(ValidationNode)),
   )
+  ContainsNode(item: ValidationNode, max: Option(Int), min: Option(Int))
   EnumNode(value: List(JsonValue))
   BooleanNode
   NullNode
