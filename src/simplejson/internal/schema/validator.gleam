@@ -163,17 +163,15 @@ fn validate_all(node: JsonValue, validators: List(ValidationNode)) {
 }
 
 fn validate_all_break(node: JsonValue, validators: List(ValidationNode)) {
-  list.fold_until(validators, #([], 0), fn(errors, v_node) {
-    case validate_node(node, v_node) {
-      Ok(_) -> Continue(#(errors.0, errors.1 + 1))
-      Error(err) -> {
-        case errors.1 == 0 {
-          True -> Stop(#(err, -1))
-          False -> Continue(#(list.append(errors.0, err), errors.1 + 1))
-        }
+  case validators {
+    [vn, ..rest] -> {
+      case validate_node(node, vn) {
+        Ok(_) -> validate_all(node, rest)
+        Error(err) -> err
       }
     }
-  }).0
+    [] -> []
+  }
 }
 
 fn validate_any(node: JsonValue, validators: List(ValidationNode)) {
