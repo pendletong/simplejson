@@ -6,9 +6,9 @@ import simplejson/internal/schema/properties/number.{validate_number}
 import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
   type Combination, type InvalidEntry, type Schema, type ValidationNode,
-  ArrayNode, BooleanNode, EnumNode, FalseSchema, InvalidDataType, InvalidJson,
-  MultiNode, NotMatchEnum, NullNode, NumberNode, PropertiesNode, Schema,
-  SimpleValidation, StringNode,
+  ArrayNode, BooleanNode, ContainsNode, EnumNode, FailedProperty, FalseSchema,
+  IntProperty, InvalidDataType, InvalidJson, MultiNode, NotMatchEnum, NullNode,
+  NumberNode, PropertiesNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonNull}
 
@@ -44,6 +44,13 @@ fn validate_node(
     ArrayNode(items, tuple) -> {
       validate_array(node, items, tuple)
     }
+    ContainsNode(v_node, min, max) -> {
+      let res = validate_array_contains(node, v_node, min, max)
+      case res {
+        [] -> Ok(True)
+        _ -> Error(res)
+      }
+    }
     BooleanNode -> {
       validate_boolean(node)
     }
@@ -76,6 +83,51 @@ pub fn validate_properties(
   case result {
     [] -> Ok(True)
     err -> Error(err)
+  }
+}
+
+fn validate_array_contains(
+  node: JsonValue,
+  v_node: ValidationNode,
+  min: Option(Int),
+  max: Option(Int),
+) -> List(InvalidEntry) {
+  case node {
+    JsonArray(_, l) -> {
+      let res =
+        list.fold(l, #(0, []), fn(acc, node) {
+          case validate_node(node, v_node) {
+            Ok(_) -> {
+              #(acc.0 + 1, acc.1)
+            }
+            Error(err) -> {
+              #(acc.0, list.append(err, acc.1))
+            }
+          }
+        })
+      let min_errs = case min {
+        Some(min_val) -> {
+          case res.0 >= min_val {
+            True -> []
+            False -> [FailedProperty(IntProperty("minContains", min_val), node)]
+          }
+        }
+        _ -> []
+      }
+      let max_errs = case max {
+        Some(max_val) -> {
+          case res.0 <= max_val {
+            True -> []
+            False -> [FailedProperty(IntProperty("maxContains", max_val), node)]
+          }
+        }
+        _ -> []
+      }
+      res.1
+      |> list.append(min_errs)
+      |> list.append(max_errs)
+    }
+    _ -> [InvalidDataType(node)]
   }
 }
 
