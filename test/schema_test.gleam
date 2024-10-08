@@ -124,6 +124,20 @@ pub fn schema_enum_tests() {
       schema.validate("{\"test\":2}", "{\"enum\":[1,2,{\"test\":2}]}")
       |> expect.to_equal(Ok(True))
     }),
+    it("Object Enum Match", fn() {
+      schema.validate(
+        "{\"test\":2,\"test2\":true}",
+        "{\"enum\":[1,2,{\"test\":2,\"test2\":true}]}",
+      )
+      |> expect.to_equal(Ok(True))
+    }),
+    it("Object Enum Match", fn() {
+      schema.validate(
+        "{\"test\":2,\"test2\":true}",
+        "{\"enum\":[1,2,{\"test2\":true,\"test\":2}]}",
+      )
+      |> expect.to_equal(Ok(True))
+    }),
     it("Object Enum Fail", fn() {
       let errors =
         schema.validate("{\"test\":3}", "{\"enum\":[1,2,{\"test\":2}]}")
