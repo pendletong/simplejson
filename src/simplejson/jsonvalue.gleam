@@ -27,6 +27,7 @@ pub type ParseError {
   InvalidEscapeCharacter(char: String, rest: String, pos: Int)
   InvalidCharacter(char: String, rest: String, pos: Int)
   InvalidHex(hex: String, rest: String, pos: Int)
+  InvalidGrapheme(hex: String, rest: String, pos: Int)
   InvalidNumber(num: String, rest: String, pos: Int)
   NestingDepth(num_levels: Int)
 }
