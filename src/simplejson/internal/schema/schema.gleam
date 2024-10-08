@@ -10,7 +10,7 @@ import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
   type InvalidEntry, type Schema, type ValidationNode, type ValidationProperty,
   All, AllBreakAfterFirst, Any, ArrayNode, BooleanNode, ContainsNode, EnumNode,
-  InvalidDataType, InvalidSchema, MultiNode, NullNode, NumberNode,
+  InvalidDataType, InvalidJson, InvalidSchema, MultiNode, NullNode, NumberNode,
   PropertiesNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/internal/schema/validator
@@ -26,7 +26,20 @@ pub fn validate(
   json: String,
   schema: String,
 ) -> Result(Bool, List(InvalidEntry)) {
+  use json <- result.try(
+    simplejson.parse(json) |> result.map_error(fn(e) { [InvalidJson(e)] }),
+  )
   case generate_schema(schema) {
+    Error(err) -> Error([err])
+    Ok(schema) -> validator.do_validate(json, schema)
+  }
+}
+
+pub fn validate_json(
+  schema: JsonValue,
+  json: JsonValue,
+) -> Result(Bool, List(InvalidEntry)) {
+  case generate_schema_from_json(schema) {
     Error(err) -> Error([err])
     Ok(schema) -> validator.do_validate(json, schema)
   }
@@ -37,11 +50,15 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
     simplejson.parse(schema) |> result.replace_error(InvalidSchema(2)),
   )
 
+  generate_schema_from_json(schema)
+}
+
+fn generate_schema_from_json(schema: JsonValue) -> Result(Schema, InvalidEntry) {
   case generate_validation(schema, None) {
     Ok(validator) -> Ok(Schema(None, None, schema, validator))
     Error(err) -> Error(err)
   }
-  |> echo
+  // |> echo
 }
 
 fn generate_validation(
