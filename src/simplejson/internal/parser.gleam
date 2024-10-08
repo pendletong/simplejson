@@ -9,9 +9,9 @@ import gleam/result
 import gleam/string
 import simplejson/jsonvalue.{
   type JsonValue, type ParseError, InvalidCharacter, InvalidEscapeCharacter,
-  InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonMetaData, JsonNull,
-  JsonNumber, JsonObject, JsonString, NestingDepth, UnexpectedCharacter,
-  UnexpectedEnd, Unknown,
+  InvalidGrapheme, InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonMetaData,
+  JsonNull, JsonNumber, JsonObject, JsonString, NestingDepth,
+  UnexpectedCharacter, UnexpectedEnd, Unknown,
 }
 
 const max_depth = 512
@@ -45,6 +45,9 @@ pub fn parse(json: String) -> Result(JsonValue, ParseError) {
     }
     Error(InvalidHex(hex, rest, -1)) -> {
       Error(create_error(InvalidHex, json, rest, hex))
+    }
+    Error(InvalidGrapheme(hex, rest, -1)) -> {
+      Error(create_error(InvalidGrapheme, json, rest, hex))
     }
     Error(InvalidEscapeCharacter(esc_char, rest, -1)) -> {
       Error(create_error(InvalidEscapeCharacter, json, rest, esc_char))
@@ -393,6 +396,45 @@ fn do_parse_string(
 }
 
 fn parse_hex(json: String) -> Result(#(String, String), ParseError) {
+  use #(parsed, rest) <- result.try(parse_bytes_to_hex(json))
+  case parsed {
+    65_534 | 65_535 -> Ok(#(rest, ""))
+    i if i >= 55_296 && i <= 57_343 -> {
+      case rest {
+        "\\u" <> rest -> {
+          use #(low_hex, rest) <- result.try(parse_bytes_to_hex(rest))
+          use <- bool.guard(
+            when: low_hex < 56_320 || low_hex > 57_343,
+            return: Error(InvalidGrapheme(int.to_base16(low_hex), json, -1)),
+          )
+          let low_hex = low_hex - 56_320
+          let high_hex = int.bitwise_shift_left(parsed - 55_296, 10)
+          let final_hex = high_hex + low_hex + 65_536
+
+          use utf8 <- result.try(
+            string.utf_codepoint(final_hex)
+            |> result.map_error(fn(_) {
+              InvalidGrapheme(int.to_base16(parsed), json, -1)
+            }),
+          )
+          Ok(#(rest, string.from_utf_codepoints([utf8])))
+        }
+        _ -> Error(InvalidGrapheme(int.to_base16(parsed), json, -1))
+      }
+    }
+    _ -> {
+      use utf8 <- result.try(
+        string.utf_codepoint(parsed)
+        |> result.map_error(fn(_) {
+          InvalidGrapheme(int.to_base16(parsed), json, -1)
+        }),
+      )
+      Ok(#(rest, string.from_utf_codepoints([utf8])))
+    }
+  }
+}
+
+fn parse_bytes_to_hex(json: String) -> Result(#(Int, String), ParseError) {
   let hex = string.slice(json, 0, 4)
   use <- bool.guard(string.length(hex) < 4, return: Error(UnexpectedEnd))
   let rest = string.drop_start(json, 4)
@@ -400,16 +442,7 @@ fn parse_hex(json: String) -> Result(#(String, String), ParseError) {
     int.base_parse(hex, 16)
     |> result.map_error(fn(_) { InvalidHex(hex, json, -1) }),
   )
-  case parsed {
-    65_534 | 65_535 -> Ok(#(rest, ""))
-    _ -> {
-      use utf8 <- result.try(
-        string.utf_codepoint(parsed)
-        |> result.map_error(fn(_) { InvalidHex(hex, json, -1) }),
-      )
-      Ok(#(rest, string.from_utf_codepoints([utf8])))
-    }
-  }
+  Ok(#(parsed, rest))
 }
 
 fn do_parse_list(
