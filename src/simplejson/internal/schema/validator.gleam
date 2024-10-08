@@ -13,15 +13,10 @@ import simplejson/internal/schema/types.{
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonNull}
 
 pub fn do_validate(
-  json: String,
+  json: JsonValue,
   schema: Schema,
 ) -> Result(Bool, List(InvalidEntry)) {
-  case simplejson.parse(json) {
-    Error(err) -> Error([InvalidJson(err)])
-    Ok(json) -> {
-      validate_node(json, schema.validation)
-    }
-  }
+  validate_node(json, schema.validation)
 }
 
 fn validate_node(
