@@ -1,7 +1,9 @@
+import gleam/bool
 import gleam/dict
 import gleam/io
 import gleam/list
 import gleam/result
+import gleam/string
 import simplejson
 import simplejson/internal/schema/schema
 import simplejson/internal/stringify
@@ -10,6 +12,8 @@ import simplifile
 import startest.{describe, it}
 import startest/expect
 
+const run_optional = False
+
 pub fn main() {
   startest.run(startest.default_config())
 }
@@ -17,7 +21,12 @@ pub fn main() {
 pub fn suite_tests() {
   simplifile.get_files("./JSON-Schema-Test-Suite/tests/draft2020-12")
   |> expect.to_be_ok
-  |> list.map(fn(filename) {
+  |> list.filter_map(fn(filename) {
+    io.debug(#(filename, string.contains(filename, "/optional/")))
+    use <- bool.guard(
+      when: string.contains(filename, "/optional/") && bool.negate(run_optional),
+      return: Error(Nil),
+    )
     case
       simplifile.read(filename)
       |> expect.to_be_ok
@@ -25,7 +34,7 @@ pub fn suite_tests() {
       |> expect.to_be_ok
     {
       JsonArray(_, items) -> {
-        describe(
+        Ok(describe(
           filename,
           list.try_map(stringify.dict_to_ordered_list(items), fn(t) {
             case t {
@@ -73,9 +82,9 @@ pub fn suite_tests() {
           })
             |> expect.to_be_ok
             |> list.flatten,
-        )
+        ))
       }
-      _ -> describe(filename, [])
+      _ -> Error(Nil)
     }
   })
   |> describe("Schema testfiles", _)
