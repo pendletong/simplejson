@@ -4,3 +4,6 @@
 [submodule "jsonpath-compliance-test-suite"]
 	path = jsonpath-compliance-test-suite
 	url = https://github.com/jsonpath-standard/jsonpath-compliance-test-suite.git
+[submodule "JSON-Schema-Test-Suite"]
+	path = JSON-Schema-Test-Suite
+	url = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git

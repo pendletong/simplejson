@@ -1,3 +1,5 @@
+import gleam/bit_array
+import gleam/result
 import simplejson/internal/schema/schema
 
 pub fn main() {
@@ -167,8 +169,15 @@ pub fn main() {
   //   "{\"a\":[{},1,false,1]}",
   //   "{\"type\":\"array\",\"minItems\":5, \"uniqueItems\":true}",
   // )
-  schema.validate("[1]", "{\"type\":\"array\",\"minItems\":2}")
-  |> echo
+  // schema.validate(
+  //   "[1,8, 2]",
+  //   "{\"type\":\"array\",\"minItems\":3,\"items\":{\"type\":\"number\"}, \"contains\":{\"type\":\"boolean\"}}",
+  // )
+  // |> echo
   // simplejson.parse("{\"a\": []}")
-  // |> io.debug
+  // |> echo
+
+  let a = result.unwrap(bit_array.base16_decode("D83DDCA9"), <<>>)
+  <<a:bits>> |> echo
+  bit_array.to_string(<<55_357:size(16), 56_489:size(16)>>) |> echo
 }
