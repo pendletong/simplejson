@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -96,7 +97,7 @@ fn validate_array_contains(
   case node {
     JsonArray(_, l) -> {
       let res =
-        list.fold(l, #(0, []), fn(acc, node) {
+        dict.fold(l, #(0, []), fn(acc, k, node) {
           case validate_node(node, v_node) {
             Ok(_) -> {
               #(acc.0 + 1, acc.1)

@@ -37,6 +37,7 @@ pub type ParseError {
   InvalidEscapeCharacter(char: String, context: String, pos: Int)
   InvalidCharacter(char: String, context: String, pos: Int)
   InvalidHex(hex: String, context: String, pos: Int)
+  InvalidGrapheme(hex: String, context: String, pos: Int)
   InvalidNumber(num: String, context: String, pos: Int)
   NestingDepth(num_levels: Int)
   InvalidInt(int: String)

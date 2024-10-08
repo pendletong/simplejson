@@ -9,7 +9,8 @@ import gleam/result
 import gleam/string
 import simplejson
 import simplejson/jsonvalue.{
-  type ParseError, InvalidHex, InvalidNumber, UnexpectedCharacter,
+  type ParseError, InvalidGrapheme, InvalidHex, InvalidNumber,
+  UnexpectedCharacter,
 }
 import simplifile
 import startest.{describe, it}
@@ -34,39 +35,9 @@ type Test {
 // should have been read
 const failing_tests = [
   Test(
-    "./JSONTestSuite/test_parsing/y_string_last_surrogates_1_and_2.json",
-    Error(InvalidHex("DBFF", "[\"\\uDBFF\\", 4)),
-    Error(InvalidHex("DBFF", "[\"\\uDBFF\\", 4)),
-  ),
-  Test(
-    "./JSONTestSuite/test_parsing/y_string_accepted_surrogate_pair.json",
-    Error(InvalidHex("D801", "[\"\\uD801\\", 4)),
-    Error(InvalidHex("D801", "[\"\\uD801\\", 4)),
-  ),
-  Test(
-    "./JSONTestSuite/test_parsing/y_string_unicode_U+1FFFE_nonchar.json",
-    Error(InvalidHex("D83F", "[\"\\uD83F\\", 4)),
-    Error(InvalidHex("D83F", "[\"\\uD83F\\", 4)),
-  ),
-  Test(
-    "./JSONTestSuite/test_parsing/y_string_unicode_U+10FFFE_nonchar.json",
-    Error(InvalidHex("DBFF", "[\"\\uDBFF\\", 4)),
-    Error(InvalidHex("DBFF", "[\"\\uDBFF\\", 4)),
-  ),
-  Test(
-    "./JSONTestSuite/test_parsing/y_string_accepted_surrogate_pairs.json",
-    Error(InvalidHex("d83d", "[\"\\ud83d\\", 4)),
-    Error(InvalidHex("d83d", "[\"\\ud83d\\", 4)),
-  ),
-  Test(
-    "./JSONTestSuite/test_parsing/y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json",
-    Error(InvalidHex("D834", "[\"\\uD834\\", 4)),
-    Error(InvalidHex("D834", "[\"\\uD834\\", 4)),
-  ),
-  Test(
     "./JSONTestSuite/test_parsing/i_string_incomplete_surrogates_escape_valid.json",
-    Error(InvalidHex("D800", "[\"\\uD800\\", 4)),
-    Error(InvalidHex("D800", "[\"\\uD800\\", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\uD800\\", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\uD800\\", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_UTF-16LE_with_BOM.json",
@@ -75,23 +46,23 @@ const failing_tests = [
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_invalid_surrogate.json",
-    Error(InvalidHex("d800", "[\"\\ud800a", 4)),
-    Error(InvalidHex("d800", "[\"\\ud800a", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\ud800a", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\ud800a", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_object_key_lone_2nd_surrogate.json",
-    Error(InvalidHex("DFAA", "{\"\\uDFAA\"", 4)),
-    Error(InvalidHex("DFAA", "{\"\\uDFAA\"", 4)),
+    Error(InvalidGrapheme("DFAA", "{\"\\uDFAA\"", 4)),
+    Error(InvalidGrapheme("DFAA", "{\"\\uDFAA\"", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_1st_surrogate_but_2nd_missing.json",
-    Error(InvalidHex("DADA", "[\"\\uDADA\"", 4)),
-    Error(InvalidHex("DADA", "[\"\\uDADA\"", 4)),
+    Error(InvalidGrapheme("DADA", "[\"\\uDADA\"", 4)),
+    Error(InvalidGrapheme("DADA", "[\"\\uDADA\"", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_invalid_lonely_surrogate.json",
-    Error(InvalidHex("d800", "[\"\\ud800\"", 4)),
-    Error(InvalidHex("d800", "[\"\\ud800\"", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\ud800\"", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\ud800\"", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_structure_UTF-8_BOM_empty_object.json",
@@ -100,28 +71,28 @@ const failing_tests = [
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_incomplete_surrogate_pair.json",
-    Error(InvalidHex("Dd1e", "[\"\\uDd1ea", 4)),
-    Error(InvalidHex("Dd1e", "[\"\\uDd1ea", 4)),
+    Error(InvalidGrapheme("DD1E", "[\"\\uDd1ea", 4)),
+    Error(InvalidGrapheme("DD1E", "[\"\\uDd1ea", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_incomplete_surrogate_and_escape_valid.json",
-    Error(InvalidHex("D800", "[\"\\uD800\\", 4)),
-    Error(InvalidHex("D800", "[\"\\uD800\\", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\uD800\\", 4)),
+    Error(InvalidGrapheme("D800", "[\"\\uD800\\", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_lone_second_surrogate.json",
-    Error(InvalidHex("DFAA", "[\"\\uDFAA\"", 4)),
-    Error(InvalidHex("DFAA", "[\"\\uDFAA\"", 4)),
+    Error(InvalidGrapheme("DFAA", "[\"\\uDFAA\"", 4)),
+    Error(InvalidGrapheme("DFAA", "[\"\\uDFAA\"", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_1st_valid_surrogate_2nd_invalid.json",
-    Error(InvalidHex("D888", "[\"\\uD888\\", 4)),
-    Error(InvalidHex("D888", "[\"\\uD888\\", 4)),
+    Error(InvalidGrapheme("1234", "[\"\\uD888\\", 4)),
+    Error(InvalidGrapheme("1234", "[\"\\uD888\\", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_string_inverted_surrogates_U+1D11E.json",
-    Error(InvalidHex("Dd1e", "[\"\\uDd1e\\", 4)),
-    Error(InvalidHex("Dd1e", "[\"\\uDd1e\\", 4)),
+    Error(InvalidGrapheme("D834", "[\"\\uDd1e\\", 4)),
+    Error(InvalidGrapheme("D834", "[\"\\uDd1e\\", 4)),
   ),
   Test(
     "./JSONTestSuite/test_parsing/i_number_huge_exp.json",
