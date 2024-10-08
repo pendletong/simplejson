@@ -194,10 +194,14 @@ fn validate_enum(
   node: JsonValue,
   values: List(JsonValue),
 ) -> Result(Bool, List(InvalidEntry)) {
-  case list.find(values, fn(v) { v == node }) {
+  case list.find(values, match_nodes(node, _)) {
     Ok(_) -> Ok(True)
     Error(_) -> Error([NotMatchEnum(node)])
   }
+}
+
+fn match_nodes(node1: JsonValue, node2: JsonValue) -> Bool {
+  node1 == node2
 }
 
 fn validate_all(node: JsonValue, validators: List(ValidationNode)) {
