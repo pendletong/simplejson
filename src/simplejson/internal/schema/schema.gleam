@@ -4,19 +4,25 @@ import gleam/list
 import gleam/result
 import simplejson
 import simplejson/internal/parser
+import simplejson/internal/schema/error.{
+  type InvalidEntry, InvalidDataType, InvalidJson, InvalidSchema,
+}
 import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
+import simplejson/internal/schema/properties/properties.{
+  AnyProperty, EnumProperty, ListProperty,
+}
+import simplejson/internal/schema/properties/propertyvalues.{type PropertyValue}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
-  type InvalidEntry, type Schema, type ValidationNode, type ValidationProperty,
-  All, AllBreakAfterFirst, Any, ArrayNode, BooleanNode, ContainsNode, EnumNode,
-  InvalidDataType, InvalidJson, InvalidSchema, MultiNode, NullNode, NumberNode,
+  type Schema, type ValidationNode, All, AllBreakAfterFirst, Any, ArrayNode,
+  BooleanNode, ContainsNode, EnumNode, MultiNode, NullNode, NumberNode,
   PropertiesNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/internal/schema/validator
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{
-  type JsonValue, JsonArray, JsonBool, JsonNumber, JsonObject, JsonString,
+  type JsonValue, JsonArray, JsonBool, JsonNumber, JsonObject, JsonString, NoMD,
 }
 
 import gleam/dict.{type Dict}
@@ -60,6 +66,22 @@ fn generate_schema_from_json(schema: JsonValue) -> Result(Schema, InvalidEntry) 
   }
   // |> echo
 }
+
+const type_properties = EnumProperty(
+  [
+    JsonString(NoMD, "array"),
+    JsonString(NoMD, "boolean"),
+    JsonString(NoMD, "integer"),
+    JsonString(NoMD, "null"),
+    JsonString(NoMD, "number"),
+    JsonString(NoMD, "object"),
+    JsonString(NoMD, "string"),
+  ],
+)
+
+const properties = [
+  #("type", AnyProperty([type_properties, ListProperty(type_properties)])),
+]
 
 fn generate_validation(
   schema: JsonValue,
@@ -228,8 +250,8 @@ fn get_properties(
     #(
       String,
       fn(String, Dict(String, JsonValue)) ->
-        Result(Option(ValidationProperty), InvalidEntry),
-      fn(ValidationProperty) ->
+        Result(Option(PropertyValue), InvalidEntry),
+      fn(PropertyValue) ->
         Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry),
     ),
   ),
