@@ -2,13 +2,17 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import simplejson
+import simplejson/internal/schema/error.{
+  type InvalidEntry, FailedProperty, FalseSchema, InvalidDataType, InvalidJson,
+  NotMatchEnum,
+}
 import simplejson/internal/schema/properties/number.{validate_number}
+import simplejson/internal/schema/properties/propertyvalues.{IntValue}
 import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
-  type Combination, type InvalidEntry, type Schema, type ValidationNode,
-  ArrayNode, BooleanNode, ContainsNode, EnumNode, FailedProperty, FalseSchema,
-  IntProperty, InvalidDataType, InvalidJson, MultiNode, NotMatchEnum, NullNode,
-  NumberNode, PropertiesNode, Schema, SimpleValidation, StringNode,
+  type Combination, type Schema, type ValidationNode, ArrayNode, BooleanNode,
+  ContainsNode, EnumNode, MultiNode, NullNode, NumberNode, PropertiesNode,
+  Schema, SimpleValidation, StringNode,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonNull}
 
@@ -104,7 +108,7 @@ fn validate_array_contains(
         Some(min_val) -> {
           case res.0 >= min_val {
             True -> []
-            False -> [FailedProperty(IntProperty("minContains", min_val), node)]
+            False -> [FailedProperty(IntValue("minContains", min_val), node)]
           }
         }
         _ -> []
@@ -113,7 +117,7 @@ fn validate_array_contains(
         Some(max_val) -> {
           case res.0 <= max_val {
             True -> []
-            False -> [FailedProperty(IntProperty("maxContains", max_val), node)]
+            False -> [FailedProperty(IntValue("maxContains", max_val), node)]
           }
         }
         _ -> []
@@ -122,7 +126,7 @@ fn validate_array_contains(
       |> list.append(min_errs)
       |> list.append(max_errs)
     }
-    _ -> [InvalidDataType(node)]
+    _ -> []
   }
 }
 

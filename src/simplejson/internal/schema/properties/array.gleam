@@ -1,12 +1,15 @@
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import simplejson/internal/schema/error.{
+  type InvalidEntry, FailedProperty, InvalidDataType, InvalidSchema,
+}
 import simplejson/internal/schema/properties/properties.{
   get_bool_property, get_positive_int_property,
 }
-import simplejson/internal/schema/types.{
-  type InvalidEntry, type ValidationProperty, BooleanProperty, FailedProperty,
-  IntProperty, InvalidDataType, InvalidSchema,
+
+import simplejson/internal/schema/properties/propertyvalues.{
+  type PropertyValue, BooleanValue, IntValue,
 }
 
 import simplejson/jsonvalue.{type JsonValue, JsonArray}
@@ -15,8 +18,8 @@ pub const array_properties: List(
   #(
     String,
     fn(String, Dict(String, JsonValue)) ->
-      Result(Option(ValidationProperty), InvalidEntry),
-    fn(ValidationProperty) ->
+      Result(Option(PropertyValue), InvalidEntry),
+    fn(PropertyValue) ->
       Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry),
   ),
 ) = [
@@ -26,10 +29,10 @@ pub const array_properties: List(
 ]
 
 fn min_items(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    IntProperty(_, i) -> {
+    IntValue(_, i) -> {
       Ok(fn(v) {
         case v {
           JsonArray(_, l) -> {
@@ -47,10 +50,10 @@ fn min_items(
 }
 
 fn max_items(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    IntProperty(_, i) -> {
+    IntValue(_, i) -> {
       Ok(fn(v) {
         case v {
           JsonArray(_, l) -> {
@@ -68,10 +71,10 @@ fn max_items(
 }
 
 fn unique_items(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    BooleanProperty(_, True) -> {
+    BooleanValue(_, True) -> {
       Ok(fn(v) {
         case v {
           JsonArray(_, l) -> {
@@ -84,7 +87,7 @@ fn unique_items(
         }
       })
     }
-    BooleanProperty(_, False) -> Ok(fn(_) { None })
+    BooleanValue(_, False) -> Ok(fn(_) { None })
     _ -> Error(InvalidSchema(14))
   }
 }
