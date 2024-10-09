@@ -1,13 +1,16 @@
 import gleam/float
 import gleam/int
 import gleam/option.{type Option, None, Some}
+import simplejson/internal/schema/error.{
+  type InvalidEntry, FailedProperty, InvalidDataType, InvalidSchema,
+}
 import simplejson/internal/schema/properties/properties.{
   get_more_than_zero_property, get_number_property,
 }
-import simplejson/internal/schema/types.{
-  type InvalidEntry, type Number, type ValidationProperty, FailedProperty,
-  InvalidDataType, InvalidSchema, Number, NumberProperty,
+import simplejson/internal/schema/properties/propertyvalues.{
+  type PropertyValue, NumberValue,
 }
+import simplejson/internal/schema/types.{type Number, Number}
 import simplejson/jsonvalue.{type JsonValue, JsonNumber}
 
 pub const int_properties = [
@@ -19,10 +22,10 @@ pub const int_properties = [
 ]
 
 fn number_minimum(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    NumberProperty(_, i, f) -> {
+    NumberValue(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
@@ -69,10 +72,10 @@ fn number_minimum(
 }
 
 fn number_exclusiveminimum(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    NumberProperty(_, i, f) -> {
+    NumberValue(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
@@ -119,10 +122,10 @@ fn number_exclusiveminimum(
 }
 
 fn number_maximum(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    NumberProperty(_, i, f) -> {
+    NumberValue(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
@@ -169,10 +172,10 @@ fn number_maximum(
 }
 
 fn number_exclusivemaximum(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    NumberProperty(_, i, f) -> {
+    NumberValue(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(i1), None -> {
@@ -219,10 +222,10 @@ fn number_exclusivemaximum(
 }
 
 fn number_multiple_of(
-  value: ValidationProperty,
+  value: PropertyValue,
 ) -> Result(fn(JsonValue) -> Option(InvalidEntry), InvalidEntry) {
   case value {
-    NumberProperty(_, i, f) -> {
+    NumberValue(_, i, f) -> {
       Ok(fn(v) {
         case i, f {
           Some(_), None -> {

@@ -1,20 +1,12 @@
 import gleam/option.{type Option}
 
-import simplejson/jsonvalue.{type JsonValue, type ParseError}
+import simplejson/jsonvalue.{type JsonValue}
 
 import gleam/dict.{type Dict}
+import simplejson/internal/schema/error.{type InvalidEntry}
 
 pub type Number {
   Number(int: Option(Int), float: Option(Float))
-}
-
-pub type ValidationProperty {
-  BooleanProperty(name: String, value: Bool)
-  StringProperty(name: String, value: String)
-  IntProperty(name: String, value: Int)
-  FloatProperty(name: String, value: Float)
-  NumberProperty(name: String, value: Option(Int), or_value: Option(Float))
-  ObjectProperty(name: String, value: Dict(String, JsonValue))
 }
 
 pub type Combination {
@@ -48,14 +40,4 @@ pub type Schema {
     schema: JsonValue,
     validation: ValidationNode,
   )
-}
-
-pub type InvalidEntry {
-  InvalidEntry(node: JsonValue)
-  FalseSchema
-  InvalidSchema(p: Int)
-  InvalidJson(ParseError)
-  InvalidDataType(node: JsonValue)
-  NotMatchEnum(node: JsonValue)
-  FailedProperty(prop: ValidationProperty, value: JsonValue)
 }

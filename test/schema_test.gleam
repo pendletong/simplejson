@@ -1,11 +1,12 @@
 import gleam/list
 import gleam/option.{None, Some}
-import simplejson/internal/schema/schema
-import simplejson/internal/schema/types.{
-  type InvalidEntry, type ValidationProperty, BooleanProperty, FailedProperty,
-  FalseSchema, IntProperty, InvalidDataType, NotMatchEnum, NumberProperty,
-  StringProperty,
+import simplejson/internal/schema/error.{
+  type InvalidEntry, FailedProperty, FalseSchema, InvalidDataType, NotMatchEnum,
 }
+import simplejson/internal/schema/properties/propertyvalues.{
+  type PropertyValue, BooleanValue, IntValue, NumberValue, StringValue,
+}
+import simplejson/internal/schema/schema
 import startest.{describe, it}
 import startest/expect
 
@@ -179,7 +180,7 @@ pub fn schema_string_tests() {
       let errors =
         schema.validate("\"123-567\"", "{\"type\":\"string\", \"minLength\":8}")
         |> expect.to_be_error
-      contains_failed_property_error(errors, IntProperty("minLength", 8))
+      contains_failed_property_error(errors, IntValue("minLength", 8))
       |> expect.to_be_true
     }),
     it("Basic String Max Length", fn() {
@@ -190,7 +191,7 @@ pub fn schema_string_tests() {
       let errors =
         schema.validate("\"123-567\"", "{\"type\":\"string\", \"maxLength\":3}")
         |> expect.to_be_error
-      contains_failed_property_error(errors, IntProperty("maxLength", 3))
+      contains_failed_property_error(errors, IntValue("maxLength", 3))
       |> expect.to_be_true
     }),
     it("Basic String Pattern", fn() {
@@ -207,7 +208,7 @@ pub fn schema_string_tests() {
           "{\"type\":\"string\", \"pattern\":\"text\"}",
         )
         |> expect.to_be_error
-      contains_failed_property_error(errors, StringProperty("pattern", "text"))
+      contains_failed_property_error(errors, StringValue("pattern", "text"))
       |> expect.to_be_true
     }),
   ])
@@ -316,7 +317,7 @@ pub fn schema_number_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          NumberProperty("minimum", None, Some(123.6)),
+          NumberValue("minimum", None, Some(123.6)),
         )
         |> expect.to_be_true
       }),
@@ -329,7 +330,7 @@ pub fn schema_number_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          NumberProperty("exclusiveMinimum", None, Some(123.5)),
+          NumberValue("exclusiveMinimum", None, Some(123.5)),
         )
         |> expect.to_be_true
       }),
@@ -371,7 +372,7 @@ pub fn schema_number_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          NumberProperty("maximum", None, Some(123.4)),
+          NumberValue("maximum", None, Some(123.4)),
         )
         |> expect.to_be_true
       }),
@@ -384,7 +385,7 @@ pub fn schema_number_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          NumberProperty("exclusiveMaximum", None, Some(123.5)),
+          NumberValue("exclusiveMaximum", None, Some(123.5)),
         )
         |> expect.to_be_true
       }),
@@ -404,7 +405,7 @@ pub fn schema_number_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          NumberProperty("multipleOf", Some(20), None),
+          NumberValue("multipleOf", Some(20), None),
         )
         |> expect.to_be_true
       }),
@@ -449,14 +450,14 @@ pub fn schema_array_tests() {
           let errors =
             schema.validate("[1]", "{\"type\":\"array\",\"minItems\":2}")
             |> expect.to_be_error
-          contains_failed_property_error(errors, IntProperty("minItems", 2))
+          contains_failed_property_error(errors, IntValue("minItems", 2))
           |> expect.to_be_true
         }),
         it("Basic Max Fail", fn() {
           let errors =
             schema.validate("[1,2,3]", "{\"type\":\"array\",\"maxItems\":2}")
             |> expect.to_be_error
-          contains_failed_property_error(errors, IntProperty("maxItems", 2))
+          contains_failed_property_error(errors, IntValue("maxItems", 2))
           |> expect.to_be_true
         }),
         it("Basic Min/Max Min Fail", fn() {
@@ -466,7 +467,7 @@ pub fn schema_array_tests() {
               "{\"type\":\"array\",\"minItems\":6,\"maxItems\":10}",
             )
             |> expect.to_be_error
-          contains_failed_property_error(errors, IntProperty("minItems", 6))
+          contains_failed_property_error(errors, IntValue("minItems", 6))
           |> expect.to_be_true
         }),
         it("Basic Min/Max Max Fail", fn() {
@@ -476,7 +477,7 @@ pub fn schema_array_tests() {
               "{\"type\":\"array\",\"minItems\":2,\"maxItems\":5}",
             )
             |> expect.to_be_error
-          contains_failed_property_error(errors, IntProperty("maxItems", 5))
+          contains_failed_property_error(errors, IntValue("maxItems", 5))
           |> expect.to_be_true
         }),
         it("Basic Min/Max Same Match", fn() {
@@ -493,7 +494,7 @@ pub fn schema_array_tests() {
               "{\"type\":\"array\",\"minItems\":5,\"maxItems\":5}",
             )
             |> expect.to_be_error
-          contains_failed_property_error(errors, IntProperty("maxItems", 5))
+          contains_failed_property_error(errors, IntValue("maxItems", 5))
           |> expect.to_be_true
         }),
         it("Basic Min/Max Same Fail 2", fn() {
@@ -503,7 +504,7 @@ pub fn schema_array_tests() {
               "{\"type\":\"array\",\"minItems\":5,\"maxItems\":5}",
             )
             |> expect.to_be_error
-          contains_failed_property_error(errors, IntProperty("minItems", 5))
+          contains_failed_property_error(errors, IntValue("minItems", 5))
           |> expect.to_be_true
         }),
       ]),
@@ -541,7 +542,7 @@ pub fn schema_array_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          BooleanProperty("uniqueItems", True),
+          BooleanValue("uniqueItems", True),
         )
         |> expect.to_be_true
       }),
@@ -554,7 +555,7 @@ pub fn schema_array_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          BooleanProperty("uniqueItems", True),
+          BooleanValue("uniqueItems", True),
         )
         |> expect.to_be_true
       }),
@@ -567,7 +568,7 @@ pub fn schema_array_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          BooleanProperty("uniqueItems", True),
+          BooleanValue("uniqueItems", True),
         )
         |> expect.to_be_true
       }),
@@ -580,7 +581,7 @@ pub fn schema_array_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          BooleanProperty("uniqueItems", True),
+          BooleanValue("uniqueItems", True),
         )
         |> expect.to_be_true
       }),
@@ -593,7 +594,7 @@ pub fn schema_array_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          BooleanProperty("uniqueItems", True),
+          BooleanValue("uniqueItems", True),
         )
         |> expect.to_be_true
       }),
@@ -613,7 +614,7 @@ pub fn schema_array_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          BooleanProperty("uniqueItems", True),
+          BooleanValue("uniqueItems", True),
         )
         |> expect.to_be_true
       }),
@@ -626,10 +627,10 @@ pub fn schema_array_tests() {
           |> expect.to_be_error
         contains_failed_property_error(
           errors,
-          BooleanProperty("uniqueItems", True),
+          BooleanValue("uniqueItems", True),
         )
         |> expect.to_be_true
-        contains_failed_property_error(errors, IntProperty("minItems", 8))
+        contains_failed_property_error(errors, IntValue("minItems", 8))
         |> expect.to_be_true
       }),
     ]),
@@ -668,7 +669,7 @@ fn contains_enum_error(errors: List(InvalidEntry)) -> Bool {
 
 fn contains_failed_property_error(
   errors: List(InvalidEntry),
-  fail_prop: ValidationProperty,
+  fail_prop: PropertyValue,
 ) -> Bool {
   let err =
     errors
