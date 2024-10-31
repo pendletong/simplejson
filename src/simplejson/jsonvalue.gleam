@@ -15,7 +15,7 @@ pub type JsonValue {
   /// Indicates a null value
   JsonNull
   /// Wraps an array value
-  JsonArray(List(JsonValue))
+  JsonArray(Dict(Int, JsonValue))
   /// Wraps an object value
   JsonObject(Dict(String, JsonValue))
 }

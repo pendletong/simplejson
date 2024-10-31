@@ -70,70 +70,88 @@ pub fn parse_array_tests() {
     it("Empty Array", fn() {
       simplejson.parse("[]")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([]))
+      |> expect.to_equal(JsonArray(dict.new()))
     }),
     it("Array with String", fn() {
       simplejson.parse("[\"a\"]")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonString("a")]))
+      |> expect.to_equal(JsonArray(dict.from_list([#(0, JsonString("a"))])))
     }),
     it("Array with Multiple Strings", fn() {
       simplejson.parse("[\"a\", \"z\"]")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonString("a"), JsonString("z")]))
+      |> expect.to_equal(
+        JsonArray(
+          dict.from_list([#(0, JsonString("a")), #(1, JsonString("z"))]),
+        ),
+      )
     }),
     it("Array with String and Spaces", fn() {
       simplejson.parse(" [ \"a\" ] ")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonString("a")]))
+      |> expect.to_equal(JsonArray(dict.from_list([#(0, JsonString("a"))])))
     }),
     it("Array with Int", fn() {
       simplejson.parse("[123]")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonNumber(Some(123), None, Some("123"))]))
+      |> expect.to_equal(
+        JsonArray(
+          dict.from_list([#(0, JsonNumber(Some(123), None, Some("123")))]),
+        ),
+      )
     }),
     it("Array with Multiple Ints", fn() {
       simplejson.parse("[999, 111]")
       |> expect.to_be_ok
       |> expect.to_equal(
-        JsonArray([
-          JsonNumber(Some(999), None, Some("999")),
-          JsonNumber(Some(111), None, Some("111")),
-        ]),
+        JsonArray(
+          dict.from_list([
+            #(0, JsonNumber(Some(999), None, Some("999"))),
+            #(1, JsonNumber(Some(111), None, Some("111"))),
+          ]),
+        ),
       )
     }),
     it("Array with Float", fn() {
       simplejson.parse("[123.5]")
       |> expect.to_be_ok
       |> expect.to_equal(
-        JsonArray([JsonNumber(None, Some(123.5), Some("123.5"))]),
+        JsonArray(
+          dict.from_list([#(0, JsonNumber(None, Some(123.5), Some("123.5")))]),
+        ),
       )
     }),
     it("Array with Multiple Floats", fn() {
       simplejson.parse("[999.5, 111.5]")
       |> expect.to_be_ok
       |> expect.to_equal(
-        JsonArray([
-          JsonNumber(None, Some(999.5), Some("999.5")),
-          JsonNumber(None, Some(111.5), Some("111.5")),
-        ]),
+        JsonArray(
+          dict.from_list([
+            #(0, JsonNumber(None, Some(999.5), Some("999.5"))),
+            #(1, JsonNumber(None, Some(111.5), Some("111.5"))),
+          ]),
+        ),
       )
     }),
     it("Array with Multiple JsonValues", fn() {
       simplejson.parse("[999, \"111\", {}]")
       |> expect.to_be_ok
       |> expect.to_equal(
-        JsonArray([
-          JsonNumber(Some(999), None, Some("999")),
-          JsonString("111"),
-          JsonObject(dict.from_list([])),
-        ]),
+        JsonArray(
+          dict.from_list([
+            #(0, JsonNumber(Some(999), None, Some("999"))),
+            #(1, JsonString("111")),
+            #(2, JsonObject(dict.from_list([]))),
+          ]),
+        ),
       )
     }),
     it("Array inside Object", fn() {
       simplejson.parse("{\"a\": []}")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonObject(dict.from_list([#("a", JsonArray([]))])))
+      |> expect.to_equal(
+        JsonObject(dict.from_list([#("a", JsonArray(dict.new()))])),
+      )
     }),
   ])
 }
