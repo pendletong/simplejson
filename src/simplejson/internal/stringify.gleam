@@ -23,7 +23,7 @@ fn create_string(json: JsonValue, acc: String) -> String {
     JsonString(s) -> {
       acc <> "\"" <> encode_string(s, "") <> "\""
     }
-    JsonArray(l) -> acc <> "[" <> encode_list(l, "") <> "]"
+    JsonArray(l) -> acc <> "[" <> encode_list(dict.values(l), "") <> "]"
     JsonNull -> acc <> "null"
     JsonNumber(_, _, Some(s)) -> acc <> s
     JsonNumber(Some(i), _, _) -> acc <> encode_int(i)

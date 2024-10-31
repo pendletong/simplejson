@@ -281,7 +281,8 @@ fn do_parse_list(
   )
   let trimmed_json = do_trim_whitespace(json)
   case trimmed_json {
-    "]" <> rest -> Ok(#(rest, JsonArray(list.reverse(list))))
+    "]" <> rest ->
+      Ok(#(rest, JsonArray(list_to_indexed_dict(list.reverse(list)))))
     "," <> rest -> {
       case last_value {
         None -> Error(InvalidCharacter(",", trimmed_json, -1))
@@ -568,4 +569,9 @@ fn do_parse_int(
       }
     }
   }
+}
+
+fn list_to_indexed_dict(initial_list: List(a)) -> Dict(Int, a) {
+  use current_dict, item, index <- list.index_fold(initial_list, dict.new())
+  dict.insert(current_dict, index, item)
 }

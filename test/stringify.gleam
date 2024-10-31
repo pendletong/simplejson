@@ -83,35 +83,50 @@ pub fn simple_stringify_tests() {
       )
     }),
     it("array", fn() {
-      stringify.to_string(JsonArray([])) |> expect.to_equal("[]")
+      stringify.to_string(JsonArray(dict.new())) |> expect.to_equal("[]")
       stringify.to_string(
-        JsonArray([
-          JsonNumber(Some(1), None, None),
-          JsonNumber(Some(2), None, None),
-          JsonNumber(Some(3), None, None),
-        ]),
+        JsonArray(
+          dict.from_list([
+            #(0, JsonNumber(Some(1), None, None)),
+            #(1, JsonNumber(Some(2), None, None)),
+            #(2, JsonNumber(Some(3), None, None)),
+          ]),
+        ),
       )
       |> expect.to_equal("[1,2,3]")
       stringify.to_string(
-        JsonArray([
-          JsonNumber(Some(1), None, None),
-          JsonNumber(None, Some(2.5), None),
-          JsonNumber(Some(3), None, None),
-        ]),
+        JsonArray(
+          dict.from_list([
+            #(0, JsonNumber(Some(1), None, None)),
+            #(1, JsonNumber(None, Some(2.5), None)),
+            #(2, JsonNumber(Some(3), None, None)),
+          ]),
+        ),
       )
       |> expect.to_equal("[1,2.5,3]")
       stringify.to_string(
-        JsonArray([
-          JsonNumber(Some(1), None, None),
-          JsonNumber(Some(2), None, None),
-          JsonNumber(None, Some(20_000.5), Some("2.00005e4")),
-        ]),
+        JsonArray(
+          dict.from_list([
+            #(0, JsonNumber(Some(1), None, None)),
+            #(1, JsonNumber(Some(2), None, None)),
+            #(2, JsonNumber(None, Some(20_000.5), Some("2.00005e4"))),
+          ]),
+        ),
       )
       |> expect.to_equal("[1,2,2.00005e4]")
       stringify.to_string(
-        JsonArray([
-          JsonArray([JsonArray([JsonArray([])])]),
-        ]),
+        JsonArray(
+          dict.from_list([
+            #(
+              0,
+              JsonArray(
+                dict.from_list([
+                  #(0, JsonArray(dict.from_list([#(0, JsonArray(dict.new()))]))),
+                ]),
+              ),
+            ),
+          ]),
+        ),
       )
       |> expect.to_equal("[[[[]]]]")
     }),
