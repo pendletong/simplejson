@@ -3,8 +3,9 @@
 //// Basic JSON library for Gleam
 
 import simplejson/internal/parser
+import simplejson/internal/pointer
 import simplejson/internal/stringify
-import simplejson/jsonvalue.{type JsonValue, type ParseError}
+import simplejson/jsonvalue.{type JsonPathError, type JsonValue, type ParseError}
 
 /// Parse a given string into a JsonValue Result
 /// Or return Error if unable. This currently returns
@@ -38,4 +39,11 @@ pub fn parse(json: String) -> Result(JsonValue, ParseError) {
 /// 
 pub fn to_string(json: JsonValue) -> String {
   stringify.to_string(json)
+}
+
+pub fn jsonpath(
+  json: JsonValue,
+  jsonpath: String,
+) -> Result(JsonValue, JsonPathError) {
+  pointer.jsonpath(json, jsonpath)
 }
