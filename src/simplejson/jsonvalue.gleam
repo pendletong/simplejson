@@ -30,3 +30,8 @@ pub type ParseError {
   InvalidNumber(num: String, context: String, pos: Int)
   NestingDepth(num_levels: Int)
 }
+
+pub type JsonPathError {
+  InvalidJsonPath
+  PathNotFound
+}
