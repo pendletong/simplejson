@@ -6,7 +6,7 @@ pub type JsonValue {
   JsonNumber(int: Option(Int), float: Option(Float), original: Option(String))
   JsonBool(bool: Bool)
   JsonNull
-  JsonArray(List(JsonValue))
+  JsonArray(Dict(Int, JsonValue))
   JsonObject(Dict(String, JsonValue))
 }
 
