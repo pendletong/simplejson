@@ -1,5 +1,5 @@
 import gleam/option.{type Option, None, Some}
-import gleam/regex
+import gleam/regexp
 import gleam/string
 import simplejson/internal/schema/error.{
   type InvalidEntry, FailedProperty, InvalidDataType, InvalidSchema,
@@ -57,8 +57,8 @@ fn string_pattern(
   case value {
     StringValue(_, str_value) -> {
       Ok(fn(v) {
-        let assert Ok(re) = regex.from_string(str_value)
-        case perform_check(v, fn(str) { regex.check(re, str) }) {
+        let assert Ok(re) = regexp.from_string(str_value)
+        case perform_check(v, fn(str) { regexp.check(re, str) }) {
           True -> None
           False -> Some(FailedProperty(value, v))
         }

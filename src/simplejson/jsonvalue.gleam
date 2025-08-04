@@ -16,8 +16,8 @@ pub type JsonValue {
   )
   JsonBool(metadata: JsonMetaData, bool: Bool)
   JsonNull(metadata: JsonMetaData)
-  JsonArray(metadata: JsonMetaData, List(JsonValue))
-  JsonObject(metadata: JsonMetaData, Dict(String, JsonValue))
+  JsonArray(metadata: JsonMetaData, array: List(JsonValue))
+  JsonObject(metadata: JsonMetaData, object: Dict(String, JsonValue))
 }
 
 pub type ParseError {

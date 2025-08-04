@@ -1,6 +1,5 @@
 import gleam/bool
 import gleam/dict
-import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
@@ -21,7 +20,7 @@ pub fn suite_tests() {
   simplifile.get_files("./JSON-Schema-Test-Suite/tests/draft2020-12")
   |> expect.to_be_ok
   |> list.filter_map(fn(filename) {
-    io.debug(#(filename, string.contains(filename, "/optional/")))
+    // io.debug(#(filename, string.contains(filename, "/optional/")))
     use <- bool.guard(
       when: string.contains(filename, "/optional/") && bool.negate(run_optional),
       return: Error(Nil),
