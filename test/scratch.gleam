@@ -1,6 +1,15 @@
 import gleam/bit_array
+import gleam/dict
+import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
+import simplejson/internal/schema/properties/properties.{
+  AnyProperty, EnumProperty, ListProperty, NeededProperty,
+}
 import simplejson/internal/schema/schema
+import simplejson/jsonvalue.{
+  type JsonValue, JsonArray, JsonNull, JsonString, NoMD,
+}
 
 pub fn main() {
   //   parser.parse(
@@ -177,7 +186,34 @@ pub fn main() {
   // simplejson.parse("{\"a\": []}")
   // |> echo
 
-  let a = result.unwrap(bit_array.base16_decode("D83DDCA9"), <<>>)
-  <<a:bits>> |> echo
-  bit_array.to_string(<<55_357:size(16), 56_489:size(16)>>) |> echo
+  list.each(schema.properties, fn(prop) {
+    case
+      schema.decode_property(
+        prop,
+        dict.from_list([#("type", JsonString(NoMD, "string"))]),
+        // dict.from_list([
+      //   #(
+      //     "type",
+      //     JsonArray(NoMD, [
+      //       JsonString(NoMD, "array"),
+      //       JsonString(NoMD, "number"),
+      //     ]),
+      //   ),
+      // ]),
+      )
+      |> echo
+    {
+      Error(_) -> Nil
+
+      Ok(Some(f)) -> {
+        // f(JsonArray(NoMD, []))
+        // f(JsonNull(NoMD))
+        f(JsonString(NoMD, "Test"))
+        |> echo
+        Nil
+      }
+
+      Ok(None) -> Nil
+    }
+  })
 }

@@ -1,14 +1,19 @@
 import gleam/dict.{type Dict}
+import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/regexp.{Options}
 import gleam/result
-import simplejson/internal/schema/error.{type InvalidEntry, InvalidSchema}
-import simplejson/internal/schema/properties/propertyvalues.{
-  type PropertyValue, BooleanValue, FloatValue, IntValue, NumberValue,
-  ObjectValue, StringValue,
+import simplejson/internal/schema/error.{
+  type InvalidEntry, InvalidSchema, MissingProperty, NotMatchEnum,
 }
+import simplejson/internal/schema/properties/propertyvalues.{
+  type PropertyValue, BooleanValue, FloatValue, IntValue, ListValue, NullValue,
+  NumberValue, ObjectValue, StringValue,
+}
+import simplejson/internal/stringify
 import simplejson/jsonvalue.{
-  type JsonValue, JsonBool, JsonNumber, JsonObject, JsonString,
+  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
+  JsonString,
 }
 
 pub type Property {
@@ -16,6 +21,121 @@ pub type Property {
   EnumProperty(enum: List(JsonValue))
   AnyProperty(props: List(Property))
   ListProperty(prop: Property)
+  NeededProperty(prop: Property)
+}
+
+pub fn get_property(
+  property_name: String,
+  property: Property,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(PropertyValue), InvalidEntry) {
+  case property {
+    NeededProperty(prop) -> {
+      case get_property(property_name, prop, dict) {
+        Ok(None) -> Error(MissingProperty(property_name))
+        _ as v -> v
+      }
+    }
+    AnyProperty(props) -> {
+      list.fold_until(props, Ok(None), fn(_, prop) {
+        case get_property(property_name, prop, dict) {
+          Ok(None) -> Stop(Ok(None))
+          Ok(Some(val)) -> Stop(Ok(Some(val)))
+          Error(err) -> Continue(Error(err))
+        }
+      })
+    }
+    EnumProperty(_) -> {
+      case dict.get(dict, property_name) {
+        Ok(value) -> {
+          evaluate_property(property_name, property, value) |> result.map(Some)
+        }
+        Error(_) -> Ok(None)
+      }
+    }
+    StringProperty -> {
+      case dict.get(dict, property_name) {
+        Ok(v) -> {
+          evaluate_property(property_name, property, v) |> result.map(Some)
+        }
+        Error(_) -> Ok(None)
+      }
+    }
+    ListProperty(list_prop) -> {
+      case dict.get(dict, property_name) {
+        Ok(JsonArray(_, list)) -> {
+          use res <- result.try(
+            list.try_map(stringify.dict_to_ordered_list(list), fn(entry) {
+              evaluate_property(property_name, list_prop, entry)
+            }),
+          )
+
+          Ok(Some(ListValue(property_name, res)))
+        }
+        Ok(_) -> Error(InvalidSchema(51))
+        Error(_) -> Ok(None)
+      }
+    }
+  }
+  // case dict.get(dict, property_name) {
+  //   Ok(value) -> {
+  //     case Property {
+  //       StringProperty -> {
+
+  //       }
+  //     }
+  //   }
+  //   Error(_) -> Ok(None)
+  // }
+}
+
+fn evaluate_property(
+  property_name: String,
+  property: Property,
+  value: JsonValue,
+) -> Result(PropertyValue, InvalidEntry) {
+  case property {
+    AnyProperty(_) -> todo
+    EnumProperty(enum) -> {
+      case list.contains(enum, value) {
+        True -> {
+          Ok(value_to_property(property_name, value))
+        }
+        False -> Error(NotMatchEnum(value))
+      }
+    }
+    ListProperty(_) -> todo
+    NeededProperty(_) -> todo
+    StringProperty -> {
+      case value {
+        JsonString(_, str_value) -> Ok(StringValue(property_name, str_value))
+        _ -> Error(InvalidSchema(50))
+      }
+    }
+  }
+}
+
+fn value_to_property(property_name, value) {
+  case value {
+    JsonBool(_, b) -> BooleanValue(property_name, b)
+    JsonNumber(_, i, f, _) -> {
+      case i, f {
+        Some(i), None -> IntValue(property_name, i)
+        None, Some(f) -> FloatValue(property_name, f)
+        _, _ -> NumberValue(property_name, i, f)
+      }
+    }
+    JsonObject(_, o) -> ObjectValue(property_name, o)
+    JsonString(_, s) -> StringValue(property_name, s)
+    JsonArray(_, l) ->
+      ListValue(
+        property_name,
+        list.map(stringify.dict_to_ordered_list(l), fn(v) {
+          value_to_property(property_name, v)
+        }),
+      )
+    JsonNull(_) -> NullValue(property_name)
+  }
 }
 
 pub fn get_bool_property(
