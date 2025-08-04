@@ -8,5 +8,6 @@ pub type InvalidEntry {
   InvalidJson(ParseError)
   InvalidDataType(node: JsonValue)
   NotMatchEnum(node: JsonValue)
+  MissingProperty(prop: String)
   FailedProperty(prop: PropertyValue, value: JsonValue)
 }

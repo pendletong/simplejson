@@ -1,7 +1,6 @@
 import gleam/float
 import gleam/int
-import gleam/io
-import gleam/list
+import gleam/list.{Continue, Stop}
 import gleam/result
 import simplejson
 import simplejson/internal/schema/error.{
@@ -10,9 +9,11 @@ import simplejson/internal/schema/error.{
 import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
 import simplejson/internal/schema/properties/properties.{
-  AnyProperty, EnumProperty, ListProperty,
+  type Property, AnyProperty, EnumProperty, ListProperty,
 }
-import simplejson/internal/schema/properties/propertyvalues.{type PropertyValue}
+import simplejson/internal/schema/properties/propertyvalues.{
+  type PropertyValue, ListValue, StringValue,
+}
 import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
   type Schema, type ValidationNode, All, AllBreakAfterFirst, Any, ArrayNode,
@@ -21,7 +22,8 @@ import simplejson/internal/schema/types.{
 }
 import simplejson/internal/schema/validator
 import simplejson/jsonvalue.{
-  type JsonValue, JsonArray, JsonBool, JsonNumber, JsonObject, JsonString, NoMD,
+  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
+  JsonString, NoMD,
 }
 
 import gleam/dict.{type Dict}
@@ -66,18 +68,85 @@ fn generate_schema_from_json(schema: JsonValue) -> Result(Schema, InvalidEntry) 
   // |> io.debug
 }
 
+pub fn decode_property(
+  property: #(
+    String,
+    Property,
+    fn(PropertyValue) -> Option(fn(JsonValue) -> Option(InvalidEntry)),
+  ),
+  dict: Dict(String, JsonValue),
+) {
+  use prop <- result.try(properties.get_property(property.0, property.1, dict))
+  case prop {
+    Some(prop) -> Ok(property.2(prop))
+    None -> Ok(None)
+  }
+}
+
 const type_properties = EnumProperty(
   [
-    JsonString(NoMD, "array"), JsonString(NoMD, "boolean"),
-    JsonString(NoMD, "integer"), JsonString(NoMD, "null"),
-    JsonString(NoMD, "number"), JsonString(NoMD, "object"),
+    JsonString(NoMD, "array"),
+    JsonString(NoMD, "boolean"),
+    JsonString(NoMD, "integer"),
+    JsonString(NoMD, "null"),
+    JsonString(NoMD, "number"),
+    JsonString(NoMD, "object"),
     JsonString(NoMD, "string"),
   ],
 )
 
-const properties = [
-  #("type", AnyProperty([type_properties, ListProperty(type_properties)])),
+pub const properties = [
+  #(
+    "type",
+    AnyProperty([type_properties, ListProperty(type_properties)]),
+    type_check,
+  ),
 ]
+
+fn type_check(
+  prop_value: PropertyValue,
+) -> Option(fn(JsonValue) -> Option(InvalidEntry)) {
+  case prop_value {
+    ListValue(_, data_types) ->
+      Some(fn(value) {
+        // io.debug(#("Check", data_types, value))
+        list.fold_until(data_types, None, fn(_, data_type) {
+          // io.debug(#("Int", data_type))
+          case data_type {
+            StringValue(_, data_type) -> {
+              case do_type_check(value, data_type) {
+                True -> Stop(None)
+                False -> Continue(Some(InvalidDataType(value)))
+              }
+            }
+            _ -> Continue(None)
+          }
+        })
+      })
+    StringValue(_, data_type) ->
+      Some(fn(value) {
+        case do_type_check(value, data_type) {
+          True -> None
+          False -> Some(InvalidDataType(value))
+        }
+      })
+    _ -> None
+  }
+}
+
+fn do_type_check(json_value: JsonValue, data_type: String) -> Bool {
+  // io.debug(#("TC", json_value, data_type))
+  case json_value, data_type {
+    JsonString(_, _), "string" -> True
+    JsonArray(_, _), "array" -> True
+    JsonObject(_, _), "object" -> True
+    JsonNull(_), "null" -> True
+    JsonBool(_, _), "boolean" -> True
+    JsonNumber(_, Some(_), None, _), "integer" -> True
+    JsonNumber(_, _, _, _), "number" -> True
+    _, _ -> False
+  }
+}
 
 fn generate_validation(
   schema: JsonValue,
