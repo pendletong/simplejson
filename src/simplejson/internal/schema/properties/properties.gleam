@@ -1,7 +1,6 @@
 import gleam/dict.{type Dict}
-import gleam/io
 import gleam/option.{type Option, None, Some}
-import gleam/regex.{Options}
+import gleam/regexp.{Options}
 import gleam/result
 import simplejson/internal/schema/types.{
   type InvalidEntry, type ValidationProperty, FloatProperty, IntProperty,
@@ -82,11 +81,10 @@ pub fn get_pattern_property(
   dict: Dict(String, JsonValue),
 ) -> Result(Option(ValidationProperty), InvalidEntry) {
   use pattern <- result.try(get_string_property(property, dict))
-  io.debug(pattern)
-  case pattern {
+  case pattern |> echo {
     Some(StringProperty(_, regex_str)) -> {
       case
-        regex.compile(
+        regexp.compile(
           regex_str,
           Options(case_insensitive: False, multi_line: False),
         )

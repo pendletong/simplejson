@@ -252,7 +252,7 @@ fn do_parse_string(
 fn parse_hex(json: String) -> Result(#(String, String), ParseError) {
   let hex = string.slice(json, 0, 4)
   use <- bool.guard(string.length(hex) < 4, return: Error(UnexpectedEnd))
-  let rest = string.drop_left(json, 4)
+  let rest = string.drop_start(json, 4)
   use parsed <- result.try(
     int.base_parse(hex, 16)
     |> result.map_error(fn(_) { InvalidHex(hex, json, -1) }),

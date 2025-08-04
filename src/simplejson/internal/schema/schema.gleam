@@ -1,6 +1,5 @@
 import gleam/float
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/result
 import simplejson/internal/parser
@@ -37,7 +36,7 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
       Ok(Schema(None, None, schema, validator, sub_schema))
     Error(err) -> Error(err)
   }
-  |> io.debug
+  |> echo
 }
 
 fn generate_validation(

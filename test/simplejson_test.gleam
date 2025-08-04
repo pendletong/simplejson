@@ -5,7 +5,6 @@ import file_streams/text_encoding
 
 import gleam/bool
 import gleam/dict
-import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -31,7 +30,7 @@ type Test {
 // The below tests all fail with the linked errors
 // Most of the errors are due to Erlang deeming
 // D800-DFFF as invalid
-// There are a couple of BOM entries in there in which 
+// There are a couple of BOM entries in there in which
 // BOMs (or the Zero-Width No-Break Space) are not actually
 // valid whitespace characters in JSON. However these (FFEF and FFFE) should
 // arguably just be ignored as they are not actually part of the
@@ -153,7 +152,7 @@ pub fn main() {
 
 // gleeunit test functions end in `_test`
 pub fn simplejson_tests() {
-  io.debug("Running tests")
+  "Running tests" |> echo
   simplifile.get_files("./test/testfiles")
   |> expect.to_be_ok
   // |> list.filter(fn(name) { string.contains(name, "n_array_invalid_utf8.json") })

@@ -5,3 +5,8 @@
 - More tests
 - Improved error output
 - Limited exp size for number parsing
+
+## v0.6.1
+
+- Updated libraries
+- Added regexp library
