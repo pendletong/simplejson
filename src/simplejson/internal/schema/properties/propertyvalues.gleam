@@ -10,4 +10,5 @@ pub type PropertyValue {
   NumberValue(name: String, value: Option(Int), or_value: Option(Float))
   ObjectValue(name: String, value: Dict(String, JsonValue))
   ListValue(name: String, value: List(PropertyValue))
+  NullValue(name: String)
 }
