@@ -1,6 +1,24 @@
+import gleam/dynamic/decode
+import gleam/json
 import glychee/benchmark
 import glychee/configuration
 import simplejson
+
+type Props {
+  Props
+}
+
+type Geometry {
+  Geometry(t: String, coordinates: List(List(Float)))
+}
+
+type Feature {
+  Feature(t: String, properties: Props, geometry: Geometry)
+}
+
+type BMData {
+  BMData(t: String, features: List(Feature))
+}
 
 @target(erlang)
 pub fn main() {
@@ -16,7 +34,48 @@ pub fn small_benchmark() {
   benchmark.run(
     [
       benchmark.Function("simplejson", fn(data) {
-        fn() { simplejson.parse(data) }
+        fn() {
+          let _ = simplejson.parse(data)
+          Nil
+        }
+      }),
+      benchmark.Function("gleam_json", fn(data) {
+        fn() {
+          let props_decoder = {
+            decode.success(Props)
+          }
+
+          let geometry_decoder = {
+            use gt <- decode.field("type", decode.string)
+            use coords <- decode.field(
+              "coordinates",
+              decode.list(decode.list(decode.float)),
+            )
+
+            decode.success(Geometry(gt, coords))
+          }
+          let feature_decoder = {
+            use ft <- decode.field("type", decode.string)
+            use props <- decode.optional_field(
+              "properties",
+              Props,
+              props_decoder,
+            )
+            use geometry <- decode.field("geometry", geometry_decoder)
+
+            decode.success(Feature(ft, props, geometry))
+          }
+          let decoder = {
+            use jt <- decode.field("type", decode.string)
+            use features <- decode.field(
+              "features",
+              decode.list(feature_decoder),
+            )
+            decode.success(BMData(jt, features))
+          }
+          let _ = json.parse(from: data, using: decoder)
+          Nil
+        }
       }),
     ],
     [
