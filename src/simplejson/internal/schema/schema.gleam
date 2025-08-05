@@ -36,7 +36,6 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
       Ok(Schema(None, None, schema, validator, sub_schema))
     Error(err) -> Error(err)
   }
-  |> echo
 }
 
 fn generate_validation(
