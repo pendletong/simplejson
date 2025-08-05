@@ -82,6 +82,7 @@ fn encode_string(str: String, acc: String) -> String {
 
 fn encode_char(char: String) -> String {
   case char {
+    "\r\n" -> "\\r\\n"
     "\u{00}" -> "\\u0000"
     "\u{01}" -> "\\u0001"
     "\u{02}" -> "\\u0002"
