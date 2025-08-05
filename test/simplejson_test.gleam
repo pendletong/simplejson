@@ -446,7 +446,7 @@ pub fn parse_string_error_tests() {
 }
 
 @target(javascript)
-fn read_file(name: String) -> Result(String, Nil) {
+pub fn read_file(name: String) -> Result(String, Nil) {
   case simplifile.read(name) {
     Ok(content) -> Ok(content)
     Error(_) -> Error(Nil)
@@ -454,7 +454,7 @@ fn read_file(name: String) -> Result(String, Nil) {
 }
 
 @target(erlang)
-fn read_file(name: String) -> Result(String, Nil) {
+pub fn read_file(name: String) -> Result(String, Nil) {
   let encoding = case
     string.contains(string.lowercase(name), "utf16")
     || string.contains(string.lowercase(name), "utf-16")

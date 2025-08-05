@@ -3,6 +3,7 @@ import gleam/json
 import glychee/benchmark
 import glychee/configuration
 import simplejson
+import simplejson_test
 
 type Props {
   Props
@@ -54,10 +55,15 @@ pub fn array_benchmark() {
 
 @target(erlang)
 pub fn stringify_benchmark() {
-  let assert Ok(json) =
+  let assert Ok(array) =
+    simplejson.parse("[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]")
+  let assert Ok(obj) =
     simplejson.parse(
-      "{\"list\":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]}",
+      "{\"a\":1,\"b\":2,\"c\":3,\"d\":4,\"e\":5,\"f\":6,\"g\":7,\"h\":8,\"i\":9,\"j\":10}",
     )
+  let assert Ok(mixed) = simplejson_test.read_file("./test/benchmark.json")
+  let assert Ok(mixed) = simplejson.parse(mixed)
+
   benchmark.run(
     [
       benchmark.Function("stringify_array", fn(data) {
@@ -67,7 +73,11 @@ pub fn stringify_benchmark() {
         }
       }),
     ],
-    [benchmark.Data("array", json)],
+    [
+      benchmark.Data("array", array),
+      benchmark.Data("obj", obj),
+      benchmark.Data("mixed", mixed),
+    ],
   )
 }
 
