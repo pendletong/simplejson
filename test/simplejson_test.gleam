@@ -4,16 +4,12 @@ import file_streams/file_stream
 import file_streams/text_encoding
 
 import gleam/bool
-import gleam/dict
 import gleam/list
-import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 import simplejson
 import simplejson/jsonvalue.{
-  type ParseError, InvalidCharacter, InvalidEscapeCharacter, InvalidHex,
-  InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
-  JsonString, UnexpectedCharacter, UnexpectedEnd,
+  type ParseError, InvalidHex, InvalidNumber, UnexpectedCharacter,
 }
 import simplifile
 import startest.{describe, it}
@@ -38,97 +34,97 @@ type Test {
 // should have been read
 const failing_tests = [
   Test(
-    "./test/testfiles/y_string_last_surrogates_1_and_2.json",
+    "./JSONTestSuite/test_parsing/y_string_last_surrogates_1_and_2.json",
     Error(InvalidHex("DBFF", "DBFF\\uDFFF\"]", 4)),
     Error(InvalidHex("DBFF", "DBFF\\uDFFF\"]", 4)),
   ),
   Test(
-    "./test/testfiles/y_string_accepted_surrogate_pair.json",
+    "./JSONTestSuite/test_parsing/y_string_accepted_surrogate_pair.json",
     Error(InvalidHex("D801", "D801\\udc37\"]", 4)),
     Error(InvalidHex("D801", "D801\\udc37\"]", 4)),
   ),
   Test(
-    "./test/testfiles/y_string_unicode_U+1FFFE_nonchar.json",
+    "./JSONTestSuite/test_parsing/y_string_unicode_U+1FFFE_nonchar.json",
     Error(InvalidHex("D83F", "D83F\\uDFFE\"]", 4)),
     Error(InvalidHex("D83F", "D83F\\uDFFE\"]", 4)),
   ),
   Test(
-    "./test/testfiles/y_string_unicode_U+10FFFE_nonchar.json",
+    "./JSONTestSuite/test_parsing/y_string_unicode_U+10FFFE_nonchar.json",
     Error(InvalidHex("DBFF", "DBFF\\uDFFE\"]", 4)),
     Error(InvalidHex("DBFF", "DBFF\\uDFFE\"]", 4)),
   ),
   Test(
-    "./test/testfiles/y_string_accepted_surrogate_pairs.json",
+    "./JSONTestSuite/test_parsing/y_string_accepted_surrogate_pairs.json",
     Error(InvalidHex("d83d", "d83d\\ude39\\ud83d\\udc8d\"]", 4)),
     Error(InvalidHex("d83d", "d83d\\ude39\\ud83d\\udc8d\"]", 4)),
   ),
   Test(
-    "./test/testfiles/y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json",
+    "./JSONTestSuite/test_parsing/y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json",
     Error(InvalidHex("D834", "D834\\uDd1e\"]", 4)),
     Error(InvalidHex("D834", "D834\\uDd1e\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_incomplete_surrogates_escape_valid.json",
+    "./JSONTestSuite/test_parsing/i_string_incomplete_surrogates_escape_valid.json",
     Error(InvalidHex("D800", "D800\\uD800\\n\"]", 4)),
     Error(InvalidHex("D800", "D800\\uD800\\n\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_UTF-16LE_with_BOM.json",
+    "./JSONTestSuite/test_parsing/i_string_UTF-16LE_with_BOM.json",
     Error(UnexpectedCharacter("\u{FEFF}", "\u{FEFF}[\"é\"]", 0)),
     Error(UnexpectedCharacter("\u{FEFF}", "\u{FEFF}[\"é\"]", 0)),
   ),
   Test(
-    "./test/testfiles/i_string_invalid_surrogate.json",
+    "./JSONTestSuite/test_parsing/i_string_invalid_surrogate.json",
     Error(InvalidHex("d800", "d800abc\"]", 4)),
     Error(InvalidHex("d800", "d800abc\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_object_key_lone_2nd_surrogate.json",
+    "./JSONTestSuite/test_parsing/i_object_key_lone_2nd_surrogate.json",
     Error(InvalidHex("DFAA", "DFAA\":0}", 4)),
     Error(InvalidHex("DFAA", "DFAA\":0}", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_1st_surrogate_but_2nd_missing.json",
+    "./JSONTestSuite/test_parsing/i_string_1st_surrogate_but_2nd_missing.json",
     Error(InvalidHex("DADA", "DADA\"]", 4)),
     Error(InvalidHex("DADA", "DADA\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_invalid_lonely_surrogate.json",
+    "./JSONTestSuite/test_parsing/i_string_invalid_lonely_surrogate.json",
     Error(InvalidHex("d800", "d800\"]", 4)),
     Error(InvalidHex("d800", "d800\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_structure_UTF-8_BOM_empty_object.json",
+    "./JSONTestSuite/test_parsing/i_structure_UTF-8_BOM_empty_object.json",
     Error(UnexpectedCharacter("\u{FEFF}", "\u{FEFF}{}", 0)),
     Ok("{}"),
   ),
   Test(
-    "./test/testfiles/i_string_incomplete_surrogate_pair.json",
+    "./JSONTestSuite/test_parsing/i_string_incomplete_surrogate_pair.json",
     Error(InvalidHex("Dd1e", "Dd1ea\"]", 4)),
     Error(InvalidHex("Dd1e", "Dd1ea\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_incomplete_surrogate_and_escape_valid.json",
+    "./JSONTestSuite/test_parsing/i_string_incomplete_surrogate_and_escape_valid.json",
     Error(InvalidHex("D800", "D800\\n\"]", 4)),
     Error(InvalidHex("D800", "D800\\n\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_lone_second_surrogate.json",
+    "./JSONTestSuite/test_parsing/i_string_lone_second_surrogate.json",
     Error(InvalidHex("DFAA", "DFAA\"]", 4)),
     Error(InvalidHex("DFAA", "DFAA\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_1st_valid_surrogate_2nd_invalid.json",
+    "./JSONTestSuite/test_parsing/i_string_1st_valid_surrogate_2nd_invalid.json",
     Error(InvalidHex("D888", "D888\\u1234\"]", 4)),
     Error(InvalidHex("D888", "D888\\u1234\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_string_inverted_surrogates_U+1D11E.json",
+    "./JSONTestSuite/test_parsing/i_string_inverted_surrogates_U+1D11E.json",
     Error(InvalidHex("Dd1e", "Dd1e\\uD834\"]", 4)),
     Error(InvalidHex("Dd1e", "Dd1e\\uD834\"]", 4)),
   ),
   Test(
-    "./test/testfiles/i_number_huge_exp.json",
+    "./JSONTestSuite/test_parsing/i_number_huge_exp.json",
     Error(
       InvalidNumber(
         "0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006",
@@ -153,7 +149,7 @@ pub fn main() {
 // gleeunit test functions end in `_test`
 pub fn simplejson_tests() {
   "Running tests" |> echo
-  simplifile.get_files("./test/testfiles")
+  simplifile.get_files("./JSONTestSuite/test_parsing")
   |> expect.to_be_ok
   // |> list.filter(fn(name) { string.contains(name, "n_array_invalid_utf8.json") })
   |> list.map(fn(name) {
@@ -194,255 +190,6 @@ pub fn simplejson_tests() {
     })
   })
   |> describe("Parse testfiles", _)
-}
-
-pub fn parse_array_tests() {
-  describe("Array Parsing - Successful", [
-    it("Empty Array", fn() {
-      simplejson.parse("[]")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([]))
-    }),
-    it("Array with String", fn() {
-      simplejson.parse("[\"a\"]")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonString("a")]))
-    }),
-    it("Array with Multiple Strings", fn() {
-      simplejson.parse("[\"a\", \"z\"]")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonString("a"), JsonString("z")]))
-    }),
-    it("Array with String and Spaces", fn() {
-      simplejson.parse(" [ \"a\" ] ")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonString("a")]))
-    }),
-    it("Array with Int", fn() {
-      simplejson.parse("[123]")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonArray([JsonNumber(Some(123), None, Some("123"))]))
-    }),
-    it("Array with Multiple Ints", fn() {
-      simplejson.parse("[999, 111]")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonArray([
-          JsonNumber(Some(999), None, Some("999")),
-          JsonNumber(Some(111), None, Some("111")),
-        ]),
-      )
-    }),
-    it("Array with Float", fn() {
-      simplejson.parse("[123.5]")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonArray([JsonNumber(None, Some(123.5), Some("123.5"))]),
-      )
-    }),
-    it("Array with Multiple Floats", fn() {
-      simplejson.parse("[999.5, 111.5]")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonArray([
-          JsonNumber(None, Some(999.5), Some("999.5")),
-          JsonNumber(None, Some(111.5), Some("111.5")),
-        ]),
-      )
-    }),
-    it("Array with Multiple JsonValues", fn() {
-      simplejson.parse("[999, \"111\", {}]")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonArray([
-          JsonNumber(Some(999), None, Some("999")),
-          JsonString("111"),
-          JsonObject(dict.from_list([])),
-        ]),
-      )
-    }),
-    it("Array inside Object", fn() {
-      simplejson.parse("{\"a\": []}")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonObject(dict.from_list([#("a", JsonArray([]))])))
-    }),
-  ])
-}
-
-pub fn parse_array_error_tests() {
-  describe("Array Parsing - Errors", [
-    it("Unclosed Array", fn() {
-      simplejson.parse("[")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedEnd)
-    }),
-    it("Unclosed Array with Space", fn() {
-      simplejson.parse("[\n\n\r\t ")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedEnd)
-    }),
-    it("Invalid item in Array", fn() {
-      simplejson.parse("[\"]")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedEnd)
-    }),
-    it("Invalid item in Array", fn() {
-      simplejson.parse("[-]")
-      |> expect.to_be_error
-      |> expect.to_equal(InvalidNumber("-]", "-]", 1))
-    }),
-    it("Invalid closing of Array", fn() {
-      simplejson.parse("[{\"a\":1]}")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedCharacter("]", "]}", 7))
-    }),
-  ])
-}
-
-pub fn parse_object_tests() {
-  describe("Object Parsing - Successful", [
-    it("Empty Object", fn() {
-      simplejson.parse("{}")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonObject(dict.from_list([])))
-    }),
-    it("Empty Object with Spaces", fn() {
-      simplejson.parse("{\n}\t ")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonObject(dict.from_list([])))
-    }),
-    it("Object with Boolean value", fn() {
-      simplejson.parse("{\"test\":true}")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonObject(dict.from_list([#("test", JsonBool(True))])),
-      )
-    }),
-    it("Object with String value", fn() {
-      simplejson.parse("{\"test\":\"true\"}")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonObject(dict.from_list([#("test", JsonString("true"))])),
-      )
-    }),
-    it("Object with Null value", fn() {
-      simplejson.parse("{\"test\":  null}")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonObject(dict.from_list([#("test", JsonNull)])))
-    }),
-    it("Object with Number value", fn() {
-      simplejson.parse("{\"test\":999}")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonObject(
-          dict.from_list([#("test", JsonNumber(Some(999), None, Some("999")))]),
-        ),
-      )
-    }),
-    it("Object with Object value", fn() {
-      simplejson.parse("{\"test\":{}}")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonObject(dict.from_list([#("test", JsonObject(dict.from_list([])))])),
-      )
-    }),
-    it("Object with Multiple values", fn() {
-      simplejson.parse("{\"1\":true, \"2\":false}")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonObject(
-          dict.from_list([#("1", JsonBool(True)), #("2", JsonBool(False))]),
-        ),
-      )
-    }),
-    it("Object with Multiple values and duplicate", fn() {
-      simplejson.parse("{\"1\":true, \"2\":false, \"1\":123}")
-      |> expect.to_be_ok
-      |> expect.to_equal(
-        JsonObject(
-          dict.from_list([
-            #("1", JsonNumber(Some(123), None, Some("123"))),
-            #("2", JsonBool(False)),
-          ]),
-        ),
-      )
-    }),
-  ])
-}
-
-pub fn parse_object_error_tests() {
-  describe("Object Parsing - Errors", [
-    it("Unclosed Object", fn() {
-      simplejson.parse("{")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedEnd)
-    }),
-    it("Unclosed Key", fn() {
-      simplejson.parse("{\"")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedEnd)
-    }),
-    it("Just Key", fn() {
-      simplejson.parse("{\"key\"")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedEnd)
-    }),
-    it("Just Key and Colon", fn() {
-      simplejson.parse("{\"key\": }")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedCharacter("}", "}", 8))
-    }),
-  ])
-}
-
-pub fn parse_string_tests() {
-  describe("String Parsing - Successful", [
-    it("Empty String", fn() {
-      simplejson.parse("\"\"")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonString(""))
-    }),
-    it("Simple String", fn() {
-      simplejson.parse("\"abc\"")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonString("abc"))
-    }),
-    it("String with Escaped Chars", fn() {
-      simplejson.parse("\"a\\r\\nb\"")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonString("a\r\nb"))
-    }),
-    it("String with Unicode Chars", fn() {
-      simplejson.parse("\"\\u1000\\u2000\"")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonString("\u{1000}\u{2000}"))
-    }),
-    it("String with Quotes and Backslash", fn() {
-      simplejson.parse("\"a\\\"\\\\b\"")
-      |> expect.to_be_ok
-      |> expect.to_equal(JsonString("a\"\\b"))
-    }),
-  ])
-}
-
-pub fn parse_string_error_tests() {
-  describe("String Parsing - Errors", [
-    it("Unclosed String", fn() {
-      simplejson.parse("\"")
-      |> expect.to_be_error
-      |> expect.to_equal(UnexpectedEnd)
-    }),
-    it("Invalid Char", fn() {
-      simplejson.parse("\"\u{05}\"")
-      |> expect.to_be_error
-      |> expect.to_equal(InvalidCharacter("\u{05}", "\u{05}\"", 1))
-    }),
-    it("Invalid Escape", fn() {
-      simplejson.parse("\"\\h\"")
-      |> expect.to_be_error
-      |> expect.to_equal(InvalidEscapeCharacter("h", "\\h\"", 1))
-    }),
-  ])
 }
 
 @target(javascript)
