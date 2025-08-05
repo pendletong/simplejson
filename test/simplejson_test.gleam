@@ -3,6 +3,8 @@ import file_streams/file_stream
 @target(erlang)
 import file_streams/text_encoding
 
+import simplejson/internal/stringify
+
 import gleam/bool
 import gleam/list
 import gleam/result
