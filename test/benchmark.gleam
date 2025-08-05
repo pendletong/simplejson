@@ -26,8 +26,10 @@ pub fn main() {
   configuration.set_pair(configuration.Warmup, 2)
   configuration.set_pair(configuration.Parallel, 2)
 
-  small_benchmark()
-  array_benchmark()
+  // small_benchmark()
+  // array_benchmark()
+
+  stringify_benchmark()
 }
 
 @target(erlang)
@@ -47,6 +49,25 @@ pub fn array_benchmark() {
         "{\"list\":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]}",
       ),
     ],
+  )
+}
+
+@target(erlang)
+pub fn stringify_benchmark() {
+  let assert Ok(json) =
+    simplejson.parse(
+      "{\"list\":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]}",
+    )
+  benchmark.run(
+    [
+      benchmark.Function("stringify_array", fn(data) {
+        fn() {
+          let _ = simplejson.to_string(data)
+          Nil
+        }
+      }),
+    ],
+    [benchmark.Data("array", json)],
   )
 }
 
