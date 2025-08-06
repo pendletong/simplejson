@@ -12,6 +12,7 @@ pub fn main() {
   startest.run(startest.default_config())
 }
 
+@target(erlang)
 pub fn schema_string_tests() {
   describe("Schema String Tests", [
     it("Basic String Match", fn() {
@@ -65,6 +66,7 @@ pub fn schema_string_tests() {
   ])
 }
 
+@target(erlang)
 pub fn schema_number_tests() {
   describe("Schema Number Tests", [
     describe("Basic Numbers", [
@@ -220,6 +222,7 @@ pub fn schema_number_tests() {
   ])
 }
 
+@target(erlang)
 fn contains_invalid_data_type_error(errors: List(InvalidEntry)) -> Bool {
   let err =
     errors
@@ -235,6 +238,7 @@ fn contains_invalid_data_type_error(errors: List(InvalidEntry)) -> Bool {
   }
 }
 
+@target(erlang)
 fn contains_failed_property_error(
   errors: List(InvalidEntry),
   fail_prop: ValidationProperty,
