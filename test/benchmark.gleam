@@ -27,8 +27,8 @@ pub fn main() {
   configuration.set_pair(configuration.Warmup, 2)
   configuration.set_pair(configuration.Parallel, 2)
 
-  // small_benchmark()
-  // array_benchmark()
+  small_benchmark()
+  array_benchmark()
 
   stringify_benchmark()
 }

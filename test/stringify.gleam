@@ -3,12 +3,9 @@ import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import simplejson
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{
-  InvalidCharacter, InvalidEscapeCharacter, InvalidHex, InvalidNumber, JsonArray,
-  JsonBool, JsonNull, JsonNumber, JsonObject, JsonString, UnexpectedCharacter,
-  UnexpectedEnd,
+  JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject, JsonString,
 }
 import startest.{describe, it}
 import startest/expect
@@ -87,9 +84,59 @@ pub fn simple_stringify_tests() {
     }),
     it("array", fn() {
       stringify.to_string(JsonArray([])) |> expect.to_equal("[]")
+      stringify.to_string(
+        JsonArray([
+          JsonNumber(Some(1), None, None),
+          JsonNumber(Some(2), None, None),
+          JsonNumber(Some(3), None, None),
+        ]),
+      )
+      |> expect.to_equal("[1,2,3]")
+      stringify.to_string(
+        JsonArray([
+          JsonNumber(Some(1), None, None),
+          JsonNumber(None, Some(2.5), None),
+          JsonNumber(Some(3), None, None),
+        ]),
+      )
+      |> expect.to_equal("[1,2.5,3]")
+      stringify.to_string(
+        JsonArray([
+          JsonNumber(Some(1), None, None),
+          JsonNumber(Some(2), None, None),
+          JsonNumber(None, Some(20_000.5), Some("2.00005e4")),
+        ]),
+      )
+      |> expect.to_equal("[1,2,2.00005e4]")
+      stringify.to_string(
+        JsonArray([
+          JsonArray([JsonArray([JsonArray([])])]),
+        ]),
+      )
+      |> expect.to_equal("[[[[]]]]")
     }),
     it("object", fn() {
       stringify.to_string(JsonObject(dict.new())) |> expect.to_equal("{}")
+      stringify.to_string(JsonObject(dict.from_list([#("a", JsonString("1"))])))
+      |> expect.to_equal("{\"a\":\"1\"}")
+      stringify.to_string(
+        JsonObject(
+          dict.from_list([
+            #(
+              "a",
+              JsonObject(
+                dict.from_list([
+                  #(
+                    "b",
+                    JsonObject(dict.from_list([#("c", JsonObject(dict.new()))])),
+                  ),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      )
+      |> expect.to_equal("{\"a\":{\"b\":{\"c\":{}}}}")
     }),
   ])
 }
