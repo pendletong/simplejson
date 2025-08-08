@@ -20,7 +20,12 @@ pub opaque type Segment {
 pub type JsonPathError {
   ParseError(context: String)
   MissingRoot
+  IndexOutOfRange(i: Int)
 }
+
+const min_int = -9_007_199_254_740_991
+
+const max_int = 9_007_199_254_740_991
 
 pub fn parse_path(str: String) -> Result(List(Segment), JsonPathError) {
   case str {
@@ -412,11 +417,28 @@ fn get_next_int(
     | "8" as n <> rest
     | "9" as n <> rest -> get_next_int(rest, cur <> n)
     _ -> {
-      case int.parse(cur) {
-        Error(_) -> Error(ParseError(str))
+      case validate_int(cur) {
+        Error(e) -> Error(e)
         Ok(i) -> Ok(#(i, str))
       }
     }
+  }
+}
+
+fn validate_int(str: String) -> Result(Int, JsonPathError) {
+  case int.parse(str) {
+    Ok(i) -> {
+      case i < min_int {
+        False -> {
+          case i > max_int {
+            False -> Ok(i)
+            True -> Error(IndexOutOfRange(i))
+          }
+        }
+        True -> Error(IndexOutOfRange(i))
+      }
+    }
+    Error(_) -> Error(ParseError(str))
   }
 }
 
