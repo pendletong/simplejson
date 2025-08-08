@@ -87,15 +87,19 @@ fn do_parse_member_name(
     Error(_) if name == "" -> Error(ParseError(str))
     Error(_) -> Ok(#(name, ""))
     Ok(#(ch, rest)) -> {
-      case is_name_first(ch) {
-        True -> do_parse_member_name(rest, name <> ch)
-        False if name == "" -> {
+      case name == "" {
+        True -> {
+          case is_name_first(ch) {
+            True -> do_parse_member_name(rest, name <> ch)
+            False -> Error(ParseError(str))
+          }
+        }
+        False -> {
           case is_name_char(ch) {
             True -> Error(ParseError(str))
             False -> do_parse_member_name(rest, name <> ch)
           }
         }
-        False -> Error(ParseError(str))
       }
     }
   }
