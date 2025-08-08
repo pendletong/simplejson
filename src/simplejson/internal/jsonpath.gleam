@@ -166,9 +166,9 @@ fn do_parse_literal(
     }
     Ok(#("\\", rest)) -> {
       case rest {
-        "\"" <> _rest if quote == "\"" -> Error(ParseError(str))
+        "\"" <> _rest if quote == "'" -> Error(ParseError(str))
         "\"" <> rest -> do_parse_literal(rest, quote, literal <> "\"")
-        "'" <> _rest if quote == "'" -> Error(ParseError(str))
+        "'" <> _rest if quote == "\"" -> Error(ParseError(str))
         "'" <> rest -> do_parse_literal(rest, quote, literal <> "'")
         "b" <> rest -> do_parse_literal(rest, quote, literal <> "\u{0008}")
         "f" <> rest -> do_parse_literal(rest, quote, literal <> "\f")
