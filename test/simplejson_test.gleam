@@ -192,6 +192,11 @@ pub fn simplejson_tests() {
   |> describe("Parse testfiles", _)
 }
 
+// We need separate read_file fns for erlang and javascript
+// because loading utf-16 encoded files in erlang using simplifile
+// seemed to cause some issues
+// Maybe this can be removed in the future but for the moment it
+// prevents more tests failing than the ones in the failing_tests const above
 @target(javascript)
 pub fn read_file(name: String) -> Result(String, Nil) {
   case simplifile.read(name) {
