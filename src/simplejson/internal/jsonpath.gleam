@@ -30,9 +30,15 @@ const max_int = 9_007_199_254_740_991
 pub fn parse_path(str: String) -> Result(List(Segment), JsonPathError) {
   case str {
     "$" <> rest -> {
-      use path <- result.try(do_parse_path(rest, []))
-
-      Ok(path.1)
+      let trim = trim_whitespace(rest)
+      case trim == "" {
+        True if trim == rest -> Ok([])
+        True -> Error(ParseError(str))
+        False -> {
+          use path <- result.try(do_parse_path(rest, []))
+          Ok(path.1)
+        }
+      }
     }
     _ -> Error(MissingRoot)
   }
