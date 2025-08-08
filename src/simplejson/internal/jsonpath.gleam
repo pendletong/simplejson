@@ -390,7 +390,7 @@ fn do_parse_index_or_slice_selector(
   use #(val1, rest) <- result.try(get_next_int(str, ""))
   let rest = trim_whitespace(rest)
   case rest {
-    "]" <> _ -> {
+    "]" <> _ | "," <> _ -> {
       case val1 {
         Some(v) -> Ok(#(Index(v), rest))
         None -> Ok(#(Slice(None, None, None), rest))
@@ -401,7 +401,7 @@ fn do_parse_index_or_slice_selector(
       use #(val2, rest) <- result.try(get_next_int(rest, ""))
       let rest = trim_whitespace(rest)
       case rest {
-        "]" <> _ -> {
+        "]" <> _ | "," <> _ -> {
           Ok(#(Slice(val1, val2, None), rest))
         }
 
@@ -410,7 +410,7 @@ fn do_parse_index_or_slice_selector(
           use #(val3, rest) <- result.try(get_next_int(rest, ""))
           let rest = trim_whitespace(rest)
           case rest {
-            "]" <> _ -> Ok(#(Slice(val1, val2, val3), rest))
+            "]" <> _ | "," <> _ -> Ok(#(Slice(val1, val2, val3), rest))
             _ -> Error(ParseError(rest))
           }
         }
@@ -425,7 +425,7 @@ fn get_next_int(
   cur: String,
 ) -> Result(#(Option(Int), String), JsonPathError) {
   case str {
-    "]" <> _ if cur == "" -> Ok(#(None, str))
+    "]" <> _ | "," <> _ if cur == "" -> Ok(#(None, str))
     ":" <> _ if cur == "" -> Ok(#(None, str))
     "-" <> rest if cur == "" -> get_next_int(rest, "-")
     "0" <> rest if cur == "" -> get_next_int(rest, "0")
