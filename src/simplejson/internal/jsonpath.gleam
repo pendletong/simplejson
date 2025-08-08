@@ -261,8 +261,6 @@ fn do_parse_hexchar(str: String) -> Result(#(String, String), JsonPathError) {
                 "8" | "9" | "a" | "b" -> {
                   use #(hex, rest) <- result.try(parse_hex_digit(rest, 2))
                   use #(low, rest) <- result.try(parse_low_surrogate(rest))
-                  { char <> char2 <> hex } |> echo
-                  low |> echo
                   use codepoint <- result.try(convert_surrogate(
                     char <> char2 <> hex,
                     low,
@@ -292,7 +290,7 @@ fn convert_surrogate(high: String, low: String) {
     int.base_parse(low, 16) |> result.replace_error(ParseError("")),
   )
 
-  Ok({ { high - 0xD800 } * 0x400 } + { { low - 0xDC00 } + 0x10000 }) |> echo
+  Ok({ { high - 0xD800 } * 0x400 } + { { low - 0xDC00 } + 0x10000 })
 }
 
 fn parse_low_surrogate(str: String) -> Result(#(String, String), JsonPathError) {
