@@ -71,7 +71,7 @@ fn run_test_in_json(t) {
       Nil
     }
     _ -> {
-      jsonpath.parse_path(selector)
+      jsonpath.parse_path(selector) |> expect.to_be_ok
       Nil
     }
   }
