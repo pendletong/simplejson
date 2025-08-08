@@ -205,21 +205,21 @@ fn do_parse_literal(
     Ok(#(char, rest)) -> {
       let assert [codepoint] = string.to_utf_codepoints(char)
       let cpi = string.utf_codepoint_to_int(codepoint)
-      case
-        {
-          case cpi {
-            0x20 | 0x21 | 0x23 | 0x24 | 0x25 | 0x26 -> True
-            _ if cpi >= 0x28 && cpi <= 0x5B -> True
-            _ if cpi >= 0x5D && cpi <= 0xD7FF -> True
-            _ if cpi >= 0xE0000 && cpi <= 0x10FFFF -> True
-            _ -> False
-          }
-        }
-      {
+      case valid_literal_char(cpi) {
         True -> do_parse_literal(rest, quote, literal <> char)
         False -> Error(ParseError(str))
       }
     }
+  }
+}
+
+fn valid_literal_char(cpi: Int) -> Bool {
+  case cpi {
+    0x20 | 0x21 | 0x23 | 0x24 | 0x25 | 0x26 -> True
+    _ if cpi >= 0x28 && cpi <= 0x5B -> True
+    _ if cpi >= 0x5D && cpi <= 0xD7FF -> True
+    _ if cpi >= 0xE000 && cpi <= 0x10FFFF -> True
+    _ -> False
   }
 }
 
