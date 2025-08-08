@@ -378,7 +378,7 @@ fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) 
     | "9" <> rest -> {
       do_parse_numeric_selector(str)
     }
-    _ -> todo
+    _ -> Error(ParseError(str))
   }
 }
 
