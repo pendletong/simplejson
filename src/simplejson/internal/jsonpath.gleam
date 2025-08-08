@@ -1,6 +1,7 @@
 import gleam/bool
 import gleam/int
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
@@ -8,7 +9,7 @@ pub opaque type Selector {
   Name(name: String)
   Wildcard
   Index(i: Int)
-  Slice(start: Int, end: Int, step: Int)
+  Slice(start: Option(Int), end: Option(Int), step: Option(Int))
   Filter(expr: String)
 }
 
@@ -365,55 +366,64 @@ fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) 
     "?" <> rest -> {
       todo as "Filter Selector"
     }
-    "-" <> rest
-    | "0" <> rest
-    | "1" <> rest
-    | "2" <> rest
-    | "3" <> rest
-    | "4" <> rest
-    | "5" <> rest
-    | "6" <> rest
-    | "7" <> rest
-    | "8" <> rest
-    | "9" <> rest -> {
-      do_parse_numeric_selector(str)
+    "-" <> _
+    | "0" <> _
+    | "1" <> _
+    | "2" <> _
+    | "3" <> _
+    | "4" <> _
+    | "5" <> _
+    | "6" <> _
+    | "7" <> _
+    | "8" <> _
+    | "9" <> _
+    | ":" <> _ -> {
+      do_parse_index_or_slice_selector(str)
     }
     _ -> Error(ParseError(str))
   }
 }
 
-fn do_parse_numeric_selector(
+fn do_parse_index_or_slice_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
   use #(val1, rest) <- result.try(get_next_int(str, ""))
   let rest = trim_whitespace(rest)
   case rest {
-    "]" <> _ -> Ok(#(Index(val1), rest))
+    "]" <> _ -> {
+      case val1 {
+        Some(v) -> Ok(#(Index(v), rest))
+        None -> Ok(#(Slice(None, None, None), rest))
+      }
+    }
     ":" <> rest -> {
       use #(val2, rest) <- result.try(get_next_int(rest, ""))
       let rest = trim_whitespace(rest)
       case rest {
-        "]" <> _ -> Ok(#(Slice(val1, val2, 1), rest))
-        ":" <> rest -> {
+        "]" <> _ -> {
+          Ok(#(Slice(val1, val2, None), rest))
+        }
+
+        ":" <> rest | rest -> {
           use #(val3, rest) <- result.try(get_next_int(rest, ""))
-          let rest = trim_whitespace(rest)
           case rest {
             "]" <> _ -> Ok(#(Slice(val1, val2, val3), rest))
             _ -> Error(ParseError(rest))
           }
         }
-        _ -> Error(ParseError(rest))
       }
     }
-    _ -> Error(ParseError(rest))
+    _ -> Error(ParseError(str))
   }
 }
 
 fn get_next_int(
   str: String,
   cur: String,
-) -> Result(#(Int, String), JsonPathError) {
+) -> Result(#(Option(Int), String), JsonPathError) {
   case str {
+    "]" <> _ if cur == "" -> Ok(#(None, str))
+    ":" <> _ if cur == "" -> Ok(#(None, str))
     "-" <> rest if cur == "" -> get_next_int(rest, "-")
     "0" <> rest if cur == "" -> get_next_int(rest, "0")
     "0" <> _ if cur == "-" -> Error(ParseError(str))
@@ -442,7 +452,7 @@ fn get_next_int(
     _ -> {
       case validate_int(cur) {
         Error(e) -> Error(e)
-        Ok(i) -> Ok(#(i, str))
+        Ok(i) -> Ok(#(Some(i), str))
       }
     }
   }
