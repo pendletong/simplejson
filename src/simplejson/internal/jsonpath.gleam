@@ -397,6 +397,7 @@ fn do_parse_index_or_slice_selector(
       }
     }
     ":" <> rest -> {
+      let rest = trim_whitespace(rest)
       use #(val2, rest) <- result.try(get_next_int(rest, ""))
       let rest = trim_whitespace(rest)
       case rest {
@@ -405,7 +406,9 @@ fn do_parse_index_or_slice_selector(
         }
 
         ":" <> rest | rest -> {
+          let rest = trim_whitespace(rest)
           use #(val3, rest) <- result.try(get_next_int(rest, ""))
+          let rest = trim_whitespace(rest)
           case rest {
             "]" <> _ -> Ok(#(Slice(val1, val2, val3), rest))
             _ -> Error(ParseError(rest))
