@@ -148,7 +148,6 @@ pub fn main() {
 
 // gleeunit test functions end in `_test`
 pub fn simplejson_tests() {
-  "Running tests" |> echo
   simplifile.get_files("./JSONTestSuite/test_parsing")
   |> expect.to_be_ok
   // |> list.filter(fn(name) { string.contains(name, "n_array_invalid_utf8.json") })
