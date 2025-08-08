@@ -148,6 +148,8 @@ fn do_parse_bracketed(
       }
     }
 
+    "]" <> _ if sels == [] -> Error(ParseError(str))
+
     "]" <> rest -> {
       Ok(#(sels, rest))
     }
