@@ -97,8 +97,8 @@ fn do_parse_member_name(
         }
         False -> {
           case is_name_char(ch) {
-            True -> Error(ParseError(str))
-            False -> do_parse_member_name(rest, name <> ch)
+            False -> Ok(#(name, str))
+            True -> do_parse_member_name(rest, name <> ch)
           }
         }
       }
