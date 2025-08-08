@@ -385,12 +385,25 @@ fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) 
 fn do_parse_numeric_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  use #(val, rest) <- result.try(get_next_int(str, ""))
+  use #(val1, rest) <- result.try(get_next_int(str, ""))
   let rest = trim_whitespace(rest)
   case rest {
-    "]" -> Ok(#(Index(val), rest))
-    ":" -> {
-      todo
+    "]" <> _ -> Ok(#(Index(val1), rest))
+    ":" <> rest -> {
+      use #(val2, rest) <- result.try(get_next_int(rest, ""))
+      let rest = trim_whitespace(rest)
+      case rest {
+        "]" <> _ -> Ok(#(Slice(val1, val2, 1), rest))
+        ":" <> rest -> {
+          use #(val3, rest) <- result.try(get_next_int(rest, ""))
+          let rest = trim_whitespace(rest)
+          case rest {
+            "]" <> _ -> Ok(#(Slice(val1, val2, val3), rest))
+            _ -> Error(ParseError(rest))
+          }
+        }
+        _ -> Error(ParseError(rest))
+      }
     }
     _ -> Error(ParseError(rest))
   }
