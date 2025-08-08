@@ -173,13 +173,13 @@ fn do_parse_literal(
     Ok(#("\"", rest)) -> {
       case quote == "\"" {
         True -> Ok(#(literal, rest))
-        False -> Error(ParseError(str))
+        False -> do_parse_literal(rest, quote, literal <> "\"")
       }
     }
     Ok(#("'", rest)) -> {
       case quote == "'" {
         True -> Ok(#(literal, rest))
-        False -> Error(ParseError(str))
+        False -> do_parse_literal(rest, quote, literal <> "'")
       }
     }
     Ok(#("\\", rest)) -> {
