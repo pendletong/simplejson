@@ -36,7 +36,7 @@ pub fn test_folder(folder: String) {
 
     describe(name, parsed |> expect.to_be_ok |> run_tests_in_json)
   })
-  |> describe("Parse testfiles", _)
+  |> describe("JsonPath RFC9535 Tests", _)
 }
 
 fn run_tests_in_json(json: JsonValue) {
