@@ -182,7 +182,7 @@ fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) 
     member_name_to_selector(parse_name_selector),
     parse_slice_selector,
     parse_index_selector,
-    // parse_filter_selector,
+    parse_filter_selector,
   ]
   |> try_options(str, _)
 }
@@ -495,12 +495,19 @@ fn decode_non_surrogate(hex: String) -> Result(String, JsonPathError) {
   Ok(string.from_utf_codepoints([codepoint]))
 }
 
-fn do_parse_filter_selector(
+fn parse_filter_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  let str = trim_whitespace(str)
-  use #(le, rest) <- result.try(do_parse_logical_expr(str))
-  Ok(#(Filter(le), rest))
+  { "filter " <> str } |> echo
+  case str {
+    "?" <> rest -> {
+      let rest = trim_whitespace(rest)
+      { "filter " <> rest } |> echo
+      use #(le, rest) <- result.try(do_parse_logical_expr(rest))
+      Ok(#(Filter(le), rest))
+    }
+    _ -> Error(NoMatch)
+  }
 }
 
 fn do_parse_logical_expr(
