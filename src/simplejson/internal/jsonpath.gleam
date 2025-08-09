@@ -190,8 +190,10 @@ fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) 
 fn parse_index_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  use #(val1, rest) <- result.try(get_next_int(str, ""))
-  Ok(#(Index(val1), rest))
+  case get_next_int(str, "") {
+    Ok(#(val1, rest)) -> Ok(#(Index(val1), rest))
+    Error(_) -> Error(NoMatch)
+  }
 }
 
 fn parse_slice_selector(
