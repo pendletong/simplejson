@@ -190,7 +190,7 @@ pub fn simplejson_tests() {
       }
     })
   })
-  |> describe("Parse testfiles", _)
+  |> describe("Parse JSON from testfiles", _)
 }
 
 // We need separate read_file fns for erlang and javascript
