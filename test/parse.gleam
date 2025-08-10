@@ -2,8 +2,8 @@ import gleam/dict
 import gleam/option.{None, Some}
 import simplejson
 import simplejson/jsonvalue.{
-  InvalidCharacter, InvalidEscapeCharacter, InvalidHex, InvalidNumber, JsonArray,
-  JsonBool, JsonNull, JsonNumber, JsonObject, JsonString, UnexpectedCharacter,
+  InvalidCharacter, InvalidEscapeCharacter, InvalidNumber, JsonArray, JsonBool,
+  JsonNull, JsonNumber, JsonObject, JsonString, UnexpectedCharacter,
   UnexpectedEnd,
 }
 import startest.{describe, it}
