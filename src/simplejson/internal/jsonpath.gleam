@@ -31,6 +31,12 @@ pub type JsonPathError {
   ComparisonError
 }
 
+type Type {
+  Value
+  Logical
+  Nodes
+}
+
 type FunctionType {
   ValueType(value: Option(JsonValue))
   LogicalType(value: Bool)
@@ -47,7 +53,7 @@ pub fn parse_path(str: String) -> Result(JsonPath, JsonPathError) {
       use #(path, rest) <- result.try(do_parse_segments(rest, []))
       case rest {
         "" -> Ok(path)
-        _ -> Error(ParseError(rest))
+        _ -> Error(ParseError("parse_path"))
       }
     }
     _ -> Error(MissingRoot)
@@ -59,7 +65,6 @@ fn do_parse_segments(
   segments: List(Segment),
 ) -> Result(#(List(Segment), String), JsonPathError) {
   let rest = trim_whitespace(str)
-
   case do_parse_segment(rest) {
     Error(NoMatch) if segments == [] -> Ok(#([], str))
     Error(NoMatch) -> Ok(#(list.reverse(segments), rest))
@@ -161,8 +166,10 @@ fn do_parse_bracketed_selection(
   selectors: List(Selector),
 ) -> Result(#(List(Selector), String), JsonPathError) {
   case str {
-    "[" <> _ if selectors != [] -> Error(ParseError(str))
-    "," <> _ if selectors == [] -> Error(ParseError(str))
+    "[" <> _ if selectors != [] ->
+      Error(ParseError("do_parse_bracketed_selection 1"))
+    "," <> _ if selectors == [] ->
+      Error(ParseError("do_parse_bracketed_selection 2"))
     "[" <> rest | "," <> rest -> {
       let rest = trim_whitespace(rest)
       use #(sel, rest) <- result.try(do_parse_selector(rest))
@@ -263,7 +270,7 @@ fn do_parse_string_literal(
   literal: String,
 ) -> Result(#(String, String), JsonPathError) {
   case string.pop_grapheme(str) {
-    Error(_) -> Error(ParseError(str))
+    Error(_) -> Error(ParseError("do_parse_string_literal1 "))
     Ok(#("\"", rest)) -> {
       case quote == "\"" {
         True -> Ok(#(literal, rest))
@@ -278,9 +285,11 @@ fn do_parse_string_literal(
     }
     Ok(#("\\", rest)) -> {
       case rest {
-        "\"" <> _rest if quote == "'" -> Error(ParseError(str))
+        "\"" <> _rest if quote == "'" ->
+          Error(ParseError("do_parse_string_literal 2"))
         "\"" <> rest -> do_parse_string_literal(rest, quote, literal <> "\"")
-        "'" <> _rest if quote == "\"" -> Error(ParseError(str))
+        "'" <> _rest if quote == "\"" ->
+          Error(ParseError("do_parse_string_literal 3"))
         "'" <> rest -> do_parse_string_literal(rest, quote, literal <> "'")
         "b" <> rest ->
           do_parse_string_literal(rest, quote, literal <> "\u{0008}")
@@ -294,7 +303,7 @@ fn do_parse_string_literal(
           use #(hexchar, rest) <- result.try(do_parse_hexchar(rest))
           do_parse_string_literal(rest, quote, literal <> hexchar)
         }
-        _ -> Error(ParseError(str))
+        _ -> Error(ParseError("do_parse_string_literal 4"))
       }
     }
     Ok(#(char, rest)) -> {
@@ -302,7 +311,7 @@ fn do_parse_string_literal(
       let cpi = string.utf_codepoint_to_int(codepoint)
       case valid_literal_char(cpi) {
         True -> do_parse_string_literal(rest, quote, literal <> char)
-        False -> Error(ParseError(str))
+        False -> Error(ParseError("do_parse_string_literal 5"))
       }
     }
   }
@@ -371,7 +380,7 @@ fn valid_literal_char(cpi: Int) -> Bool {
 
 fn do_parse_hexchar(str: String) -> Result(#(String, String), JsonPathError) {
   case string.pop_grapheme(str) {
-    Error(_) -> Error(ParseError(str))
+    Error(_) -> Error(ParseError("do_parse_hexchar 1"))
     Ok(#(char, rest)) -> {
       case string.lowercase(char) {
         "0"
@@ -395,7 +404,7 @@ fn do_parse_hexchar(str: String) -> Result(#(String, String), JsonPathError) {
         }
         "d" -> {
           case string.pop_grapheme(rest) {
-            Error(_) -> Error(ParseError(str))
+            Error(_) -> Error(ParseError("do_parse_hexchar 2"))
             Ok(#(char2, rest)) -> {
               case string.lowercase(char2) {
                 "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" -> {
@@ -414,16 +423,16 @@ fn do_parse_hexchar(str: String) -> Result(#(String, String), JsonPathError) {
                   ))
                   use codepoint <- result.try(
                     string.utf_codepoint(codepoint)
-                    |> result.replace_error(ParseError(str)),
+                    |> result.replace_error(ParseError("do_parse_hexchar 3")),
                   )
                   Ok(#(string.from_utf_codepoints([codepoint]), rest))
                 }
-                _ -> Error(ParseError(str))
+                _ -> Error(ParseError("do_parse_hexchar 4"))
               }
             }
           }
         }
-        _ -> Error(ParseError(str))
+        _ -> Error(ParseError("do_parse_hexchar 5"))
       }
     }
   }
@@ -431,10 +440,12 @@ fn do_parse_hexchar(str: String) -> Result(#(String, String), JsonPathError) {
 
 fn convert_surrogate(high: String, low: String) {
   use high <- result.try(
-    int.base_parse(high, 16) |> result.replace_error(ParseError("")),
+    int.base_parse(high, 16)
+    |> result.replace_error(ParseError("convert_surrogate 1")),
   )
   use low <- result.try(
-    int.base_parse(low, 16) |> result.replace_error(ParseError("")),
+    int.base_parse(low, 16)
+    |> result.replace_error(ParseError("convert_surrogate 2")),
   )
 
   Ok({ { high - 0xD800 } * 0x400 } + { { low - 0xDC00 } + 0x10000 })
@@ -448,10 +459,10 @@ fn parse_low_surrogate(str: String) -> Result(#(String, String), JsonPathError) 
         "dc" <> _ | "dd" <> _ | "de" <> _ | "df" <> _ -> {
           Ok(#(hex, rest))
         }
-        _ -> Error(ParseError(str))
+        _ -> Error(ParseError("parse_low_surrogate 1"))
       }
     }
-    _ -> Error(ParseError(str))
+    _ -> Error(ParseError("parse_low_surrogate 2"))
   }
 }
 
@@ -460,10 +471,10 @@ fn parse_hex_digit(
   num: Int,
 ) -> Result(#(String, String), JsonPathError) {
   list.repeat(0, num)
-  |> list.try_fold(#("", str), fn(acc, i) {
+  |> list.try_fold(#("", str), fn(acc, _) {
     let #(hex, str2) = acc
     case string.pop_grapheme(str2) {
-      Error(_) -> Error(ParseError(str))
+      Error(_) -> Error(ParseError("parse_hex_digit 1"))
       Ok(#(char, rest)) -> {
         case string.lowercase(char) {
           "0"
@@ -482,7 +493,7 @@ fn parse_hex_digit(
           | "d"
           | "e"
           | "f" -> Ok(#(hex <> char, rest))
-          _ -> Error(ParseError(str))
+          _ -> Error(ParseError("parse_hex_digit 2"))
         }
       }
     }
@@ -491,10 +502,12 @@ fn parse_hex_digit(
 
 fn decode_non_surrogate(hex: String) -> Result(String, JsonPathError) {
   use i <- result.try(
-    int.base_parse(hex, 16) |> result.replace_error(ParseError(hex)),
+    int.base_parse(hex, 16)
+    |> result.replace_error(ParseError("decode_non_surrogate 1")),
   )
   use codepoint <- result.try(
-    string.utf_codepoint(i) |> result.replace_error(ParseError(hex)),
+    string.utf_codepoint(i)
+    |> result.replace_error(ParseError("decode_non_surrogate 2")),
   )
   Ok(string.from_utf_codepoints([codepoint]))
 }
@@ -519,7 +532,7 @@ fn do_parse_logical_expr(
   case do_parse_logical_or_expr(str, LogicalOrExpression([])) {
     Ok(#(LogicalOrExpression(lo), rest)) ->
       Ok(#(LogicalExpression(LogicalOrExpression(list.reverse(lo))), rest))
-    _ -> Error(ParseError(str))
+    _ -> Error(NoMatch)
   }
 }
 
@@ -567,35 +580,6 @@ fn do_parse_logical_and_expr(
         Error(_) -> Ok(#(cur, str))
       }
     }
-  }
-}
-
-fn do_parse_logical_and_exprz(
-  str: String,
-  cur: LogicalAndExpression,
-) -> Result(#(LogicalAndExpression, String), JsonPathError) {
-  let str = trim_whitespace(str)
-  case str, cur {
-    "&&" <> _, LogicalAndExpression(cur_list) if cur_list == [] ->
-      Error(NoMatch)
-    "&&" <> rest, LogicalAndExpression(cur_list) ->
-      do_parse_logical_and_expr_inner(rest, cur_list)
-    rest, LogicalAndExpression(cur_list) if cur_list == [] -> {
-      do_parse_logical_and_expr_inner(rest, cur_list)
-    }
-    _, LogicalAndExpression(_) -> Error(NoMatch)
-  }
-}
-
-fn do_parse_logical_and_expr_inner(
-  str: String,
-  cur_list: List(Expression),
-) -> Result(#(LogicalAndExpression, String), JsonPathError) {
-  case do_parse_basic_expr(str) {
-    Ok(#(be, rest)) ->
-      do_parse_logical_and_expr(rest, LogicalAndExpression([be, ..cur_list]))
-    Error(_) if cur_list == [] -> Error(NoMatch)
-    Error(_) -> Ok(#(LogicalAndExpression(cur_list), str))
   }
 }
 
@@ -655,7 +639,6 @@ fn do_parse_filter_query(
     }
     "@" <> rest -> {
       use #(path, rest) <- result.try(do_parse_segments(rest, []))
-
       Ok(#(Relative(path), rest))
     }
     _ -> Error(NoMatch)
@@ -667,7 +650,12 @@ fn function_to_testexpression(
 ) -> fn(String) -> Result(#(TestExpression, String), JsonPathError) {
   fn(str) {
     case f(str) {
-      Ok(#(lit, rest)) -> Ok(#(FunctionExpr(lit), rest))
+      Ok(#(f, rest)) -> {
+        case get_return_type(f.deffn) {
+          Logical | Nodes -> Ok(#(FunctionExpr(f), rest))
+          Value -> Error(FunctionError)
+        }
+      }
       Error(a) -> Error(a)
     }
   }
@@ -677,14 +665,16 @@ fn do_parse_function_expr(
   str: String,
 ) -> Result(#(Function, String), JsonPathError) {
   use #(name, rest) <- result.try(do_parse_function_name(str, ""))
+
   case rest {
     "(" <> rest -> {
       use #(args, rest) <- result.try(do_parse_function_args(rest, []))
       let rest = trim_whitespace(rest)
       case rest {
         ")" <> rest -> {
-          case validate_function(Function(name:, args:)) {
-            True -> Ok(#(Function(name:, args:), rest))
+          let deffn = name_to_function(name)
+          case validate_function(Function(deffn:, args:)) {
+            True -> Ok(#(Function(deffn:, args:), rest))
             False -> Error(FunctionError)
           }
         }
@@ -695,12 +685,70 @@ fn do_parse_function_expr(
   }
 }
 
+fn name_to_function(str: String) -> DefinedFunction {
+  case str {
+    "count" -> Count
+    "length" -> Length
+    "match" -> Match
+    "search" -> Search
+    "value" -> ValueOf
+    _ -> Unknown(str)
+  }
+}
+
+fn get_arg_type(arg: FunctionArgument) -> Type {
+  case arg {
+    FunctionArg(Function(deffn, _)) -> get_return_type(deffn)
+    LiteralArg(_) -> Value
+    LogicalArg(_) -> Logical
+    QueryArg(_) -> Nodes
+    QuerySingularArg(_) -> Value
+  }
+}
+
 fn validate_function(f: Function) -> Bool {
-  True
-  // case f.name {
-  //   "count" -> todo
-  //   _ -> True
-  // }
+  case f {
+    Function(Count, [param]) -> {
+      case param {
+        QuerySingularArg(_) -> True
+        _ -> {
+          case get_arg_type(param) {
+            Nodes -> True
+            _ -> False
+          }
+        }
+      }
+    }
+    Function(Length, [param]) -> {
+      case get_arg_type(param) {
+        Value -> True
+        _ -> False
+      }
+    }
+    Function(Match, [param1, param2]) -> {
+      case get_arg_type(param1), get_arg_type(param2) {
+        Value, Value -> True
+        _, _ -> False
+      }
+    }
+    Function(Search, [param1, param2]) -> {
+      case get_arg_type(param1), get_arg_type(param2) {
+        Value, Value -> True
+        _, _ -> False
+      }
+    }
+    Function(Unknown(_), _) -> {
+      True
+    }
+    Function(ValueOf, [param]) -> {
+      case get_arg_type(param) {
+        Nodes -> True
+        Value -> True
+        _ -> False
+      }
+    }
+    _ -> False
+  }
 }
 
 fn do_parse_function_args(
@@ -725,8 +773,8 @@ fn do_parse_function_arg(
 ) -> Result(#(FunctionArgument, String), JsonPathError) {
   [
     literal_to_arg(do_parse_literal),
+    // singularquery_to_arg(parse_singular_query),
     filter_to_arg(do_parse_filter_query),
-    singularquery_to_arg(parse_singular_query),
     logical_to_arg(do_parse_logical_expr),
     function_to_arg(do_parse_function_expr),
   ]
@@ -760,26 +808,55 @@ fn logical_to_arg(
   }
 }
 
-fn singularquery_to_arg(
-  f: fn(String) -> Result(#(SingularQuery, String), JsonPathError),
-) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
-  fn(str) {
-    case f(str) {
-      Ok(#(filter, rest)) -> Ok(#(QuerySingularArg(filter), rest))
-      Error(a) -> Error(a)
-    }
-  }
-}
+// fn singularquery_to_arg(
+//   f: fn(String) -> Result(#(SingularQuery, String), JsonPathError),
+// ) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
+//   fn(str) {
+//     case f(str) {
+//       Ok(#(filter, rest)) -> Ok(#(QuerySingularArg(filter), rest))
+//       Error(a) -> Error(a)
+//     }
+//   }
+// }
 
 fn filter_to_arg(
   f: fn(String) -> Result(#(Filter, String), JsonPathError),
 ) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
   fn(str) {
     case f(str) {
-      Ok(#(filter, rest)) -> Ok(#(QueryArg(filter), rest))
+      Ok(#(filter, rest)) -> {
+        case is_singular(filter) {
+          True -> Ok(#(QuerySingularArg(filter), rest))
+          False -> Ok(#(QueryArg(filter), rest))
+        }
+      }
       Error(a) -> Error(a)
     }
   }
+}
+
+fn is_singular(filter: Filter) -> Bool {
+  list.find(filter.path, fn(seg) {
+    case seg {
+      Child(sels) | Descendant(sels) -> {
+        case sels {
+          [sel] -> {
+            case sel {
+              Filter(_) -> True
+              Index(_) -> False
+              Name(_) -> False
+              Slice(_, _, _) -> True
+              Wildcard -> True
+            }
+          }
+          _ -> True
+        }
+      }
+    }
+  })
+  |> result.replace(False)
+  |> result.replace_error(True)
+  |> result.unwrap_both
 }
 
 fn literal_to_arg(
@@ -798,7 +875,7 @@ fn do_parse_function_name(
   cur: String,
 ) -> Result(#(String, String), JsonPathError) {
   case string.pop_grapheme(str) {
-    Error(_) -> Error(ParseError(str))
+    Error(_) -> Error(ParseError("do_parse_function_name"))
     Ok(#(char, rest)) -> {
       case is_lc_alpha(char) {
         True if cur == "" -> do_parse_function_name(rest, char)
@@ -842,7 +919,6 @@ fn do_parse_comparison_expr(
   use #(cmpop, rest) <- result.try(do_parse_comparisonop(rest))
   let rest = trim_whitespace(rest)
   use #(cmp2, rest) <- result.try(do_parse_comparable(rest))
-
   case validate_comparison(cmp1, cmp2, cmpop) {
     True -> Ok(#(Comparison(cmp1, cmp2, cmpop), rest))
     False -> Error(ComparisonError)
@@ -854,18 +930,17 @@ fn validate_comparison(
   cmp2: Comparable,
   cmpop: CompareOp,
 ) -> Bool {
-  True
-  // case get_return_type(cmp1), get_return_type(cmp2) {
-  //   LogicalType(_), _ | _, LogicalType(_) -> False
-  //   _ -> todo
-  // }
+  case get_comparable_return_type(cmp1), get_comparable_return_type(cmp2) {
+    Logical, _ | _, Logical -> False
+    _, _ -> True
+  }
 }
 
-fn get_return_type(cmp: Comparable) -> FunctionType {
+fn get_comparable_return_type(cmp: Comparable) -> Type {
   case cmp {
-    FunctionExprCmp(_) -> todo
-    Literal(_) -> todo
-    QueryCmp(_) -> todo
+    FunctionExprCmp(Function(deffn, _)) -> get_return_type(deffn)
+    Literal(_) -> Value
+    QueryCmp(_) -> Value
   }
 }
 
@@ -1059,7 +1134,7 @@ fn parse_literal_number(
   })
 
   use #(exp, rest) <- result.try(case rest {
-    "E+-" <> rest | "e+-" <> rest -> Error(ParseError(rest))
+    "E+-" <> rest | "e+-" <> rest -> Error(ParseError("parse_literal_number"))
     "E+" <> rest | "e+" <> rest | "E" <> rest | "e" <> rest -> {
       case get_next_int(rest, True, "") {
         Error(_) -> Error(NoMatch)
@@ -1102,7 +1177,8 @@ fn get_next_int(
   case str {
     "-" <> rest if cur == "" -> get_next_int(rest, allow_leading, "-")
     "0" <> rest if cur == "" -> get_next_int(rest, allow_leading, "0")
-    "0" <> _ if !allow_leading && cur == "-" -> Error(ParseError(str))
+    "0" <> _ if !allow_leading && cur == "-" ->
+      Error(ParseError("get_next_int 1"))
     "0" <> _
       | "1" <> _
       | "2" <> _
@@ -1114,7 +1190,7 @@ fn get_next_int(
       | "8" <> _
       | "9" <> _
       if !allow_leading && cur == "0"
-    -> Error(ParseError(str))
+    -> Error(ParseError("get_next_int 2"))
     "0" as n <> rest
     | "1" as n <> rest
     | "2" as n <> rest
@@ -1148,7 +1224,7 @@ fn validate_int(str: String) -> Result(Int, JsonPathError) {
         True -> Error(IndexOutOfRange(i))
       }
     }
-    Error(_) -> Error(ParseError(str))
+    Error(_) -> Error(ParseError("validate_int"))
   }
 }
 
@@ -1215,15 +1291,35 @@ pub type Filter {
 }
 
 pub type Function {
-  Function(name: String, args: List(FunctionArgument))
+  Function(deffn: DefinedFunction, args: List(FunctionArgument))
 }
 
 pub type FunctionArgument {
   LiteralArg(Literal)
   QueryArg(Filter)
-  QuerySingularArg(SingularQuery)
+  QuerySingularArg(Filter)
   LogicalArg(LogicalExpression)
   FunctionArg(Function)
+}
+
+pub type DefinedFunction {
+  Count
+  Length
+  Match
+  Search
+  ValueOf
+  Unknown(name: String)
+}
+
+fn get_return_type(f: DefinedFunction) -> Type {
+  case f {
+    Count -> Value
+    Length -> Value
+    Match -> Logical
+    Search -> Logical
+    Unknown(_) -> Value
+    ValueOf -> Value
+  }
 }
 
 pub type Expression {
