@@ -10,3 +10,5 @@
 
 - Updated libraries
 - Added regexp library
+- \r\n stringification fix
+- Improved(?) error details
