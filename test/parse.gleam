@@ -158,12 +158,12 @@ pub fn parse_array_error_tests() {
     it("Invalid item in Array", fn() {
       simplejson.parse("[-]")
       |> expect.to_be_error
-      |> expect.to_equal(InvalidNumber("-]", "-]", 1))
+      |> expect.to_equal(InvalidNumber("-]", "[-]", 1))
     }),
     it("Invalid closing of Array", fn() {
       simplejson.parse("[{\"a\":1]}")
       |> expect.to_be_error
-      |> expect.to_equal(UnexpectedCharacter("]", "]}", 7))
+      |> expect.to_equal(UnexpectedCharacter("]", "\"a\":1]}", 7))
     }),
   ])
 }
@@ -259,7 +259,7 @@ pub fn parse_object_error_tests() {
     it("Just Key and Colon", fn() {
       simplejson.parse("{\"key\": }")
       |> expect.to_be_error
-      |> expect.to_equal(UnexpectedCharacter("}", "}", 8))
+      |> expect.to_equal(UnexpectedCharacter("}", "ey\": }", 8))
     }),
   ])
 }
@@ -304,12 +304,12 @@ pub fn parse_string_error_tests() {
     it("Invalid Char", fn() {
       simplejson.parse("\"\u{05}\"")
       |> expect.to_be_error
-      |> expect.to_equal(InvalidCharacter("\u{05}", "\u{05}\"", 1))
+      |> expect.to_equal(InvalidCharacter("\u{05}", "\"\u{05}\"", 1))
     }),
     it("Invalid Escape", fn() {
       simplejson.parse("\"\\h\"")
       |> expect.to_be_error
-      |> expect.to_equal(InvalidEscapeCharacter("h", "\\h\"", 1))
+      |> expect.to_equal(InvalidEscapeCharacter("h", "\"\\h\"", 1))
     }),
   ])
 }
