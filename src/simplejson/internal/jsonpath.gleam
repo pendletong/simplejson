@@ -110,7 +110,7 @@ fn do_parse_child_segment(
         selector_to_selectors(parse_wildcard_selector),
         selector_to_selectors(member_name_to_selector(parse_member_name)),
       ]
-      |> try_options(rest, _)
+      |> try_options(rest)
       |> selector_to_segment(Child)
     }
     "[" <> _ -> {
@@ -138,7 +138,7 @@ fn do_parse_descendent_segment(
     selector_to_selectors(member_name_to_selector(parse_member_name)),
     parse_bracketed_selection,
   ]
-  |> try_options(str, _)
+  |> try_options(str)
   |> selector_to_segment(Descendant)
 }
 
@@ -166,7 +166,7 @@ fn do_parse_bracketed_selection(
   }
 }
 
-fn try_options(str: String, options) {
+fn try_options(options, str: String) {
   list.fold_until(options, Error(NoMatch), fn(_, parsefn) {
     case parsefn(str) {
       Error(NoMatch) -> Continue(Error(NoMatch))
@@ -179,18 +179,18 @@ fn try_options(str: String, options) {
 fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) {
   [
     parse_wildcard_selector,
-    member_name_to_selector(parse_name_selector),
+    member_name_to_selector(parse_string_literal),
     parse_slice_selector,
     parse_index_selector,
     parse_filter_selector,
   ]
-  |> try_options(str, _)
+  |> try_options(str)
 }
 
 fn parse_index_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  case get_next_int(str, "") {
+  case get_next_int(str, False, "") {
     Ok(#(val1, rest)) -> Ok(#(Index(val1), rest))
     Error(_) -> Error(NoMatch)
   }
@@ -199,8 +199,7 @@ fn parse_index_selector(
 fn parse_slice_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  { "Slice1 " <> str } |> echo
-  use #(val1, rest) <- result.try(case get_next_int(str, "") {
+  use #(val1, rest) <- result.try(case get_next_int(str, False, "") {
     Error(_) -> {
       let str = trim_whitespace(str)
       case str {
@@ -217,8 +216,7 @@ fn parse_slice_selector(
     }
   })
   let rest = trim_whitespace(rest)
-  { "Slice2 " <> rest } |> echo
-  use #(val2, rest) <- result.try(case get_next_int(rest, "") {
+  use #(val2, rest) <- result.try(case get_next_int(rest, False, "") {
     Error(_) -> {
       let rest = trim_whitespace(rest)
       case rest {
@@ -235,16 +233,15 @@ fn parse_slice_selector(
     }
   })
   let rest = trim_whitespace(rest)
-  { "Slice3 " <> rest } |> echo
   let rest = trim_whitespace(rest)
-  use #(val3, rest) <- result.try(case get_next_int(rest, "") |> echo {
+  use #(val3, rest) <- result.try(case get_next_int(rest, False, "") {
     Error(_) -> Ok(#(None, rest))
     Ok(#(i, rest)) -> Ok(#(Some(i), rest))
   })
   Ok(#(Slice(val1, val2, val3), rest))
 }
 
-fn parse_name_selector(str: String) -> Result(#(String, String), JsonPathError) {
+fn parse_string_literal(str: String) -> Result(#(String, String), JsonPathError) {
   case str {
     "\"" as quote <> rest | "'" as quote <> rest -> {
       do_parse_string_literal(rest, quote, "")
@@ -498,11 +495,9 @@ fn decode_non_surrogate(hex: String) -> Result(String, JsonPathError) {
 fn parse_filter_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  { "filter " <> str } |> echo
   case str {
     "?" <> rest -> {
       let rest = trim_whitespace(rest)
-      { "filter " <> rest } |> echo
       use #(le, rest) <- result.try(do_parse_logical_expr(rest))
       Ok(#(Filter(le), rest))
     }
@@ -516,7 +511,7 @@ fn do_parse_logical_expr(
   let str = trim_whitespace(str)
   case do_parse_logical_or_expr(str, LogicalOrExpression([])) {
     Ok(#(LogicalOrExpression(lo), rest)) ->
-      Ok(#(LogicalExpression(LogicalOrExpression(lo)), rest))
+      Ok(#(LogicalExpression(LogicalOrExpression(list.reverse(lo))), rest))
     _ -> Error(ParseError(str))
   }
 }
@@ -527,17 +522,21 @@ fn do_parse_logical_or_expr(
 ) -> Result(#(LogicalOrExpression, String), JsonPathError) {
   let str = trim_whitespace(str)
   case str, cur {
-    "||" <> _, LogicalOrExpression([]) -> Error(ParseError(str))
-    "]" <> rest, _ | ")" <> rest, _ -> Ok(#(cur, rest))
-    "", _ -> Error(ParseError(""))
     "||" <> rest, LogicalOrExpression(cur_list)
     | rest, LogicalOrExpression(cur_list)
     -> {
-      use #(lae, rest) <- result.try(do_parse_logical_and_expr(
-        rest,
-        LogicalAndExpression([]),
-      ))
-      do_parse_logical_or_expr(rest, LogicalOrExpression([lae, ..cur_list]))
+      case do_parse_logical_and_expr(rest, LogicalAndExpression([])) {
+        Ok(#(LogicalAndExpression(lae), rest)) ->
+          do_parse_logical_or_expr(
+            rest,
+            LogicalOrExpression([
+              LogicalAndExpression(list.reverse(lae)),
+              ..cur_list
+            ]),
+          )
+        Error(_) if cur == LogicalOrExpression([]) -> Error(NoMatch)
+        Error(_) -> Ok(#(cur, str))
+      }
     }
   }
 }
@@ -548,15 +547,26 @@ fn do_parse_logical_and_expr(
 ) -> Result(#(LogicalAndExpression, String), JsonPathError) {
   let str = trim_whitespace(str)
   case str, cur {
-    "&&" <> _, LogicalAndExpression([]) -> Error(ParseError(str))
-    "]" <> _, _ | ")" <> _, _ -> Ok(#(cur, str))
-    "", _ -> Error(ParseError(""))
-    "&&" <> rest, LogicalAndExpression(cur_list)
-    | rest, LogicalAndExpression(cur_list)
-    -> {
-      use #(be, rest) <- result.try(do_parse_basic_expr(rest))
-      do_parse_logical_and_expr(rest, LogicalAndExpression([be, ..cur_list]))
+    "&&" <> _, LogicalAndExpression(cur_list) if cur_list == [] ->
+      Error(NoMatch)
+    "&&" <> rest, LogicalAndExpression(cur_list) ->
+      do_parse_logical_and_expr_inner(rest, cur_list)
+    rest, LogicalAndExpression(cur_list) if cur_list == [] -> {
+      do_parse_logical_and_expr_inner(rest, cur_list)
     }
+    _, LogicalAndExpression(_) -> Error(NoMatch)
+  }
+}
+
+fn do_parse_logical_and_expr_inner(
+  str: String,
+  cur_list: List(Expression),
+) -> Result(#(LogicalAndExpression, String), JsonPathError) {
+  case do_parse_basic_expr(str) {
+    Ok(#(be, rest)) ->
+      do_parse_logical_and_expr(rest, LogicalAndExpression([be, ..cur_list]))
+    Error(_) if cur_list == [] -> Error(NoMatch)
+    Error(_) -> Ok(#(LogicalAndExpression(cur_list), str))
   }
 }
 
@@ -564,14 +574,12 @@ fn do_parse_basic_expr(
   str: String,
 ) -> Result(#(Expression, String), JsonPathError) {
   let str = trim_whitespace(str)
-  [do_parse_paren_expr, do_parse_comparison_expr, do_parse_test_expr]
-  |> list.fold_until(Error(NoMatch), fn(_, parsefn) {
-    case parsefn(str) {
-      Error(NoMatch) -> Continue(Error(NoMatch))
-      Error(e) -> Stop(Error(e))
-      Ok(#(expr, str)) -> Stop(Ok(#(expr, str)))
-    }
-  })
+  [
+    do_parse_paren_expr,
+    do_parse_comparison_expr,
+    do_parse_test_expr,
+  ]
+  |> try_options(str)
 }
 
 fn do_parse_test_expr(
@@ -582,7 +590,11 @@ fn do_parse_test_expr(
     _ -> #(False, str)
   }
   let str = trim_whitespace(str)
-  [do_parse_filter_query, do_parse_function_expr]
+  [
+    do_parse_filter_query,
+    function_to_testexpression(do_parse_function_expr),
+  ]
+  // |>try_options(str)
   |> list.fold_until(Error(NoMatch), fn(_, parsefn) {
     case parsefn(str) {
       Error(NoMatch) -> Continue(Error(NoMatch))
@@ -610,11 +622,21 @@ fn do_parse_filter_query(
   }
 }
 
+fn function_to_testexpression(
+  f: fn(String) -> Result(#(Function, String), JsonPathError),
+) -> fn(String) -> Result(#(TestExpression, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(lit, rest)) -> Ok(#(Function(lit), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
 fn do_parse_function_expr(
   str: String,
-) -> Result(#(TestExpression, String), JsonPathError) {
+) -> Result(#(Function, String), JsonPathError) {
   use #(name, rest) <- result.try(do_parse_function_name(str, ""))
-
   case rest {
     "(" <> rest -> {
       use #(args, rest) <- result.try(do_parse_function_args(rest, []))
@@ -641,14 +663,14 @@ fn do_parse_function_name(
     Ok(#(char, rest)) -> {
       case is_lc_alpha(char) {
         True if cur == "" -> do_parse_function_name(rest, char)
-        True -> {
+        True -> do_parse_function_name(rest, cur <> char)
+        False if cur == "" -> Error(NoMatch)
+        False -> {
           case char == "_" || is_digit(char) {
             True -> do_parse_function_name(rest, cur <> char)
-            False -> Error(NoMatch)
+            False -> Ok(#(cur, str))
           }
         }
-        False if cur == "" -> Error(NoMatch)
-        False -> Ok(#(cur, str))
       }
     }
   }
@@ -676,7 +698,204 @@ fn is_lc_alpha(char: String) -> Bool {
 fn do_parse_comparison_expr(
   str: String,
 ) -> Result(#(Expression, String), JsonPathError) {
-  todo
+  use #(cmp1, rest) <- result.try(do_parse_comparable(str))
+  let rest = trim_whitespace(rest)
+  use #(cmpop, rest) <- result.try(do_parse_comparisonop(rest))
+  let rest = trim_whitespace(rest)
+  use #(cmp2, rest) <- result.try(do_parse_comparable(rest))
+  Ok(#(Comparison(cmp1, cmp2, cmpop), rest))
+}
+
+fn do_parse_comparisonop(
+  str: String,
+) -> Result(#(CompareOp, String), JsonPathError) {
+  case str {
+    "==" <> rest -> Ok(#(Eq, rest))
+    ">=" <> rest -> Ok(#(Gte, rest))
+    "<=" <> rest -> Ok(#(Lte, rest))
+    "!=" <> rest -> Ok(#(NotEq, rest))
+    ">" <> rest -> Ok(#(Gt, rest))
+    "<" <> rest -> Ok(#(Lt, rest))
+    _ -> Error(NoMatch)
+  }
+}
+
+fn literal_to_comparable(
+  f: fn(String) -> Result(#(Literal, String), JsonPathError),
+) -> fn(String) -> Result(#(Comparable, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(lit, rest)) -> Ok(#(Literal(lit), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn do_parse_comparable(
+  str: String,
+) -> Result(#(Comparable, String), JsonPathError) {
+  [
+    literal_to_comparable(do_parse_literal),
+    parse_singular_query,
+    function_to_comparable(do_parse_function_expr),
+  ]
+  |> try_options(str)
+}
+
+fn function_to_comparable(
+  f: fn(String) -> Result(#(Function, String), JsonPathError),
+) -> fn(String) -> Result(#(Comparable, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(lit, rest)) -> Ok(#(FunctionExpr(lit), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn parse_singular_query(
+  str: String,
+) -> Result(#(Comparable, String), JsonPathError) {
+  case str {
+    "@" <> rest -> {
+      use #(segs, rest) <- result.try(do_parse_singular_query(rest, []))
+      Ok(#(RelQuery(segs), rest))
+    }
+    "$" <> rest -> {
+      use #(segs, rest) <- result.try(do_parse_singular_query(rest, []))
+      Ok(#(AbsQuery(segs), rest))
+    }
+    _ -> Error(NoMatch)
+  }
+}
+
+fn do_parse_singular_query(
+  str: String,
+  cur: List(SingularSegment),
+) -> Result(#(List(SingularSegment), String), JsonPathError) {
+  case do_parse_singular_query_segments(str) {
+    Ok(#(seg, rest)) -> {
+      do_parse_singular_query(rest, [seg, ..cur])
+    }
+    Error(_) if cur == [] -> Ok(#([], str))
+    Error(_) -> Ok(#(list.reverse(cur), str))
+  }
+}
+
+fn do_parse_singular_query_segments(
+  str: String,
+) -> Result(#(SingularSegment, String), JsonPathError) {
+  let str = trim_whitespace(str)
+  [
+    parse_name_selector_segment,
+    parse_member_name_segment,
+    parse_index_segment,
+  ]
+  |> try_options(str)
+}
+
+fn parse_index_segment(
+  str: String,
+) -> Result(#(SingularSegment, String), JsonPathError) {
+  case str {
+    "[" <> rest -> {
+      use #(i, rest) <- result.try(get_next_int(rest, False, ""))
+      case rest {
+        "]" <> rest -> Ok(#(SingleIndex(i), rest))
+        _ -> Error(NoMatch)
+      }
+    }
+    _ -> Error(NoMatch)
+  }
+}
+
+fn parse_member_name_segment(
+  str: String,
+) -> Result(#(SingularSegment, String), JsonPathError) {
+  case str {
+    "." <> rest -> {
+      use #(name, rest) <- result.try(parse_member_name(rest))
+      Ok(#(SingleName(name), rest))
+    }
+    _ -> Error(NoMatch)
+  }
+}
+
+fn parse_name_selector_segment(
+  str: String,
+) -> Result(#(SingularSegment, String), JsonPathError) {
+  case str {
+    "[" <> rest -> {
+      use #(name, rest) <- result.try(parse_string_literal(rest))
+      case rest {
+        "]" <> rest -> Ok(#(SingleName(name), rest))
+        _ -> Error(NoMatch)
+      }
+    }
+    _ -> Error(NoMatch)
+  }
+}
+
+fn string_to_literal(
+  f: fn(String) -> Result(#(String, String), JsonPathError),
+) -> fn(String) -> Result(#(Literal, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(lit, rest)) -> Ok(#(String(lit), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn do_parse_literal(str: String) -> Result(#(Literal, String), JsonPathError) {
+  case str {
+    "true" <> rest -> Ok(#(Boolean(True), rest))
+    "false" <> rest -> Ok(#(Boolean(False), rest))
+    "null" <> rest -> Ok(#(Null, rest))
+    _ -> {
+      [
+        parse_literal_number,
+        string_to_literal(parse_string_literal),
+      ]
+      |> try_options(str)
+    }
+  }
+}
+
+fn parse_literal_number(
+  str: String,
+) -> Result(#(Literal, String), JsonPathError) {
+  use #(neg, int, rest) <- result.try(case str {
+    "-0" <> rest -> Ok(#(True, 0, rest))
+    rest -> {
+      use #(i, rest) <- result.try(get_next_int(rest, False, ""))
+      Ok(#(i < 0, int.absolute_value(i), rest))
+    }
+  })
+
+  use #(frac, rest) <- result.try(case rest {
+    ".-" <> _ -> Error(NoMatch)
+    "." <> rest -> {
+      case get_next_int(rest, False, "") {
+        Error(_) -> Error(NoMatch)
+        Ok(#(i, rest)) -> Ok(#(Some(i), rest))
+      }
+    }
+    _ -> Ok(#(None, rest))
+  })
+
+  use #(exp, rest) <- result.try(case rest {
+    "E+-" <> rest | "e+-" <> rest -> Error(ParseError(rest))
+    "E+" <> rest | "e+" <> rest | "E" <> rest | "e" <> rest -> {
+      case get_next_int(rest, True, "") {
+        Error(_) -> Error(NoMatch)
+        Ok(#(i, rest)) -> Ok(#(Some(i), rest))
+      }
+    }
+    _ -> Ok(#(None, rest))
+  })
+
+  Ok(#(Number(neg:, int:, frac:, exp:), rest))
 }
 
 fn do_parse_paren_expr(
@@ -691,8 +910,11 @@ fn do_parse_paren_expr(
   case str {
     "(" <> rest -> {
       use #(le, rest) <- result.try(do_parse_logical_expr(rest))
-
-      Ok(#(Paren(le, not), rest))
+      let rest = trim_whitespace(rest)
+      case rest {
+        ")" <> rest -> Ok(#(Paren(le, not), rest))
+        _ -> Error(NoMatch)
+      }
     }
     _ -> Error(NoMatch)
   }
@@ -700,12 +922,13 @@ fn do_parse_paren_expr(
 
 fn get_next_int(
   str: String,
+  allow_leading: Bool,
   cur: String,
 ) -> Result(#(Int, String), JsonPathError) {
   case str {
-    "-" <> rest if cur == "" -> get_next_int(rest, "-")
-    "0" <> rest if cur == "" -> get_next_int(rest, "0")
-    "0" <> _ if cur == "-" -> Error(ParseError(str))
+    "-" <> rest if cur == "" -> get_next_int(rest, allow_leading, "-")
+    "0" <> rest if cur == "" -> get_next_int(rest, allow_leading, "0")
+    "0" <> _ if !allow_leading && cur == "-" -> Error(ParseError(str))
     "0" <> _
       | "1" <> _
       | "2" <> _
@@ -716,7 +939,7 @@ fn get_next_int(
       | "7" <> _
       | "8" <> _
       | "9" <> _
-      if cur == "0"
+      if !allow_leading && cur == "0"
     -> Error(ParseError(str))
     "0" as n <> rest
     | "1" as n <> rest
@@ -727,7 +950,8 @@ fn get_next_int(
     | "6" as n <> rest
     | "7" as n <> rest
     | "8" as n <> rest
-    | "9" as n <> rest -> get_next_int(rest, cur <> n)
+    | "9" as n <> rest -> get_next_int(rest, allow_leading, cur <> n)
+    _ if cur == "" -> Error(NoMatch)
     _ -> {
       case validate_int(cur) {
         Error(e) -> Error(e)
@@ -774,7 +998,24 @@ pub type LogicalOrExpression {
   LogicalOrExpression(List(LogicalAndExpression))
 }
 
-pub type Comparable
+pub type Literal {
+  Number(neg: Bool, int: Int, frac: Option(Int), exp: Option(Int))
+  String(String)
+  Boolean(Bool)
+  Null
+}
+
+pub type SingularSegment {
+  SingleName(String)
+  SingleIndex(Int)
+}
+
+pub type Comparable {
+  Literal(Literal)
+  RelQuery(List(SingularSegment))
+  AbsQuery(List(SingularSegment))
+  FunctionExpr(Function)
+}
 
 pub type CompareOp {
   Eq
