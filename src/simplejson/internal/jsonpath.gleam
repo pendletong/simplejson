@@ -4,7 +4,6 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import simplejson/jsonvalue.{type JsonValue}
 
 pub type JsonPath =
   List(Segment)
@@ -35,12 +34,6 @@ type Type {
   Value
   Logical
   Nodes
-}
-
-type FunctionType {
-  ValueType(value: Option(JsonValue))
-  LogicalType(value: Bool)
-  NodesType(values: List(JsonValue))
 }
 
 const min_int = -9_007_199_254_740_991
@@ -928,7 +921,7 @@ fn do_parse_comparison_expr(
 fn validate_comparison(
   cmp1: Comparable,
   cmp2: Comparable,
-  cmpop: CompareOp,
+  _cmpop: CompareOp,
 ) -> Bool {
   case get_comparable_return_type(cmp1), get_comparable_return_type(cmp2) {
     Logical, _ | _, Logical -> False
@@ -1134,7 +1127,7 @@ fn parse_literal_number(
   })
 
   use #(exp, rest) <- result.try(case rest {
-    "E+-" <> rest | "e+-" <> rest -> Error(ParseError("parse_literal_number"))
+    "E+-" <> _ | "e+-" <> _ -> Error(ParseError("parse_literal_number"))
     "E+" <> rest | "e+" <> rest | "E" <> rest | "e" <> rest -> {
       case get_next_int(rest, True, "") {
         Error(_) -> Error(NoMatch)

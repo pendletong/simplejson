@@ -1,7 +1,5 @@
-import gleam/bool
 import gleam/dict
 import gleam/list
-import gleam/string
 import simplejson
 import simplejson/internal/jsonpath
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject, JsonString}
