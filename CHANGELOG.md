@@ -6,7 +6,7 @@
 - Improved error output
 - Limited exp size for number parsing
 
-## v0.6.1
+## v1.0.0
 
 - Updated libraries
 - Added regexp library
