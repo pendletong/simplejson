@@ -57,7 +57,16 @@ fn create_error(
   }
   let assert Ok(#(initial_str, _)) =
     string.split_once(json <> "\u{00}", rest <> "\u{00}")
-  constructor(first_char, rest, string.length(initial_str))
+  let start_pos = string.length(initial_str)
+  constructor(
+    first_char,
+    string.slice(
+      json,
+      int.max(0, start_pos - 5),
+      int.min(string.length(json), start_pos + 5),
+    ),
+    start_pos,
+  )
 }
 
 fn do_parse(
