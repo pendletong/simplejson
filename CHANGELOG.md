@@ -12,3 +12,4 @@
 - Added regexp library
 - \r\n stringification fix
 - Improved(?) error details
+- Added simple jsonpath querying (thank [@guillheu](https://github.com/guillheu))

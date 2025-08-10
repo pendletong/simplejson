@@ -53,6 +53,22 @@ pub fn to_string(json: JsonValue) -> String {
   stringify.to_string(json)
 }
 
+/// Simple jsonpath style querying method
+///
+/// A simple **.** separated list of path elements to take
+/// - names are as-is
+/// - indexes are prefixes by #
+/// - consecutive separators are ignored
+/// - e.g. key1.#3...nextkey
+///
+///
+/// ## Examples
+///
+/// ```Gleam
+/// let assert Ok(json) = simplejson.parse("{\"a\":[1,2,{\"b\":123}]}")
+/// simplejson.jsonpath(json, "a.#2.b")
+/// // -> JsonNumber(Some(123), None, Some("123"))
+/// ```
 pub fn jsonpath(
   json: JsonValue,
   jsonpath: String,
