@@ -36,7 +36,6 @@ fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
       Ok(Schema(None, None, schema, validator, sub_schema))
     Error(err) -> Error(err)
   }
-  |> echo
 }
 
 fn generate_validation(
@@ -57,7 +56,7 @@ fn generate_validation(
               Ok(#(node, sub_schema))
             }
             Ok(JsonArray(data_types)) -> {
-              generate_multi_node(data_types, obj, sub_schema)
+              generate_multi_node(dict.values(data_types), obj, sub_schema)
             }
             Ok(_) -> Error(InvalidSchema(3))
             Error(Nil) -> {

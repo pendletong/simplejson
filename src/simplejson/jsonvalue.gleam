@@ -15,7 +15,7 @@ pub type JsonValue {
   /// Indicates a null value
   JsonNull
   /// Wraps an array value
-  JsonArray(List(JsonValue))
+  JsonArray(Dict(Int, JsonValue))
   /// Wraps an object value
   JsonObject(Dict(String, JsonValue))
 }
@@ -29,4 +29,9 @@ pub type ParseError {
   InvalidHex(hex: String, context: String, pos: Int)
   InvalidNumber(num: String, context: String, pos: Int)
   NestingDepth(num_levels: Int)
+}
+
+pub type JsonPathError {
+  InvalidJsonPath
+  PathNotFound
 }
