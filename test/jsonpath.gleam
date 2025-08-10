@@ -24,12 +24,6 @@ pub fn whitespace_tests() {
 pub fn test_folder(folder: String) {
   simplifile.get_files(folder)
   |> expect.to_be_ok
-  |> list.filter(fn(name) {
-    // Ignore tests we can't possibly pass yet
-    !string.contains(name, "filter")
-    && !string.contains(name, "operators")
-    && !string.contains(name, "functions")
-  })
   |> list.map(fn(name) {
     let assert Ok(json) = read_file(name)
     let parsed = simplejson.parse(json)

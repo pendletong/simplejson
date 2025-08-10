@@ -4,7 +4,7 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import simplejson/jsonvalue
+import simplejson/jsonvalue.{type JsonValue}
 
 pub type JsonPath =
   List(Segment)
@@ -27,6 +27,14 @@ pub type JsonPathError {
   MissingRoot
   IndexOutOfRange(i: Int)
   NoMatch
+  FunctionError
+  ComparisonError
+}
+
+type FunctionType {
+  ValueType(value: Option(JsonValue))
+  LogicalType(value: Bool)
+  NodesType(values: List(JsonValue))
 }
 
 const min_int = -9_007_199_254_740_991
@@ -158,7 +166,6 @@ fn do_parse_bracketed_selection(
     "[" <> rest | "," <> rest -> {
       let rest = trim_whitespace(rest)
       use #(sel, rest) <- result.try(do_parse_selector(rest))
-
       do_parse_bracketed_selection(trim_whitespace(rest), [sel, ..selectors])
     }
     "]" <> rest -> Ok(#(list.reverse(selectors), rest))
@@ -547,6 +554,28 @@ fn do_parse_logical_and_expr(
 ) -> Result(#(LogicalAndExpression, String), JsonPathError) {
   let str = trim_whitespace(str)
   case str, cur {
+    "&&" <> rest, LogicalAndExpression(cur_list)
+    | rest, LogicalAndExpression(cur_list)
+    -> {
+      case do_parse_basic_expr(rest) {
+        Ok(#(expr, rest)) ->
+          do_parse_logical_and_expr(
+            rest,
+            LogicalAndExpression([expr, ..cur_list]),
+          )
+        Error(_) if cur == LogicalAndExpression([]) -> Error(NoMatch)
+        Error(_) -> Ok(#(cur, str))
+      }
+    }
+  }
+}
+
+fn do_parse_logical_and_exprz(
+  str: String,
+  cur: LogicalAndExpression,
+) -> Result(#(LogicalAndExpression, String), JsonPathError) {
+  let str = trim_whitespace(str)
+  case str, cur {
     "&&" <> _, LogicalAndExpression(cur_list) if cur_list == [] ->
       Error(NoMatch)
     "&&" <> rest, LogicalAndExpression(cur_list) ->
@@ -591,7 +620,7 @@ fn do_parse_test_expr(
   }
   let str = trim_whitespace(str)
   [
-    do_parse_filter_query,
+    filter_to_testexpression(do_parse_filter_query),
     function_to_testexpression(do_parse_function_expr),
   ]
   // |>try_options(str)
@@ -604,19 +633,30 @@ fn do_parse_test_expr(
   })
 }
 
+fn filter_to_testexpression(
+  f: fn(String) -> Result(#(Filter, String), JsonPathError),
+) -> fn(String) -> Result(#(TestExpression, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(lit, rest)) -> Ok(#(FilterQuery(lit), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
 fn do_parse_filter_query(
   str: String,
-) -> Result(#(TestExpression, String), JsonPathError) {
+) -> Result(#(Filter, String), JsonPathError) {
   case str {
     "$" <> rest -> {
       use #(path, rest) <- result.try(do_parse_segments(rest, []))
 
-      Ok(#(FilterQuery(Root(path)), rest))
+      Ok(#(Root(path), rest))
     }
     "@" <> rest -> {
       use #(path, rest) <- result.try(do_parse_segments(rest, []))
 
-      Ok(#(FilterQuery(Relative(path)), rest))
+      Ok(#(Relative(path), rest))
     }
     _ -> Error(NoMatch)
   }
@@ -627,7 +667,7 @@ fn function_to_testexpression(
 ) -> fn(String) -> Result(#(TestExpression, String), JsonPathError) {
   fn(str) {
     case f(str) {
-      Ok(#(lit, rest)) -> Ok(#(Function(lit), rest))
+      Ok(#(lit, rest)) -> Ok(#(FunctionExpr(lit), rest))
       Error(a) -> Error(a)
     }
   }
@@ -640,10 +680,27 @@ fn do_parse_function_expr(
   case rest {
     "(" <> rest -> {
       use #(args, rest) <- result.try(do_parse_function_args(rest, []))
-      todo
+      let rest = trim_whitespace(rest)
+      case rest {
+        ")" <> rest -> {
+          case validate_function(Function(name:, args:)) {
+            True -> Ok(#(Function(name:, args:), rest))
+            False -> Error(FunctionError)
+          }
+        }
+        _ -> Error(NoMatch)
+      }
     }
     _ -> Error(NoMatch)
   }
+}
+
+fn validate_function(f: Function) -> Bool {
+  True
+  // case f.name {
+  //   "count" -> todo
+  //   _ -> True
+  // }
 }
 
 fn do_parse_function_args(
@@ -651,7 +708,89 @@ fn do_parse_function_args(
   args: List(FunctionArgument),
 ) -> Result(#(List(FunctionArgument), String), JsonPathError) {
   let rest = trim_whitespace(str)
-  todo
+  case rest {
+    "," <> rest -> do_parse_function_args(rest, args)
+    rest -> {
+      case do_parse_function_arg(rest) {
+        Ok(#(arg, rest)) -> do_parse_function_args(rest, [arg, ..args])
+        Error(_) if args == [] -> Error(NoMatch)
+        Error(_) -> Ok(#(list.reverse(args), rest))
+      }
+    }
+  }
+}
+
+fn do_parse_function_arg(
+  str: String,
+) -> Result(#(FunctionArgument, String), JsonPathError) {
+  [
+    literal_to_arg(do_parse_literal),
+    filter_to_arg(do_parse_filter_query),
+    singularquery_to_arg(parse_singular_query),
+    logical_to_arg(do_parse_logical_expr),
+    function_to_arg(do_parse_function_expr),
+  ]
+  |> try_options(str)
+}
+
+// LiteralArg(Literal)
+// QueryArg(Filter)
+// QuerySingularArg(SingularQuery)
+// LogicalArg(LogicalExpression)
+// FunctionArg(Function)
+fn function_to_arg(
+  f: fn(String) -> Result(#(Function, String), JsonPathError),
+) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(filter, rest)) -> Ok(#(FunctionArg(filter), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn logical_to_arg(
+  f: fn(String) -> Result(#(LogicalExpression, String), JsonPathError),
+) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(filter, rest)) -> Ok(#(LogicalArg(filter), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn singularquery_to_arg(
+  f: fn(String) -> Result(#(SingularQuery, String), JsonPathError),
+) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(filter, rest)) -> Ok(#(QuerySingularArg(filter), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn filter_to_arg(
+  f: fn(String) -> Result(#(Filter, String), JsonPathError),
+) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(filter, rest)) -> Ok(#(QueryArg(filter), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn literal_to_arg(
+  f: fn(String) -> Result(#(Literal, String), JsonPathError),
+) -> fn(String) -> Result(#(FunctionArgument, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(lit, rest)) -> Ok(#(LiteralArg(lit), rest))
+      Error(a) -> Error(a)
+    }
+  }
 }
 
 fn do_parse_function_name(
@@ -703,7 +842,31 @@ fn do_parse_comparison_expr(
   use #(cmpop, rest) <- result.try(do_parse_comparisonop(rest))
   let rest = trim_whitespace(rest)
   use #(cmp2, rest) <- result.try(do_parse_comparable(rest))
-  Ok(#(Comparison(cmp1, cmp2, cmpop), rest))
+
+  case validate_comparison(cmp1, cmp2, cmpop) {
+    True -> Ok(#(Comparison(cmp1, cmp2, cmpop), rest))
+    False -> Error(ComparisonError)
+  }
+}
+
+fn validate_comparison(
+  cmp1: Comparable,
+  cmp2: Comparable,
+  cmpop: CompareOp,
+) -> Bool {
+  True
+  // case get_return_type(cmp1), get_return_type(cmp2) {
+  //   LogicalType(_), _ | _, LogicalType(_) -> False
+  //   _ -> todo
+  // }
+}
+
+fn get_return_type(cmp: Comparable) -> FunctionType {
+  case cmp {
+    FunctionExprCmp(_) -> todo
+    Literal(_) -> todo
+    QueryCmp(_) -> todo
+  }
 }
 
 fn do_parse_comparisonop(
@@ -736,7 +899,7 @@ fn do_parse_comparable(
 ) -> Result(#(Comparable, String), JsonPathError) {
   [
     literal_to_comparable(do_parse_literal),
-    parse_singular_query,
+    singular_to_comparable(parse_singular_query),
     function_to_comparable(do_parse_function_expr),
   ]
   |> try_options(str)
@@ -747,7 +910,18 @@ fn function_to_comparable(
 ) -> fn(String) -> Result(#(Comparable, String), JsonPathError) {
   fn(str) {
     case f(str) {
-      Ok(#(lit, rest)) -> Ok(#(FunctionExpr(lit), rest))
+      Ok(#(lit, rest)) -> Ok(#(FunctionExprCmp(lit), rest))
+      Error(a) -> Error(a)
+    }
+  }
+}
+
+fn singular_to_comparable(
+  f: fn(String) -> Result(#(SingularQuery, String), JsonPathError),
+) -> fn(String) -> Result(#(Comparable, String), JsonPathError) {
+  fn(str) {
+    case f(str) {
+      Ok(#(lit, rest)) -> Ok(#(QueryCmp(lit), rest))
       Error(a) -> Error(a)
     }
   }
@@ -755,7 +929,7 @@ fn function_to_comparable(
 
 fn parse_singular_query(
   str: String,
-) -> Result(#(Comparable, String), JsonPathError) {
+) -> Result(#(SingularQuery, String), JsonPathError) {
   case str {
     "@" <> rest -> {
       use #(segs, rest) <- result.try(do_parse_singular_query(rest, []))
@@ -1012,9 +1186,13 @@ pub type SingularSegment {
 
 pub type Comparable {
   Literal(Literal)
+  QueryCmp(SingularQuery)
+  FunctionExprCmp(Function)
+}
+
+pub type SingularQuery {
   RelQuery(List(SingularSegment))
   AbsQuery(List(SingularSegment))
-  FunctionExpr(Function)
 }
 
 pub type CompareOp {
@@ -1028,7 +1206,7 @@ pub type CompareOp {
 
 pub type TestExpression {
   FilterQuery(Filter)
-  Function(Function)
+  FunctionExpr(Function)
 }
 
 pub type Filter {
@@ -1036,9 +1214,17 @@ pub type Filter {
   Root(path: JsonPath)
 }
 
-pub type Function
+pub type Function {
+  Function(name: String, args: List(FunctionArgument))
+}
 
-pub type FunctionArgument
+pub type FunctionArgument {
+  LiteralArg(Literal)
+  QueryArg(Filter)
+  QuerySingularArg(SingularQuery)
+  LogicalArg(LogicalExpression)
+  FunctionArg(Function)
+}
 
 pub type Expression {
   Paren(expr: LogicalExpression, not: Bool)
