@@ -65,11 +65,10 @@ fn run_test_in_json(t) {
     }
     _ -> {
       let assert Ok(testjson) = dict.get(t, "document")
-      let ours =
+      let jsonpath =
         jsonpath.parse_path(selector)
         |> expect.to_be_ok
-        |> query.query(testjson, _)
-        |> expect.to_be_ok
+      let ours = query.query(testjson, jsonpath, testjson)
       case dict.get(t, "result") {
         Ok(result) -> {
           ours

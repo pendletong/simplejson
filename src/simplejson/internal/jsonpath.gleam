@@ -4,6 +4,7 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import simplejson/jsonvalue.{type JsonValue}
 
 pub type JsonPath =
   List(Segment)
@@ -34,6 +35,12 @@ type Type {
   Value
   Logical
   Nodes
+}
+
+pub type TypeValue {
+  ValueType(Literal)
+  LogicalType(Bool)
+  NodesType(List(JsonValue))
 }
 
 const min_int = -9_007_199_254_740_991
@@ -1230,15 +1237,15 @@ fn trim_whitespace(str: String) -> String {
 }
 
 pub type LogicalExpression {
-  LogicalExpression(LogicalOrExpression)
+  LogicalExpression(or: LogicalOrExpression)
 }
 
 pub type LogicalAndExpression {
-  LogicalAndExpression(List(Expression))
+  LogicalAndExpression(and: List(Expression))
 }
 
 pub type LogicalOrExpression {
-  LogicalOrExpression(List(LogicalAndExpression))
+  LogicalOrExpression(ands: List(LogicalAndExpression))
 }
 
 pub type Literal {
@@ -1246,6 +1253,7 @@ pub type Literal {
   String(String)
   Boolean(Bool)
   Null
+  Nothing
 }
 
 pub type SingularSegment {

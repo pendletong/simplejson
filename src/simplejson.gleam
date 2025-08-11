@@ -7,7 +7,7 @@
 import simplejson/internal/jsonpath.{type JsonPath}
 import simplejson/internal/parser
 import simplejson/internal/pointer
-import simplejson/internal/query.{type QueryError}
+import simplejson/internal/query
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonPathError, type JsonValue, type ParseError}
 
@@ -82,6 +82,6 @@ pub fn to_path(str: String) -> Result(JsonPath, jsonpath.JsonPathError) {
   jsonpath.parse_path(str)
 }
 
-pub fn query(json: JsonValue, path: JsonPath) -> Result(JsonValue, QueryError) {
-  query.query(json, path)
+pub fn query(json: JsonValue, path: JsonPath) -> JsonValue {
+  query.query(json, path, json)
 }
