@@ -1,4 +1,5 @@
 import gleam/bool
+import gleam/dict
 import gleam/int
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
@@ -1254,6 +1255,8 @@ pub type Literal {
   Boolean(Bool)
   Null
   Nothing
+  Object(dict.Dict(String, JsonValue))
+  Array(dict.Dict(Int, JsonValue))
 }
 
 pub type SingularSegment {

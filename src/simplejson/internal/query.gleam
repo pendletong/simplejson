@@ -5,14 +5,15 @@ import gleam/list.{Continue, Stop}
 import gleam/string
 import simplejson/internal/stringify
 
-import gleam/option.{type Option, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/yielder
 import simplejson/internal/jsonpath.{
   type Comparable, type CompareOp, type JsonPath, type Literal,
   type LogicalExpression, type Segment, type Selector, type SingularSegment,
-  type TypeValue, Boolean, Child, Descendant, Filter, Index, Name, Nothing, Null,
-  Number, SingleIndex, SingleName, Slice, String, ValueType,
+  type TypeValue, Array, Boolean, Child, Descendant, Filter, Index, Name,
+  Nothing, Null, Number, Object, SingleIndex, SingleName, Slice, String,
+  ValueType,
 }
 import simplejson/internal/parser
 import simplejson/jsonvalue.{
@@ -44,7 +45,7 @@ fn do_query(
     let results = case segment {
       Child(selectors) -> process_selectors(selectors, [j], absroot)
       Descendant(selectors) ->
-        process_selectors(selectors, get_descendants([j], j) |> echo, absroot)
+        process_selectors(selectors, get_descendants([j], j), absroot)
     }
     list.append(acc, results)
   })
@@ -82,7 +83,7 @@ fn do_checks(
   absroot: JsonValue,
 ) -> List(JsonValue) {
   list.fold(selectors, [], fn(list, selector) {
-    let found = do_selector(json, selector, absroot) |> echo
+    let found = do_selector(json, selector, absroot)
 
     list.append(list, found)
   })
@@ -109,7 +110,6 @@ fn do_filter(
   expr: LogicalExpression,
   absroot: JsonValue,
 ) -> List(JsonValue) {
-  "filtering" |> echo
   let l = case json {
     JsonArray(d) -> {
       stringify.dict_to_ordered_list(d)
@@ -138,9 +138,14 @@ fn do_filter(
                       jsonpath.Relative(path:) -> #(json, path)
                       jsonpath.Root(path:) -> #(absroot, path)
                     }
-                    case list.is_empty(query_to_list(root, path, absroot)) {
-                      True -> Stop(False)
-                      False -> Continue(True)
+                    case
+                      list.is_empty(query_to_list(root, path, absroot)),
+                      not
+                    {
+                      True, False -> Stop(False)
+                      False, False -> Continue(True)
+                      False, True -> Stop(False)
+                      True, True -> Continue(True)
                     }
                   }
                   jsonpath.FunctionExpr(_) -> todo
@@ -158,7 +163,6 @@ fn do_filter(
       False -> res
     }
   })
-  |> echo
   |> list.reverse
 }
 
@@ -175,7 +179,7 @@ fn do_comparison(
 }
 
 fn compare_types(tv1: TypeValue, tv2: TypeValue, op: CompareOp) -> Bool {
-  case tv1, tv2 {
+  case tv1 |> echo, tv2 |> echo {
     ValueType(Number(n1neg, n1int, n1frac, n1exp)),
       ValueType(Number(n2neg, n2int, n2frac, n2exp))
     ->
@@ -185,7 +189,11 @@ fn compare_types(tv1: TypeValue, tv2: TypeValue, op: CompareOp) -> Bool {
         op,
       )
     ValueType(String(s1)), ValueType(String(s2)) -> compare_strings(s1, s2, op)
-
+    ValueType(Null), ValueType(Null) -> True
+    ValueType(Boolean(b1)), ValueType(Boolean(b2)) -> b1 == b2
+    ValueType(Array(d1)), ValueType(Array(d2)) -> d1 == d2
+    ValueType(Object(d1)), ValueType(Object(d2)) -> d1 == d2
+    ValueType(Nothing), ValueType(Nothing) -> True
     _, _ -> False
   }
 }
@@ -224,7 +232,7 @@ fn get_comparable(
         jsonpath.RelQuery(sq) -> #(root, sq)
       }
       let jp = map_singular_query_to_query(sq)
-      case query(root, jp, absroot) |> echo as "query" {
+      case query(root, jp, absroot) {
         JsonArray(arr) -> {
           case dict.size(arr) {
             1 -> {
@@ -245,11 +253,19 @@ fn get_comparable(
 
 fn jsonvalue_to_literal(jv: JsonValue) -> Literal {
   case jv {
-    JsonArray(_) -> Nothing
-    JsonObject(_) -> Nothing
+    JsonArray(arr) -> Array(arr)
+    JsonObject(obj) -> Object(obj)
     JsonBool(bool:) -> Boolean(bool)
     JsonNull -> Null
-    JsonNumber(int:, float:, original:) -> todo
+    JsonNumber(int:, float:, original:) -> {
+      case int {
+        Some(i) ->
+          Number(int.absolute_value(i) != i, int.absolute_value(i), None, None)
+        None -> {
+          todo
+        }
+      }
+    }
     JsonString(str:) -> String(str)
   }
 }
@@ -378,7 +394,7 @@ fn do_index(json: JsonValue, index: Int) -> List(JsonValue) {
 
 fn do_wildcard(json: JsonValue) -> List(JsonValue) {
   case json {
-    JsonArray(d) -> stringify.dict_to_ordered_list(d) |> echo
+    JsonArray(d) -> stringify.dict_to_ordered_list(d)
     JsonObject(d) -> dict.values(d)
     _ -> []
   }
