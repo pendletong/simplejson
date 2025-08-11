@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/list
 import simplejson
 import simplejson/internal/jsonpath
+import simplejson/internal/query
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject, JsonString}
 import simplifile
 import startest.{describe, it}
@@ -63,7 +64,26 @@ fn run_test_in_json(t) {
       Nil
     }
     _ -> {
-      jsonpath.parse_path(selector) |> expect.to_be_ok
+      let assert Ok(testjson) = dict.get(t, "document")
+      let ours =
+        jsonpath.parse_path(selector)
+        |> expect.to_be_ok
+        |> query.query(testjson, _)
+        |> expect.to_be_ok
+      case dict.get(t, "result") {
+        Ok(result) -> {
+          ours
+          |> expect.to_equal(result)
+        }
+        Error(_) -> {
+          case dict.get(t, "results") {
+            Ok(JsonArray(d)) -> {
+              expect.list_to_contain(dict.values(d), ours)
+            }
+            _ -> panic
+          }
+        }
+      }
       Nil
     }
   }

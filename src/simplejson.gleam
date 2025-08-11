@@ -4,8 +4,10 @@
 //// To be used for simple conversion from string to a basic JSON structure
 //// and to then output that as a string again.
 
+import simplejson/internal/jsonpath.{type JsonPath}
 import simplejson/internal/parser
 import simplejson/internal/pointer
+import simplejson/internal/query.{type QueryError}
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonPathError, type JsonValue, type ParseError}
 
@@ -74,4 +76,12 @@ pub fn jsonpath(
   jsonpath: String,
 ) -> Result(JsonValue, JsonPathError) {
   pointer.jsonpath(json, jsonpath)
+}
+
+pub fn to_path(str: String) -> Result(JsonPath, jsonpath.JsonPathError) {
+  jsonpath.parse_path(str)
+}
+
+pub fn query(json: JsonValue, path: JsonPath) -> Result(JsonValue, QueryError) {
+  query.query(json, path)
 }

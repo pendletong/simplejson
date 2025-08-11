@@ -8,7 +8,7 @@ import gleam/string
 pub type JsonPath =
   List(Segment)
 
-pub opaque type Selector {
+pub type Selector {
   Name(name: String)
   Wildcard
   Index(i: Int)
@@ -16,7 +16,7 @@ pub opaque type Selector {
   Filter(expr: LogicalExpression)
 }
 
-pub opaque type Segment {
+pub type Segment {
   Child(List(Selector))
   Descendant(List(Selector))
 }
