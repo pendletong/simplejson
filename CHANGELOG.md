@@ -13,3 +13,7 @@
 - \r\n stringification fix
 - Improved(?) error details
 - Added simple jsonpath querying (thank [@guillheu](https://github.com/guillheu))
+
+## v1.1.0
+
+-- Added full jsonpath querying (RFC9535)
