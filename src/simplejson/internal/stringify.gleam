@@ -25,27 +25,25 @@ fn create_string(json: JsonValue, acc: String) -> String {
       acc <> "\"" <> encode_string(s, "") <> "\""
     }
     JsonArray(l) ->
-      acc
-      <> "["
-      <> encode_list(
-        case dict.size(l) {
-          0 -> []
-          n ->
-            list.range(0, n - 1)
-            |> list.map(fn(i) {
-              let assert Ok(v) = dict.get(l, i)
-              v
-            })
-        },
-        "",
-      )
-      <> "]"
+      acc <> "[" <> encode_list(dict_to_ordered_list(l), "") <> "]"
     JsonNull -> acc <> "null"
     JsonNumber(_, _, Some(s)) -> acc <> s
     JsonNumber(Some(i), _, _) -> acc <> encode_int(i)
     JsonNumber(_, Some(f), _) -> acc <> encode_float(f)
     JsonNumber(None, None, _) -> panic
     JsonObject(o) -> acc <> "{" <> encode_object(o) <> "}"
+  }
+}
+
+pub fn dict_to_ordered_list(d: dict.Dict(Int, JsonValue)) -> List(JsonValue) {
+  case dict.size(d) {
+    0 -> []
+    n ->
+      list.range(0, n - 1)
+      |> list.map(fn(i) {
+        let assert Ok(v) = dict.get(d, i)
+        v
+      })
   }
 }
 

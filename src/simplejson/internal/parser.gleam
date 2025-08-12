@@ -580,7 +580,7 @@ fn do_parse_int(
   }
 }
 
-fn list_to_indexed_dict(initial_list: List(a)) -> Dict(Int, a) {
+pub fn list_to_indexed_dict(initial_list: List(a)) -> Dict(Int, a) {
   use current_dict, item, index <- list.index_fold(initial_list, dict.new())
   dict.insert(current_dict, index, item)
 }

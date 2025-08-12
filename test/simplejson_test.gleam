@@ -148,7 +148,6 @@ pub fn main() {
 
 // gleeunit test functions end in `_test`
 pub fn simplejson_tests() {
-  "Running tests" |> echo
   simplifile.get_files("./JSONTestSuite/test_parsing")
   |> expect.to_be_ok
   // |> list.filter(fn(name) { string.contains(name, "n_array_invalid_utf8.json") })
@@ -189,9 +188,14 @@ pub fn simplejson_tests() {
       }
     })
   })
-  |> describe("Parse testfiles", _)
+  |> describe("Parse JSON from testfiles", _)
 }
 
+// We need separate read_file fns for erlang and javascript
+// because loading utf-16 encoded files in erlang using simplifile
+// seemed to cause some issues
+// Maybe this can be removed in the future but for the moment it
+// prevents more tests failing than the ones in the failing_tests const above
 @target(javascript)
 pub fn read_file(name: String) -> Result(String, Nil) {
   case simplifile.read(name) {
