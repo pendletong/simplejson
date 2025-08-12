@@ -332,6 +332,7 @@ fn do_fix_regexp(str: String, new_regexp: String, in_class: Bool) -> String {
     "[" <> rest -> do_fix_regexp(rest, new_regexp <> "[", True)
     "\\]" <> rest -> do_fix_regexp(rest, new_regexp <> "\\]", in_class)
     "]" <> rest -> do_fix_regexp(rest, new_regexp <> "]", False)
+    "\\\\" <> rest -> do_fix_regexp(rest, new_regexp <> "\\\\", in_class)
     "\\." <> rest -> do_fix_regexp(rest, new_regexp <> "\\.", in_class)
     "." <> rest -> {
       case in_class {
