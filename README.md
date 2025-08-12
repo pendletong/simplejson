@@ -3,7 +3,7 @@
 [![Package Version](https://img.shields.io/hexpm/v/simplejson)](https://hex.pm/packages/simplejson)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/simplejson/)
 
-Basic JSON library for Gleam. To be used for simple conversion from string to a basic JSON structure and to then output that as a string again.
+JSON library for Gleam with JsonPath querying (https://www.rfc-editor.org/rfc/rfc9535).
 
 ## Installation
 
@@ -14,9 +14,13 @@ gleam add simplejson@1
 import simplejson
 
 pub fn main() {
-  let json = simplejson.parse("[1,2,3]")
+  let assert Ok(json) = simplejson.parse("[1,2,3]")
 
-  echo simplejson.stringify(json)
+  echo simplejson.to_string(json) // -> [1,2,3]
+
+  let assert Ok(path) = simplejson.to_path("$[1]")
+
+  echo simplejson.query(json, path) // -> JsonArray(dict.from_list([#(0, JsonNumber(Some(2), None, Some("2")))]))
 }
 ```
 

@@ -78,10 +78,32 @@ pub fn jsonpath(
   pointer.jsonpath(json, jsonpath)
 }
 
-pub fn to_path(str: String) -> Result(JsonPath, jsonpath.JsonPathError) {
+/// Converts the passed string into a query type to be used in the query function
+///
+/// This parses based on RFC9535 (https://www.rfc-editor.org/rfc/rfc9535)
+///
+/// ## Examples
+///
+/// ```Gleam
+/// let assert Ok(path) = simplejson.to_path("$[1]")
+/// // -> [Child([Index(1)])]
+/// ```
+pub fn to_path(str: String) -> Result(JsonPath, JsonPathError) {
   jsonpath.parse_path(str)
 }
 
+/// Takes the provided path and json and returns a Json Array of results
+///
+/// This executes based on RFC9535 (https://www.rfc-editor.org/rfc/rfc9535)
+///
+/// ## Examples
+///
+/// ```Gleam
+/// let assert Ok(path) = simplejson.to_path("$[1]")
+/// let assert Ok(json) = simplejson.parse("[1,2,3]")
+/// simplejson.to_string(simplejson.query(json, path))
+/// // -> [2]
+/// ```
 pub fn query(json: JsonValue, path: JsonPath) -> JsonValue {
   query.query(json, path, json)
 }
