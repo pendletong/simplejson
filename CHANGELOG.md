@@ -16,4 +16,4 @@
 
 ## v1.1.0
 
--- Added full jsonpath querying (RFC9535)
+- Added full jsonpath querying (RFC9535)
