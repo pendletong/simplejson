@@ -1,19 +1,21 @@
+import bigdecimal.{type BigDecimal}
 import gleam/bool
 import gleam/dict
 import gleam/int
 import gleam/list.{Continue, Stop}
+import gleam/regexp.{type Regexp}
 import gleam/string
 import simplejson/internal/stringify
 
 import gleam/option.{type Option, None, Some}
-import gleam/order.{Eq, Gt, Lt}
+import gleam/order.{type Order, Eq, Gt, Lt}
 import gleam/yielder
 import simplejson/internal/jsonpath.{
-  type Comparable, type CompareOp, type JsonPath, type Literal,
+  type Comparable, type CompareOp, type Function, type JsonPath, type Literal,
   type LogicalExpression, type Segment, type Selector, type SingularSegment,
-  type TypeValue, Array, Boolean, Child, Descendant, Filter, Index, Name,
-  Nothing, Null, Number, Object, SingleIndex, SingleName, Slice, String,
-  ValueType,
+  type TypeValue, Array, Boolean, Child, Descendant, Filter, Function, Index,
+  LogicalType, Name, NodesType, Nothing, Null, Number, Object, SingleIndex,
+  SingleName, Slice, String, ValueType,
 }
 import simplejson/internal/parser
 import simplejson/jsonvalue.{
@@ -25,7 +27,6 @@ pub fn query(json: JsonValue, path: JsonPath, absroot: JsonValue) -> JsonValue {
   query_to_list(json, path, absroot)
   |> parser.list_to_indexed_dict
   |> JsonArray
-  |> echo
 }
 
 fn query_to_list(
@@ -119,51 +120,79 @@ fn do_filter(
   }
   use <- bool.guard(when: l == [], return: [])
   list.fold(l, [], fn(res, json) {
-    case
-      list.fold_until(expr.or.ands, False, fn(_, and_expr) {
-        case
-          list.fold_until(and_expr.and, True, fn(_, expr) {
-            case expr {
-              jsonpath.Comparison(cmp1:, cmp2:, cmpop:) -> {
-                case do_comparison(json, cmp1, cmp2, cmpop, absroot) {
-                  True -> Continue(True)
-                  False -> Stop(False)
-                }
-              }
-              jsonpath.Paren(expr:, not:) -> todo
-              jsonpath.Test(expr:, not:) -> {
-                case expr {
-                  jsonpath.FilterQuery(fq) -> {
-                    let #(root, path) = case fq {
-                      jsonpath.Relative(path:) -> #(json, path)
-                      jsonpath.Root(path:) -> #(absroot, path)
-                    }
-                    case
-                      list.is_empty(query_to_list(root, path, absroot)),
-                      not
-                    {
-                      True, False -> Stop(False)
-                      False, False -> Continue(True)
-                      False, True -> Stop(False)
-                      True, True -> Continue(True)
-                    }
-                  }
-                  jsonpath.FunctionExpr(_) -> todo
-                }
-              }
-            }
-          })
-        {
-          True -> Stop(True)
-          False -> Continue(False)
-        }
-      })
-    {
+    case do_logical_expr(json, expr, absroot) {
       True -> [json, ..res]
       False -> res
     }
   })
   |> list.reverse
+}
+
+fn do_logical_expr(
+  json: JsonValue,
+  expr: LogicalExpression,
+  absroot: JsonValue,
+) -> Bool {
+  list.fold_until(expr.or.ands, False, fn(_, and_expr) {
+    case
+      list.fold_until(and_expr.and, True, fn(_, expr) {
+        case expr {
+          jsonpath.Comparison(cmp1:, cmp2:, cmpop:) -> {
+            case do_comparison(json, cmp1, cmp2, cmpop, absroot) {
+              True -> Continue(True)
+              False -> Stop(False)
+            }
+          }
+          jsonpath.Paren(expr:, not:) -> {
+            let cmp = do_logical_expr(json, expr, absroot)
+            let cmp = case not {
+              False -> cmp
+              True -> !cmp
+            }
+            case cmp {
+              True -> Continue(True)
+              False -> Stop(False)
+            }
+          }
+          jsonpath.Test(expr:, not:) -> {
+            case expr {
+              jsonpath.FilterQuery(fq) -> {
+                let #(root, path) = case fq {
+                  jsonpath.Relative(path:) -> #(json, path)
+                  jsonpath.Root(path:) -> #(absroot, path)
+                }
+                case list.is_empty(query_to_list(root, path, absroot)), not {
+                  True, False -> Stop(False)
+                  False, False -> Continue(True)
+                  False, True -> Stop(False)
+                  True, True -> Continue(True)
+                }
+              }
+              jsonpath.FunctionExpr(fe) -> {
+                case run_function(json, fe, absroot) {
+                  ValueType(_) -> panic
+                  LogicalType(cmp) -> {
+                    let cmp = case not {
+                      False -> cmp
+                      True -> !cmp
+                    }
+                    case cmp {
+                      True -> Continue(True)
+                      False -> Stop(False)
+                    }
+                  }
+                  NodesType(_) -> panic
+                }
+              }
+            }
+          }
+        }
+      })
+    {
+      True -> Stop(True)
+      False -> Continue(False)
+    }
+  })
 }
 
 fn do_comparison(
@@ -179,35 +208,41 @@ fn do_comparison(
 }
 
 fn compare_types(tv1: TypeValue, tv2: TypeValue, op: CompareOp) -> Bool {
-  case tv1 |> echo, tv2 |> echo {
-    ValueType(Number(n1neg, n1int, n1frac, n1exp)),
-      ValueType(Number(n2neg, n2int, n2frac, n2exp))
-    ->
-      compare_numbers(
-        #(n1neg, n1int, n1frac, n1exp),
-        #(n2neg, n2int, n2frac, n2exp),
-        op,
-      )
+  case tv1, tv2 {
+    ValueType(Number(n1)), ValueType(Number(n2)) -> compare_numbers(n1, n2, op)
     ValueType(String(s1)), ValueType(String(s2)) -> compare_strings(s1, s2, op)
-    ValueType(Null), ValueType(Null) -> True
-    ValueType(Boolean(b1)), ValueType(Boolean(b2)) -> b1 == b2
+    ValueType(Null), ValueType(Null) -> {
+      compare_items(Eq, op)
+    }
+    ValueType(Boolean(b1)), ValueType(Boolean(b2)) -> {
+      case b1 == b2 {
+        True -> op == jsonpath.Eq || op == jsonpath.Gte || op == jsonpath.Lte
+        False -> op == jsonpath.NotEq
+      }
+    }
     ValueType(Array(d1)), ValueType(Array(d2)) -> d1 == d2
     ValueType(Object(d1)), ValueType(Object(d2)) -> d1 == d2
     ValueType(Nothing), ValueType(Nothing) -> True
-    _, _ -> False
+    _, _ -> {
+      case op {
+        jsonpath.NotEq -> True
+        _ -> False
+      }
+    }
   }
 }
 
-fn compare_numbers(
-  n1: #(Bool, Int, Option(Int), Option(Int)),
-  n2: #(Bool, Int, Option(Int), Option(Int)),
-  op: CompareOp,
-) -> Bool {
-  todo
+fn compare_numbers(n1: BigDecimal, n2: BigDecimal, op: CompareOp) -> Bool {
+  let order = bigdecimal.compare(n1, n2)
+  compare_items(order, op)
 }
 
 fn compare_strings(s1: String, s2: String, op: CompareOp) -> Bool {
   let order = string.compare(s1, s2)
+  compare_items(order, op)
+}
+
+fn compare_items(order: Order, op: CompareOp) -> Bool {
   case op {
     jsonpath.Eq -> order == Eq
     jsonpath.Gt -> order == Gt
@@ -218,13 +253,212 @@ fn compare_strings(s1: String, s2: String, op: CompareOp) -> Bool {
   }
 }
 
+fn run_function(root: JsonValue, f: Function, absroot: JsonValue) -> TypeValue {
+  let Function(deffn, args) = f
+  let args =
+    list.map(args, fn(a) {
+      case a {
+        jsonpath.FunctionArg(fa) -> run_function(root, fa, absroot)
+        jsonpath.LiteralArg(l) -> ValueType(l)
+        jsonpath.LogicalArg(la) ->
+          LogicalType(do_logical_expr(root, la, absroot))
+        jsonpath.QueryArg(qa) -> {
+          let #(root, qa) = case qa {
+            jsonpath.Root(sq) -> #(absroot, sq)
+            jsonpath.Relative(sq) -> #(root, sq)
+          }
+          query_to_list(root, qa, absroot)
+          |> NodesType
+        }
+        jsonpath.QuerySingularArg(qa) -> {
+          let #(root, qa) = case qa {
+            jsonpath.Root(sq) -> #(absroot, sq)
+            jsonpath.Relative(sq) -> #(root, sq)
+          }
+          case query_to_list(root, qa, absroot) {
+            [v] -> NodesType([v])
+            _ -> ValueType(Nothing)
+          }
+        }
+      }
+    })
+  case deffn {
+    jsonpath.Count -> {
+      case args {
+        [arg] -> do_fn_count(arg)
+        _ -> panic as "Invalid Length arguments"
+      }
+    }
+    jsonpath.Length -> {
+      case args {
+        [arg] -> do_fn_length(arg)
+        _ -> panic as "Invalid Length arguments"
+      }
+    }
+    jsonpath.Match -> {
+      case args {
+        [a1, a2] -> do_fn_match(a1, a2)
+        _ -> panic as "Invalid Match arguments"
+      }
+    }
+    jsonpath.Search -> {
+      case args {
+        [a1, a2] -> do_fn_search(a1, a2)
+        _ -> panic as "Invalid Search arguments"
+      }
+    }
+    jsonpath.Unknown(_) -> ValueType(Nothing)
+    jsonpath.ValueOf -> {
+      case args {
+        [arg] -> do_fn_value(arg)
+        _ -> panic as "Invalid Length arguments"
+      }
+    }
+  }
+}
+
+fn fix_regexp(str: String) -> Regexp {
+  // This needs to follow I-Regexp (rfc9485) but for the time being use standard
+  // regexp
+  case regexp.from_string(do_fix_regexp(str, "", False)) {
+    Error(_) -> panic as "Invalid Regexp"
+    Ok(r) -> r
+  }
+}
+
+fn do_fix_regexp(str: String, new_regexp: String, in_class: Bool) -> String {
+  case str {
+    "\\[" <> rest -> do_fix_regexp(rest, new_regexp <> "\\[", in_class)
+    "[" <> rest -> do_fix_regexp(rest, new_regexp <> "[", True)
+    "\\]" <> rest -> do_fix_regexp(rest, new_regexp <> "\\]", in_class)
+    "]" <> rest -> do_fix_regexp(rest, new_regexp <> "]", False)
+    "\\." <> rest -> do_fix_regexp(rest, new_regexp <> "\\.", in_class)
+    "." <> rest -> {
+      case in_class {
+        True -> do_fix_regexp(rest, new_regexp <> ".", in_class)
+        False -> do_fix_regexp(rest, new_regexp <> "[^\\n\\r]", in_class)
+      }
+    }
+    "" -> new_regexp
+    x -> {
+      case string.pop_grapheme(x) {
+        Error(_) -> new_regexp
+        Ok(#(char, rest)) -> do_fix_regexp(rest, new_regexp <> char, in_class)
+      }
+    }
+  }
+}
+
+fn do_fn_match(arg1: TypeValue, arg2: TypeValue) -> TypeValue {
+  case arg1, arg2 {
+    ValueType(String(s)), ValueType(String(s2)) -> {
+      // Regexp...
+      LogicalType(regexp.check(fix_regexp("^" <> s2 <> "$"), s))
+    }
+    NodesType([v1]), NodesType([v2]) -> {
+      do_fn_match(
+        ValueType(jsonvalue_to_literal(v1)),
+        ValueType(jsonvalue_to_literal(v2)),
+      )
+    }
+    NodesType([v]), _ -> {
+      do_fn_match(ValueType(jsonvalue_to_literal(v)), arg2)
+    }
+    _, NodesType([v]) -> {
+      do_fn_match(arg1, ValueType(jsonvalue_to_literal(v)))
+    }
+    _, _ -> LogicalType(False)
+  }
+}
+
+fn do_fn_search(arg1: TypeValue, arg2: TypeValue) -> TypeValue {
+  case arg1, arg2 {
+    ValueType(String(s)), ValueType(String(s2)) -> {
+      // Regexp...
+      LogicalType(regexp.check(fix_regexp(s2), s))
+    }
+    NodesType([v1]), NodesType([v2]) -> {
+      do_fn_search(
+        ValueType(jsonvalue_to_literal(v1)),
+        ValueType(jsonvalue_to_literal(v2)),
+      )
+    }
+    NodesType([v]), _ -> {
+      do_fn_search(ValueType(jsonvalue_to_literal(v)), arg2)
+    }
+    _, NodesType([v]) -> {
+      do_fn_search(arg1, ValueType(jsonvalue_to_literal(v)))
+    }
+    _, _ -> LogicalType(False)
+  }
+}
+
+fn do_fn_value(arg: TypeValue) -> TypeValue {
+  case arg {
+    ValueType(_) -> ValueType(Nothing)
+    LogicalType(_) -> ValueType(Nothing)
+    NodesType(l) -> {
+      case l {
+        [v] -> {
+          ValueType(jsonvalue_to_literal(v))
+        }
+        _ -> ValueType(Nothing)
+      }
+    }
+  }
+}
+
+fn do_fn_count(arg: TypeValue) -> TypeValue {
+  case arg {
+    ValueType(_) -> ValueType(Nothing)
+    LogicalType(_) -> ValueType(Nothing)
+    NodesType(l) ->
+      list.length(l)
+      |> int.to_float
+      |> bigdecimal.from_float
+      |> Number
+      |> ValueType
+  }
+}
+
+fn do_fn_length(arg: TypeValue) -> TypeValue {
+  case arg {
+    ValueType(String(s)) ->
+      string.length(s)
+      |> int.to_float
+      |> bigdecimal.from_float
+      |> Number
+      |> ValueType
+
+    ValueType(Array(a)) ->
+      dict.size(a)
+      |> int.to_float
+      |> bigdecimal.from_float
+      |> Number
+      |> ValueType
+    ValueType(Boolean(_)) -> ValueType(Nothing)
+    ValueType(Nothing) -> ValueType(Nothing)
+    ValueType(Null) -> ValueType(Nothing)
+    ValueType(Number(_)) -> ValueType(Nothing)
+    ValueType(Object(o)) ->
+      dict.size(o)
+      |> int.to_float
+      |> bigdecimal.from_float
+      |> Number
+      |> ValueType
+    LogicalType(_) -> ValueType(Nothing)
+    NodesType([l]) -> do_fn_length(ValueType(jsonvalue_to_literal(l)))
+    NodesType(_) -> ValueType(Nothing)
+  }
+}
+
 fn get_comparable(
   root: JsonValue,
   cmp: Comparable,
   absroot: JsonValue,
 ) -> TypeValue {
   case cmp {
-    jsonpath.FunctionExprCmp(_) -> todo
+    jsonpath.FunctionExprCmp(f) -> run_function(root, f, absroot)
     jsonpath.Literal(l) -> ValueType(l)
     jsonpath.QueryCmp(sq) -> {
       let #(root, sq) = case sq {
@@ -232,18 +466,12 @@ fn get_comparable(
         jsonpath.RelQuery(sq) -> #(root, sq)
       }
       let jp = map_singular_query_to_query(sq)
-      case query(root, jp, absroot) {
-        JsonArray(arr) -> {
-          case dict.size(arr) {
-            1 -> {
-              let assert Ok(v) = dict.get(arr, 0)
-              ValueType(jsonvalue_to_literal(v))
-            }
-            0 -> {
-              ValueType(Nothing)
-            }
-            _ -> panic
-          }
+      case query_to_list(root, jp, absroot) {
+        [v] -> {
+          ValueType(jsonvalue_to_literal(v))
+        }
+        [] -> {
+          ValueType(Nothing)
         }
         _ -> panic
       }
@@ -257,16 +485,20 @@ fn jsonvalue_to_literal(jv: JsonValue) -> Literal {
     JsonObject(obj) -> Object(obj)
     JsonBool(bool:) -> Boolean(bool)
     JsonNull -> Null
-    JsonNumber(int:, float:, original:) -> {
-      case int {
-        Some(i) ->
-          Number(int.absolute_value(i) != i, int.absolute_value(i), None, None)
-        None -> {
-          todo
-        }
-      }
+    JsonNumber(int: Some(i), float: _, original: _) -> {
+      let assert Ok(bd) = bigdecimal.from_string(int.to_string(i))
+      Number(bd)
     }
+    JsonNumber(int: _, float: _, original: Some(s)) -> {
+      let assert Ok(#(n, _)) = jsonpath.parse_literal_number(s)
+      n
+    }
+    JsonNumber(int: _, float: Some(f), original: _) -> {
+      Number(bigdecimal.from_float(f))
+    }
+
     JsonString(str:) -> String(str)
+    JsonNumber(int: None, float: None, original: None) -> panic
   }
 }
 

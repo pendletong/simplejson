@@ -1,3 +1,4 @@
+import bigdecimal
 import gleam/dict
 import gleam/list
 import simplejson
@@ -10,6 +11,35 @@ import startest/expect
 
 pub fn main() {
   startest.run(startest.default_config())
+}
+
+pub fn general_parse_tests() {
+  describe("General JsonPath parsing", [
+    it("parse number with leading zeros in fraction", fn() {
+      let assert Ok(bd) = bigdecimal.from_string("3.00005")
+      jsonpath.parse_path("$[?$.a==3.00005]")
+      |> expect.to_be_ok
+      |> expect.to_equal([
+        jsonpath.Child([
+          jsonpath.Filter(
+            jsonpath.LogicalExpression(
+              jsonpath.LogicalOrExpression([
+                jsonpath.LogicalAndExpression([
+                  jsonpath.Comparison(
+                    jsonpath.QueryCmp(
+                      jsonpath.AbsQuery([jsonpath.SingleName("a")]),
+                    ),
+                    jsonpath.Literal(jsonpath.Number(bd)),
+                    jsonpath.Eq,
+                  ),
+                ]),
+              ]),
+            ),
+          ),
+        ]),
+      ])
+    }),
+  ])
 }
 
 pub fn jsonpath_tests() {

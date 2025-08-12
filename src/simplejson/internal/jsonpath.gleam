@@ -1,3 +1,4 @@
+import bigdecimal.{type BigDecimal}
 import gleam/bool
 import gleam/dict
 import gleam/int
@@ -205,7 +206,7 @@ fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) 
 fn parse_index_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  case get_next_int(str, False, "") {
+  case get_next_int(str, False) {
     Ok(#(val1, rest)) -> Ok(#(Index(val1), rest))
     Error(_) -> Error(NoMatch)
   }
@@ -214,7 +215,7 @@ fn parse_index_selector(
 fn parse_slice_selector(
   str: String,
 ) -> Result(#(Selector, String), JsonPathError) {
-  use #(val1, rest) <- result.try(case get_next_int(str, False, "") {
+  use #(val1, rest) <- result.try(case get_next_int(str, False) {
     Error(_) -> {
       let str = trim_whitespace(str)
       case str {
@@ -231,7 +232,7 @@ fn parse_slice_selector(
     }
   })
   let rest = trim_whitespace(rest)
-  use #(val2, rest) <- result.try(case get_next_int(rest, False, "") {
+  use #(val2, rest) <- result.try(case get_next_int(rest, False) {
     Error(_) -> {
       let rest = trim_whitespace(rest)
       case rest {
@@ -249,7 +250,7 @@ fn parse_slice_selector(
   })
   let rest = trim_whitespace(rest)
   let rest = trim_whitespace(rest)
-  use #(val3, rest) <- result.try(case get_next_int(rest, False, "") {
+  use #(val3, rest) <- result.try(case get_next_int(rest, False) {
     Error(_) -> Ok(#(None, rest))
     Ok(#(i, rest)) -> Ok(#(Some(i), rest))
   })
@@ -1049,7 +1050,7 @@ fn parse_index_segment(
 ) -> Result(#(SingularSegment, String), JsonPathError) {
   case str {
     "[" <> rest -> {
-      use #(i, rest) <- result.try(get_next_int(rest, False, ""))
+      use #(i, rest) <- result.try(get_next_int(rest, False))
       case rest {
         "]" <> rest -> Ok(#(SingleIndex(i), rest))
         _ -> Error(NoMatch)
@@ -1112,13 +1113,13 @@ fn do_parse_literal(str: String) -> Result(#(Literal, String), JsonPathError) {
   }
 }
 
-fn parse_literal_number(
+pub fn parse_literal_number(
   str: String,
 ) -> Result(#(Literal, String), JsonPathError) {
   use #(neg, int, rest) <- result.try(case str {
     "-0" <> rest -> Ok(#(True, 0, rest))
     rest -> {
-      use #(i, rest) <- result.try(get_next_int(rest, False, ""))
+      use #(i, rest) <- result.try(get_next_int(rest, False))
       Ok(#(i < 0, int.absolute_value(i), rest))
     }
   })
@@ -1126,7 +1127,7 @@ fn parse_literal_number(
   use #(frac, rest) <- result.try(case rest {
     ".-" <> _ -> Error(NoMatch)
     "." <> rest -> {
-      case get_next_int(rest, False, "") {
+      case get_next_int_as_string(rest, True, "") {
         Error(_) -> Error(NoMatch)
         Ok(#(i, rest)) -> Ok(#(Some(i), rest))
       }
@@ -1137,7 +1138,7 @@ fn parse_literal_number(
   use #(exp, rest) <- result.try(case rest {
     "E+-" <> _ | "e+-" <> _ -> Error(ParseError("parse_literal_number"))
     "E+" <> rest | "e+" <> rest | "E" <> rest | "e" <> rest -> {
-      case get_next_int(rest, True, "") {
+      case get_next_int(rest, True) {
         Error(_) -> Error(NoMatch)
         Ok(#(i, rest)) -> Ok(#(Some(i), rest))
       }
@@ -1145,7 +1146,33 @@ fn parse_literal_number(
     _ -> Ok(#(None, rest))
   })
 
-  Ok(#(Number(neg:, int:, frac:, exp:), rest))
+  let num =
+    {
+      case neg {
+        True -> "-"
+        False -> ""
+      }
+    }
+    <> int.to_string(int)
+    <> {
+      case frac {
+        Some(f) -> "." <> f
+        None -> ""
+      }
+    }
+    <> {
+      case exp {
+        Some(e) -> "e" <> int.to_string(e)
+        None -> ""
+      }
+    }
+
+  use num <- result.try(
+    bigdecimal.from_string(num)
+    |> result.replace_error(ParseError("parse_literal_number")),
+  )
+
+  Ok(#(Number(num), rest))
 }
 
 fn do_parse_paren_expr(
@@ -1170,14 +1197,14 @@ fn do_parse_paren_expr(
   }
 }
 
-fn get_next_int(
+fn get_next_int_as_string(
   str: String,
   allow_leading: Bool,
   cur: String,
-) -> Result(#(Int, String), JsonPathError) {
+) -> Result(#(String, String), JsonPathError) {
   case str {
-    "-" <> rest if cur == "" -> get_next_int(rest, allow_leading, "-")
-    "0" <> rest if cur == "" -> get_next_int(rest, allow_leading, "0")
+    "-" <> rest if cur == "" -> get_next_int_as_string(rest, allow_leading, "-")
+    "0" <> rest if cur == "" -> get_next_int_as_string(rest, allow_leading, "0")
     "0" <> _ if !allow_leading && cur == "-" ->
       Error(ParseError("get_next_int 1"))
     "0" <> _
@@ -1201,14 +1228,26 @@ fn get_next_int(
     | "6" as n <> rest
     | "7" as n <> rest
     | "8" as n <> rest
-    | "9" as n <> rest -> get_next_int(rest, allow_leading, cur <> n)
+    | "9" as n <> rest -> get_next_int_as_string(rest, allow_leading, cur <> n)
     _ if cur == "" -> Error(NoMatch)
     _ -> {
-      case validate_int(cur) {
-        Error(e) -> Error(e)
-        Ok(i) -> Ok(#(i, str))
-      }
+      Ok(#(cur, str))
     }
+  }
+}
+
+fn get_next_int(
+  str: String,
+  allow_leading: Bool,
+) -> Result(#(Int, String), JsonPathError) {
+  use #(next_int, str) <- result.try(get_next_int_as_string(
+    str,
+    allow_leading,
+    "",
+  ))
+  case validate_int(next_int) {
+    Error(e) -> Error(e)
+    Ok(i) -> Ok(#(i, str))
   }
 }
 
@@ -1250,7 +1289,7 @@ pub type LogicalOrExpression {
 }
 
 pub type Literal {
-  Number(neg: Bool, int: Int, frac: Option(Int), exp: Option(Int))
+  Number(n: BigDecimal)
   String(String)
   Boolean(Bool)
   Null
