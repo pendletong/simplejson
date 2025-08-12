@@ -32,6 +32,12 @@ pub type ParseError {
 }
 
 pub type JsonPathError {
+  ParseError(context: String)
+  MissingRoot
+  IndexOutOfRange(i: Int)
+  NoMatch
+  FunctionError
+  ComparisonError
   InvalidJsonPath
   PathNotFound
 }

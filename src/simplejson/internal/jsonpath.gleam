@@ -6,7 +6,10 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import simplejson/jsonvalue.{type JsonValue}
+import simplejson/jsonvalue.{
+  type JsonPathError, type JsonValue, ComparisonError, FunctionError,
+  IndexOutOfRange, MissingRoot, NoMatch, ParseError,
+}
 
 pub type JsonPath =
   List(Segment)
@@ -22,15 +25,6 @@ pub type Selector {
 pub type Segment {
   Child(List(Selector))
   Descendant(List(Selector))
-}
-
-pub type JsonPathError {
-  ParseError(context: String)
-  MissingRoot
-  IndexOutOfRange(i: Int)
-  NoMatch
-  FunctionError
-  ComparisonError
 }
 
 type Type {
