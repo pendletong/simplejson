@@ -5,7 +5,7 @@ gleam = ">= 1.11.1"
 # Fill out these fields if you intend to generate HTML documentation or publish
 # your project to the Hex package manager.
 #
-description = "Native gleam json parser/generator"
+description = "Native gleam json parser/generator with jsonpath querying"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "pendletong", repo = "simplejson" }
 # links = [{ title = "Website", href = "" }]
