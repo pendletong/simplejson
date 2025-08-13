@@ -3,7 +3,6 @@ import gleam/int
 import gleam/list.{Continue, Stop}
 import gleam/result
 import simplejson
-import simplejson/internal/parser
 import simplejson/internal/schema/error.{
   type InvalidEntry, InvalidDataType, InvalidJson, InvalidSchema,
 }
