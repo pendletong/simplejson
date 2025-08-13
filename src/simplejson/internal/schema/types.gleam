@@ -2,7 +2,6 @@ import gleam/option.{type Option}
 
 import simplejson/jsonvalue.{type JsonValue}
 
-import gleam/dict.{type Dict}
 import simplejson/internal/schema/error.{type InvalidEntry}
 
 pub type Number {

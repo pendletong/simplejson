@@ -1,15 +1,8 @@
-import gleam/bit_array
 import gleam/dict
 import gleam/list
-import gleam/option.{type Option, None, Some}
-import gleam/result
-import simplejson/internal/schema/properties/properties.{
-  AnyProperty, EnumProperty, ListProperty, NeededProperty,
-}
+import gleam/option.{None, Some}
 import simplejson/internal/schema/schema
-import simplejson/jsonvalue.{
-  type JsonValue, JsonArray, JsonNull, JsonString, NoMD,
-}
+import simplejson/jsonvalue.{JsonString, NoMD}
 
 pub fn main() {
   //   parser.parse(
