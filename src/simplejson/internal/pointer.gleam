@@ -27,7 +27,7 @@ pub fn jsonpath(
       case int.parse(array_index) {
         Ok(index) ->
           case current_json {
-            JsonArray(_, json_list) ->
+            JsonArray(json_list, _) ->
               case dict.get(json_list, index) {
                 Ok(found_json) -> Ok(found_json)
                 Error(_) -> Error(PathNotFound)
@@ -39,7 +39,7 @@ pub fn jsonpath(
     // Path segment is a string, we should expect the given json to be an object
     _ ->
       case current_json {
-        JsonObject(_, found_dict) ->
+        JsonObject(found_dict, _) ->
           case dict.get(found_dict, path_segment) {
             Ok(json_found_at_path) -> Ok(json_found_at_path)
             Error(_) -> Error(PathNotFound)
@@ -74,12 +74,12 @@ pub fn jsonpointer(
     False -> Ok(path_segment)
   })
   case current_json {
-    JsonObject(_, found_dict) ->
+    JsonObject(found_dict, _) ->
       case dict.get(found_dict, path_segment) {
         Ok(json_found_at_path) -> Ok(json_found_at_path)
         Error(_) -> Error(PathNotFound)
       }
-    JsonArray(_, found_dict) -> {
+    JsonArray(found_dict, _) -> {
       use i <- result.try(
         int.parse(path_segment)
         |> result.replace_error(ParseError(path_segment <> " is not a number")),

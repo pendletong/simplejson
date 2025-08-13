@@ -5,6 +5,7 @@
 //// and to then output that as a string again.
 
 import gleam/dict
+import gleam/option.{None}
 import gleam/result
 import simplejson/internal/jsonpath.{type JsonPath}
 import simplejson/internal/parser
@@ -13,7 +14,7 @@ import simplejson/internal/query
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{
   type JsonPathError, type JsonValue, type ParseError, JsonArray, JsonBool,
-  JsonNull, JsonNumber, JsonObject, JsonString, NoMD,
+  JsonNull, JsonNumber, JsonObject, JsonString,
 }
 
 /// Parse a given string into a JsonValue Result.
@@ -52,14 +53,14 @@ pub fn parse(json: String) -> Result(JsonValue, ParseError) {
 
 fn strip_metadata(json: JsonValue) -> JsonValue {
   case json {
-    JsonNull(_) -> JsonNull(NoMD)
-    JsonBool(_, b) -> JsonBool(NoMD, b)
-    JsonString(_, s) -> JsonString(NoMD, s)
-    JsonNumber(_, i, f, o) -> JsonNumber(NoMD, i, f, o)
-    JsonArray(_, l) ->
-      JsonArray(NoMD, dict.map_values(l, fn(_k, v) { strip_metadata(v) }))
-    JsonObject(_, d) ->
-      JsonObject(NoMD, dict.map_values(d, fn(_k, v) { strip_metadata(v) }))
+    JsonNull(_) -> JsonNull(None)
+    JsonBool(b, _) -> JsonBool(b, None)
+    JsonString(s, _) -> JsonString(s, None)
+    JsonNumber(i, f, o, _) -> JsonNumber(i, f, o, None)
+    JsonArray(l, _) ->
+      JsonArray(dict.map_values(l, fn(_k, v) { strip_metadata(v) }), None)
+    JsonObject(d, _) ->
+      JsonObject(dict.map_values(d, fn(_k, v) { strip_metadata(v) }), None)
   }
 }
 

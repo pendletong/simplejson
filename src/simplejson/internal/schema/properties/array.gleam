@@ -35,7 +35,7 @@ fn min_items(
     IntValue(_, i) -> {
       Ok(fn(v) {
         case v {
-          JsonArray(_, l) -> {
+          JsonArray(l, _) -> {
             case dict.size(l) >= i {
               True -> None
               False -> Some(FailedProperty(value, v))
@@ -56,7 +56,7 @@ fn max_items(
     IntValue(_, i) -> {
       Ok(fn(v) {
         case v {
-          JsonArray(_, l) -> {
+          JsonArray(l, _) -> {
             case dict.size(l) <= i {
               True -> None
               False -> Some(FailedProperty(value, v))
@@ -77,7 +77,7 @@ fn unique_items(
     BooleanValue(_, True) -> {
       Ok(fn(v) {
         case v {
-          JsonArray(_, l) -> {
+          JsonArray(l, _) -> {
             case list.length(list.unique(dict.values(l))) == dict.size(l) {
               True -> None
               False -> Some(FailedProperty(value, v))

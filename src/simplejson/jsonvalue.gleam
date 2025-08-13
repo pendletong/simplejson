@@ -3,31 +3,30 @@ import gleam/option.{type Option}
 
 pub type JsonMetaData {
   JsonMetaData(start_position: Int, end_position: Int)
-  NoMD
 }
 
 /// Type that wraps all JSON value types
 pub type JsonValue {
   /// Wraps a string value
-  JsonString(metadata: JsonMetaData, str: String)
+  JsonString(str: String, metadata: Option(JsonMetaData))
   /// Wraps a number value and stores an int or float depending
   /// on the input type.
   /// Also the original is stored as a String if the JSON has been parsed
   /// from text
   JsonNumber(
-    metadata: JsonMetaData,
     int: Option(Int),
     float: Option(Float),
     original: Option(String),
+    metadata: Option(JsonMetaData),
   )
   /// Wraps a boolean value
-  JsonBool(metadata: JsonMetaData, bool: Bool)
+  JsonBool(bool: Bool, metadata: Option(JsonMetaData))
   /// Indicates a null value
-  JsonNull(metadata: JsonMetaData)
+  JsonNull(metadata: Option(JsonMetaData))
   /// Wraps an array value
-  JsonArray(metadata: JsonMetaData, array: Dict(Int, JsonValue))
+  JsonArray(array: Dict(Int, JsonValue), metadata: Option(JsonMetaData))
   /// Wraps an object value
-  JsonObject(metadata: JsonMetaData, object: Dict(String, JsonValue))
+  JsonObject(object: Dict(String, JsonValue), metadata: Option(JsonMetaData))
 }
 
 pub type ParseError {
