@@ -64,14 +64,14 @@ pub fn test_folder(folder: String) {
 
 fn run_tests_in_json(json: JsonValue) {
   case json {
-    JsonObject(_, d) -> {
+    JsonObject(d, _) -> {
       case dict.get(d, "tests") {
-        Ok(JsonArray(_, a)) -> {
+        Ok(JsonArray(a, _)) -> {
           list.range(0, dict.size(a) - 1)
           |> list.map(fn(i) {
-            let assert Ok(JsonObject(_, t)) = dict.get(a, i)
+            let assert Ok(JsonObject(t, _)) = dict.get(a, i)
             case dict.get(t, "name") {
-              Ok(JsonString(_, n)) -> {
+              Ok(JsonString(n, _)) -> {
                 it(n, fn() { run_test_in_json(t) })
               }
               _ -> panic
@@ -86,10 +86,10 @@ fn run_tests_in_json(json: JsonValue) {
 }
 
 fn run_test_in_json(t) {
-  let assert Ok(JsonString(_, selector)) = dict.get(t, "selector")
+  let assert Ok(JsonString(selector, _)) = dict.get(t, "selector")
 
   case dict.get(t, "invalid_selector") {
-    Ok(jsonvalue.JsonBool(_, True)) -> {
+    Ok(jsonvalue.JsonBool(True, _)) -> {
       jsonpath.parse_path(selector) |> expect.to_be_error
       Nil
     }
@@ -106,7 +106,7 @@ fn run_test_in_json(t) {
         }
         Error(_) -> {
           case dict.get(t, "results") {
-            Ok(JsonArray(_, d)) -> {
+            Ok(JsonArray(d, _)) -> {
               expect.list_to_contain(dict.values(d), ours)
             }
             _ -> panic

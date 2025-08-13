@@ -32,28 +32,30 @@ pub fn suite_tests() {
       |> simplejson.parse
       |> expect.to_be_ok
     {
-      JsonArray(_, items) -> {
+      JsonArray(items, _) -> {
         Ok(describe(
           filename,
           list.try_map(stringify.dict_to_ordered_list(items), fn(t) {
             case t {
-              JsonObject(_, entries) -> {
+              JsonObject(entries, _) -> {
+                use description <- result.try(dict.get(entries, "description"))
                 use schema <- result.try(dict.get(entries, "schema"))
                 use tests <- result.try(dict.get(entries, "tests"))
                 case tests {
-                  JsonArray(_, t) -> {
+                  JsonArray(t, _) -> {
                     list.try_map(
                       stringify.dict_to_ordered_list(t),
                       fn(test_json) {
                         case test_json {
-                          JsonObject(_, d) -> {
+                          JsonObject(d, _) -> {
                             use data <- result.try(dict.get(d, "data"))
                             use valid <- result.try(dict.get(d, "valid"))
                             use desc <- result.try(dict.get(d, "description"))
-                            let assert JsonString(_, desc) = desc
-                            let assert JsonBool(_, valid) = valid
+                            let assert JsonString(desc, _) = desc
+                            let assert JsonBool(valid, _) = valid
+                            let assert JsonString(description, _) = description
                             Ok(
-                              it(desc, fn() {
+                              it(description <> " -> " <> desc, fn() {
                                 let res = schema.validate_json(schema, data)
                                 case valid {
                                   True -> {
