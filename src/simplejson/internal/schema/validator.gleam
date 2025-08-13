@@ -91,7 +91,7 @@ fn validate_array_contains(
   max: Option(Int),
 ) -> List(InvalidEntry) {
   case node {
-    JsonArray(_, l) -> {
+    JsonArray(l, _) -> {
       let res =
         list.fold(stringify.dict_to_ordered_list(l), #(0, []), fn(acc, node) {
           case validate_node(node, v_node) {
@@ -135,7 +135,7 @@ pub fn validate_array(
   prefix_items: Option(List(ValidationNode)),
 ) -> Result(Bool, List(InvalidEntry)) {
   case node {
-    JsonArray(_, l) -> {
+    JsonArray(l, _) -> {
       use remaining_nodes <- result.try(case prefix_items {
         Some(val_nodes) -> {
           use rem_nodes <- result.try(
@@ -245,8 +245,8 @@ fn validate_multinode(
     types.All -> validate_all
     types.Any -> validate_any
     types.AllBreakAfterFirst -> validate_all_break
-    types.None -> todo
-    types.One -> todo
+    types.None -> todo as "types none"
+    types.One -> todo as "types one"
   }
   case comp(node, validators) {
     [] -> Ok(True)

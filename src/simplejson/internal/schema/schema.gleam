@@ -24,7 +24,7 @@ import simplejson/internal/schema/validator
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
-  JsonString, NoMD,
+  JsonString,
 }
 
 import gleam/dict.{type Dict}
@@ -53,7 +53,7 @@ pub fn validate_json(
   }
 }
 
-fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
+pub fn generate_schema(schema: String) -> Result(Schema, InvalidEntry) {
   use schema <- result.try(
     simplejson.parse(schema) |> result.replace_error(InvalidSchema(2)),
   )
@@ -86,13 +86,13 @@ pub fn decode_property(
 
 const type_properties = EnumProperty(
   [
-    JsonString(NoMD, "array"),
-    JsonString(NoMD, "boolean"),
-    JsonString(NoMD, "integer"),
-    JsonString(NoMD, "null"),
-    JsonString(NoMD, "number"),
-    JsonString(NoMD, "object"),
-    JsonString(NoMD, "string"),
+    JsonString("array", None),
+    JsonString("boolean", None),
+    JsonString("integer", None),
+    JsonString("null", None),
+    JsonString("number", None),
+    JsonString("object", None),
+    JsonString("string", None),
   ],
 )
 
@@ -154,13 +154,13 @@ fn generate_validation(
   root: Option(ValidationNode),
 ) -> Result(ValidationNode, InvalidEntry) {
   case schema {
-    JsonBool(_, value) -> Ok(SimpleValidation(value))
-    JsonObject(_, obj) -> {
+    JsonBool(value, _) -> Ok(SimpleValidation(value))
+    JsonObject(obj, _) -> {
       case dict.is_empty(obj) {
         True -> Ok(SimpleValidation(True))
         False -> {
           use type_node <- result.try(case dict.get(obj, "type") {
-            Ok(JsonString(_, data_type)) -> {
+            Ok(JsonString(data_type, _)) -> {
               use node <- result.try(generate_specified_validation(
                 data_type,
                 obj,
@@ -168,7 +168,7 @@ fn generate_validation(
               ))
               Ok(Some(node))
             }
-            Ok(JsonArray(_, data_types)) -> {
+            Ok(JsonArray(data_types, _)) -> {
               generate_multi_node(
                 stringify.dict_to_ordered_list(data_types),
                 obj,
@@ -183,7 +183,7 @@ fn generate_validation(
           })
 
           use enum_node <- result.try(case dict.get(obj, "enum") {
-            Ok(JsonArray(_, values)) -> {
+            Ok(JsonArray(values, _)) -> {
               Ok(Some(EnumNode(stringify.dict_to_ordered_list(values))))
             }
             Ok(_) -> Error(InvalidSchema(23))
@@ -215,7 +215,7 @@ fn generate_multi_node(
   use multi_node <- result.try(
     list.try_map(data_types, fn(data_type) {
       case data_type {
-        JsonString(_, data_type) -> {
+        JsonString(data_type, _) -> {
           use node <- result.try(generate_specified_validation(
             data_type,
             obj,
@@ -250,7 +250,7 @@ fn generate_specified_validation(
     }
     "boolean" -> Ok(BooleanNode)
     "null" -> Ok(NullNode)
-    "object" -> todo
+    "object" -> todo as "object schema"
     _ -> Error(InvalidSchema(34))
   }
 }
@@ -261,8 +261,10 @@ fn generate_array_validation(
 ) -> Result(ValidationNode, InvalidEntry) {
   use items <- result.try(get_meta(dict, root, "items"))
 
+  "array validation" |> echo
+  items |> echo
   use prefix_items <- result.try(case dict.get(dict, "prefixItems") {
-    Ok(JsonArray(_, l)) -> {
+    Ok(JsonArray(l, _)) -> {
       use val_nodes <- result.try(
         list.try_map(stringify.dict_to_ordered_list(l), fn(i) {
           generate_validation(i, root)
@@ -303,7 +305,7 @@ fn get_meta(
 
       Ok(Some(vn))
     }
-    Ok(JsonBool(_, b)) -> Ok(Some(SimpleValidation(b)))
+    Ok(JsonBool(b, _)) -> Ok(Some(SimpleValidation(b)))
     Ok(_) -> Error(InvalidSchema(30))
     Error(_) -> {
       Ok(None)
@@ -364,8 +366,8 @@ fn generate_int_validation(
       PropertiesNode([
         fn(num) {
           case num {
-            JsonNumber(_, Some(_), _, _) -> None
-            JsonNumber(_, _, Some(f), _) -> {
+            JsonNumber(Some(_), _, _, _) -> None
+            JsonNumber(_, Some(f), _, _) -> {
               case f == int.to_float(float.truncate(f)) {
                 True -> None
                 False -> Some(InvalidDataType(num))

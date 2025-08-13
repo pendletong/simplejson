@@ -15,26 +15,26 @@ pub fn to_string(json: JsonValue) -> String {
 
 fn create_string(json: JsonValue, acc: String) -> String {
   case json {
-    JsonBool(_, b) -> {
+    JsonBool(b, _) -> {
       case b {
         True -> acc <> "true"
         False -> acc <> "false"
       }
     }
-    JsonString(_, s) -> {
+    JsonString(s, _) -> {
       acc <> "\"" <> encode_string(s, "") <> "\""
     }
-    JsonArray(_, l) ->
+    JsonArray(l, _) ->
       acc <> "[" <> encode_list(dict_to_ordered_list(l), "") <> "]"
     JsonNull(_) -> acc <> "null"
-    JsonNumber(_, _, _, Some(s)) -> acc <> s
-    JsonNumber(_, Some(i), _, _) -> acc <> encode_int(i)
-    JsonNumber(_, _, Some(f), _) -> acc <> encode_float(f)
-    JsonNumber(_, None, None, _) -> {
+    JsonNumber(_, _, Some(s), _) -> acc <> s
+    JsonNumber(Some(i), _, _, _) -> acc <> encode_int(i)
+    JsonNumber(_, Some(f), _, _) -> acc <> encode_float(f)
+    JsonNumber(None, None, _, _) -> {
       // Should never happen but output 0 if it does
       acc <> "0"
     }
-    JsonObject(_, o) -> acc <> "{" <> encode_object(o) <> "}"
+    JsonObject(o, _) -> acc <> "{" <> encode_object(o) <> "}"
   }
 }
 

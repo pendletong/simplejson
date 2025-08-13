@@ -140,21 +140,27 @@ fn do_parse(
     "true" <> rest -> {
       Ok(ReturnInfo(
         rest,
-        JsonBool(JsonMetaData(current_pos.char, current_pos.char + 4), True),
+        JsonBool(
+          True,
+          Some(JsonMetaData(current_pos.char, current_pos.char + 4)),
+        ),
         increment_location(current_pos, 4, 0),
       ))
     }
     "false" <> rest -> {
       Ok(ReturnInfo(
         rest,
-        JsonBool(JsonMetaData(current_pos.char, current_pos.char + 5), False),
+        JsonBool(
+          False,
+          Some(JsonMetaData(current_pos.char, current_pos.char + 5)),
+        ),
         increment_location(current_pos, 5, 0),
       ))
     }
     "null" <> rest -> {
       Ok(ReturnInfo(
         rest,
-        JsonNull(JsonMetaData(current_pos.char, current_pos.char + 4)),
+        JsonNull(Some(JsonMetaData(current_pos.char, current_pos.char + 4))),
         increment_location(current_pos, 4, 0),
       ))
     }
@@ -206,8 +212,8 @@ fn do_parse_object(
           Ok(ReturnInfo(
             rest,
             JsonObject(
-              JsonMetaData(current_pos.block_start, current_pos.char),
               obj,
+              Some(JsonMetaData(current_pos.block_start, current_pos.char)),
             ),
             current_pos,
           ))
@@ -221,7 +227,7 @@ fn do_parse_object(
           case
             do_parse_string(rest, "", increment_location(current_pos, 1, 0))
           {
-            Ok(ReturnInfo(rest, JsonString(_, key), loc)) ->
+            Ok(ReturnInfo(rest, JsonString(key, _), loc)) ->
               do_parse_object(
                 rest,
                 obj,
@@ -282,7 +288,10 @@ fn do_parse_string(
       let current_pos = increment_location(current_pos, 1, 0)
       Ok(ReturnInfo(
         rest,
-        JsonString(JsonMetaData(current_pos.block_start, current_pos.char), str),
+        JsonString(
+          str,
+          Some(JsonMetaData(current_pos.block_start, current_pos.char)),
+        ),
         current_pos,
       ))
     }
@@ -462,8 +471,8 @@ fn do_parse_list(
       Ok(ReturnInfo(
         rest,
         JsonArray(
-          JsonMetaData(current_pos.block_start, current_pos.char),
           list_to_indexed_dict(list.reverse(list)),
+          Some(JsonMetaData(current_pos.block_start, current_pos.char)),
         ),
         current_pos,
       ))
@@ -567,10 +576,10 @@ fn do_parse_number(
     "", "" -> {
       use i <- result.try(decode_int(num, "", 0))
       Ok(JsonNumber(
-        JsonMetaData(original_pos.char, current_pos.char),
         Some(i),
         None,
         Some(original),
+        Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
     "", "-" <> exp -> {
@@ -584,19 +593,19 @@ fn do_parse_number(
         True -> {
           use i <- result.try(decode_int(num, "", -exp))
           Ok(JsonNumber(
-            JsonMetaData(original_pos.char, current_pos.char),
             Some(i),
             None,
             Some(original),
+            Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         }
         False -> {
           use f <- result.try(decode_float(num, fraction, -exp))
           Ok(JsonNumber(
-            JsonMetaData(original_pos.char, current_pos.char),
             None,
             Some(f),
             Some(original),
+            Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         }
       }
@@ -612,19 +621,19 @@ fn do_parse_number(
       )
       use i <- result.try(decode_int(num, "", exp))
       Ok(JsonNumber(
-        JsonMetaData(original_pos.char, current_pos.char),
         Some(i),
         None,
         Some(original),
+        Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
     _, "" -> {
       use f <- result.try(decode_float(num, fraction, 0))
       Ok(JsonNumber(
-        JsonMetaData(original_pos.char, current_pos.char),
         None,
         Some(f),
         Some(original),
+        Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
     _, "-" <> exp -> {
@@ -634,10 +643,10 @@ fn do_parse_number(
       )
       use f <- result.try(decode_float(num, fraction, -exp))
       Ok(JsonNumber(
-        JsonMetaData(original_pos.char, current_pos.char),
         None,
         Some(f),
         Some(original),
+        Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
     _, "+" <> exp | _, exp -> {
@@ -654,19 +663,19 @@ fn do_parse_number(
         True -> {
           use i <- result.try(decode_int(num, fraction, exp))
           Ok(JsonNumber(
-            JsonMetaData(original_pos.char, current_pos.char),
             Some(i),
             None,
             Some(original),
+            Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         }
         False -> {
           use f <- result.try(decode_float(num, fraction, exp))
           Ok(JsonNumber(
-            JsonMetaData(original_pos.char, current_pos.char),
             None,
             Some(f),
             Some(original),
+            Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         }
       }

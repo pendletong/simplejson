@@ -1,8 +1,4 @@
-import gleam/dict
-import gleam/list
-import gleam/option.{None, Some}
 import simplejson/internal/schema/schema
-import simplejson/jsonvalue.{JsonString, NoMD}
 
 pub fn main() {
   //   parser.parse(
@@ -179,34 +175,41 @@ pub fn main() {
   // simplejson.parse("{\"a\": []}")
   // |> echo
 
-  list.each(schema.properties, fn(prop) {
-    case
-      schema.decode_property(
-        prop,
-        dict.from_list([#("type", JsonString(NoMD, "string"))]),
-        // dict.from_list([
-      //   #(
-      //     "type",
-      //     JsonArray(NoMD, [
-      //       JsonString(NoMD, "array"),
-      //       JsonString(NoMD, "number"),
-      //     ]),
-      //   ),
-      // ]),
-      )
-      |> echo
-    {
-      Error(_) -> Nil
+  schema.generate_schema(
+    "{
+      \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
+      \"type\": [\"array\", \"object\"]
+  }",
+  )
+  |> echo
+  // list.each(schema.properties, fn(prop) {
+  //   case
+  //     schema.decode_property(
+  //       prop,
+  //       dict.from_list([#("type", JsonString(NoMD, "string"))]),
+  //       // dict.from_list([
+  //     //   #(
+  //     //     "type",
+  //     //     JsonArray(NoMD, [
+  //     //       JsonString(NoMD, "array"),
+  //     //       JsonString(NoMD, "number"),
+  //     //     ]),
+  //     //   ),
+  //     // ]),
+  //     )
+  //     |> echo
+  //   {
+  //     Error(_) -> Nil
 
-      Ok(Some(f)) -> {
-        // f(JsonArray(NoMD, []))
-        // f(JsonNull(NoMD))
-        f(JsonString(NoMD, "Test"))
-        |> echo
-        Nil
-      }
+  //     Ok(Some(f)) -> {
+  //       // f(JsonArray(NoMD, []))
+  //       // f(JsonNull(NoMD))
+  //       f(JsonString(NoMD, "Test"))
+  //       |> echo
+  //       Nil
+  //     }
 
-      Ok(None) -> Nil
-    }
-  })
+  //     Ok(None) -> Nil
+  //   }
+  // })
 }
