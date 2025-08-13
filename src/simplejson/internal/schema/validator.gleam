@@ -1,11 +1,8 @@
-import gleam/dict
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import simplejson
 import simplejson/internal/schema/error.{
-  type InvalidEntry, FailedProperty, FalseSchema, InvalidDataType, InvalidJson,
-  NotMatchEnum,
+  type InvalidEntry, FailedProperty, FalseSchema, InvalidDataType, NotMatchEnum,
 }
 import simplejson/internal/schema/properties/number.{validate_number}
 import simplejson/internal/schema/properties/propertyvalues.{IntValue}
@@ -13,7 +10,7 @@ import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
   type Combination, type Schema, type ValidationNode, ArrayNode, BooleanNode,
   ContainsNode, EnumNode, MultiNode, NullNode, NumberNode, PropertiesNode,
-  Schema, SimpleValidation, StringNode,
+  SimpleValidation, StringNode,
 }
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonNull}
@@ -96,7 +93,7 @@ fn validate_array_contains(
   case node {
     JsonArray(_, l) -> {
       let res =
-        dict.fold(l, #(0, []), fn(acc, k, node) {
+        list.fold(stringify.dict_to_ordered_list(l), #(0, []), fn(acc, node) {
           case validate_node(node, v_node) {
             Ok(_) -> {
               #(acc.0 + 1, acc.1)
