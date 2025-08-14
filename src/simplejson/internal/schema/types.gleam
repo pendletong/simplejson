@@ -12,12 +12,14 @@ pub type Combination {
   All
   AllBreakAfterFirst
   Any
+  AnyFail
   One
   None
 }
 
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
+  IfNode(check: ValidationNode, then: ValidationNode)
   MultiNode(validations: List(ValidationNode), combination: Combination)
   PropertiesNode(properties: List(fn(JsonValue) -> Option(InvalidEntry)))
   StringNode
@@ -26,6 +28,7 @@ pub type ValidationNode {
     items: Option(ValidationNode),
     prefix_items: Option(List(ValidationNode)),
   )
+  ObjectNode
   ContainsNode(item: ValidationNode, max: Option(Int), min: Option(Int))
   EnumNode(value: List(JsonValue))
   BooleanNode
