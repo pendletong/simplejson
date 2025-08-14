@@ -1,4 +1,5 @@
 import gleam/dict.{type Dict}
+import gleam/float
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/regexp.{Options}
@@ -159,6 +160,14 @@ pub fn get_int_property(
     Ok(JsonNumber(Some(val), _, _, _)) -> {
       Ok(Some(IntValue(property, val)))
     }
+    Ok(JsonNumber(_, Some(val), _, _)) -> {
+      case float.floor(val) {
+        fval if fval == val -> {
+          Ok(Some(IntValue(property, float.truncate(fval))))
+        }
+        _ -> Error(InvalidSchema(6))
+      }
+    }
     Ok(_) -> Error(InvalidSchema(6))
     _ -> Ok(None)
   }
@@ -171,6 +180,14 @@ pub fn get_positive_int_property(
   case dict.get(dict, property) {
     Ok(JsonNumber(Some(val), _, _, _)) if val >= 0 -> {
       Ok(Some(IntValue(property, val)))
+    }
+    Ok(JsonNumber(_, Some(val), _, _)) if val >=. 0.0 -> {
+      case float.floor(val) {
+        fval if fval == val -> {
+          Ok(Some(IntValue(property, float.truncate(fval))))
+        }
+        _ -> Error(InvalidSchema(6))
+      }
     }
     Ok(_) -> Error(InvalidSchema(6))
     _ -> Ok(None)
