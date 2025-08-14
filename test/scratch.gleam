@@ -1,4 +1,7 @@
+import gleam/result
+import simplejson/internal/parser
 import simplejson/internal/schema/schema
+import simplejson/internal/schema/validator
 
 pub fn main() {
   //   parser.parse(
@@ -175,13 +178,17 @@ pub fn main() {
   // simplejson.parse("{\"a\": []}")
   // |> echo
 
-  schema.generate_schema(
-    "{
-      \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
-      \"type\": [\"array\", \"object\"]
-  }",
-  )
-  |> echo
+  let assert Ok(json) = parser.parse("{}")
+  let assert Ok(schema) =
+    schema.generate_schema(
+      "{
+          \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
+          \"minProperties\": 1.0
+      }",
+    )
+    |> echo
+
+  validator.do_validate(json, schema) |> echo
   // list.each(schema.properties, fn(prop) {
   //   case
   //     schema.decode_property(

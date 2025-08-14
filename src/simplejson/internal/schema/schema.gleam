@@ -8,6 +8,7 @@ import simplejson/internal/schema/error.{
 }
 import simplejson/internal/schema/properties/array.{array_properties}
 import simplejson/internal/schema/properties/number.{int_properties}
+import simplejson/internal/schema/properties/object.{object_properties}
 import simplejson/internal/schema/properties/properties.{
   type Property, AnyProperty, EnumProperty, ListProperty,
 }
@@ -18,7 +19,7 @@ import simplejson/internal/schema/properties/string.{string_properties}
 import simplejson/internal/schema/types.{
   type Schema, type ValidationNode, All, AllBreakAfterFirst, Any, ArrayNode,
   BooleanNode, ContainsNode, EnumNode, MultiNode, NullNode, NumberNode,
-  PropertiesNode, Schema, SimpleValidation, StringNode,
+  ObjectNode, PropertiesNode, Schema, SimpleValidation, StringNode,
 }
 import simplejson/internal/schema/validator
 import simplejson/internal/stringify
@@ -29,6 +30,11 @@ import simplejson/jsonvalue.{
 
 import gleam/dict.{type Dict}
 import gleam/option.{type Option, None, Some}
+
+const general_checks = [
+  #(ArrayNode(None, None), array_properties),
+  #(ObjectNode, object_properties),
+]
 
 pub fn validate(
   json: String,
@@ -153,7 +159,7 @@ fn generate_validation(
   schema: JsonValue,
   root: Option(ValidationNode),
 ) -> Result(ValidationNode, InvalidEntry) {
-  case schema {
+  case schema |> echo {
     JsonBool(value, _) -> Ok(SimpleValidation(value))
     JsonObject(obj, _) -> {
       case dict.is_empty(obj) {
@@ -190,7 +196,33 @@ fn generate_validation(
             Error(_) -> Ok(None)
           })
 
-          Ok(MultiNode(combine_nodes([type_node, enum_node]), All))
+          use const_node <- result.try(case dict.get(obj, "const") {
+            Ok(obj) -> {
+              Ok(Some(EnumNode([obj])))
+            }
+            Error(_) -> Ok(None)
+          })
+
+          use props_checks <- result.try(
+            list.try_map(general_checks, fn(check) {
+              let #(vn, props_check) = check
+              use props <- result.try(get_properties(props_check, obj))
+              case props {
+                [] -> Ok(None)
+                _ -> Ok(Some(types.IfNode(vn, PropertiesNode(props))))
+              }
+            }),
+          )
+
+          let props_checks = case props_checks {
+            [] -> None
+            _ -> Some(MultiNode(combine_nodes(props_checks), types.AnyFail))
+          }
+
+          Ok(MultiNode(
+            combine_nodes([type_node, enum_node, const_node, props_checks]),
+            All,
+          ))
         }
       }
     }
@@ -236,23 +268,29 @@ fn generate_specified_validation(
   root: Option(ValidationNode),
 ) -> Result(ValidationNode, InvalidEntry) {
   case data_type {
-    "string" -> {
-      generate_string_validation(dict)
-    }
-    "integer" -> {
-      generate_int_validation(dict)
-    }
-    "number" -> {
-      generate_number_validation(dict)
-    }
-    "array" -> {
-      generate_array_validation(dict, root)
-    }
+    "string" -> generate_string_validation(dict)
+    "integer" -> generate_int_validation(dict)
+    "number" -> generate_number_validation(dict)
+    "array" -> generate_array_validation(dict, root)
     "boolean" -> Ok(BooleanNode)
     "null" -> Ok(NullNode)
-    "object" -> todo as "object schema"
+    "object" -> generate_object_validation(dict, root)
     _ -> Error(InvalidSchema(34))
   }
+}
+
+fn generate_object_validation(
+  dict: Dict(String, JsonValue),
+  root: Option(ValidationNode),
+) -> Result(ValidationNode, InvalidEntry) {
+  use items <- result.try(get_meta(dict, root, "items"))
+
+  "object validation" |> echo
+  items |> echo
+
+  use props <- result.try(get_properties(object_properties, dict))
+  props |> echo as "schemaprops"
+  Ok(MultiNode([ObjectNode, PropertiesNode(props)], AllBreakAfterFirst))
 }
 
 fn generate_array_validation(

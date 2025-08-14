@@ -1,3 +1,6 @@
+import gleam/bool
+import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -9,11 +12,13 @@ import simplejson/internal/schema/properties/propertyvalues.{IntValue}
 import simplejson/internal/schema/properties/string.{validate_string}
 import simplejson/internal/schema/types.{
   type Combination, type Schema, type ValidationNode, ArrayNode, BooleanNode,
-  ContainsNode, EnumNode, MultiNode, NullNode, NumberNode, PropertiesNode,
-  SimpleValidation, StringNode,
+  ContainsNode, EnumNode, MultiNode, NullNode, NumberNode, ObjectNode,
+  PropertiesNode, SimpleValidation, StringNode,
 }
 import simplejson/internal/stringify
-import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonNull}
+import simplejson/jsonvalue.{
+  type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
+}
 
 pub fn do_validate(
   json: JsonValue,
@@ -27,6 +32,12 @@ fn validate_node(
   with validation_node: ValidationNode,
 ) -> Result(Bool, List(InvalidEntry)) {
   case validation_node {
+    types.IfNode(check:, then:) -> {
+      case validate_node(node, check) {
+        Ok(True) -> validate_node(node, then)
+        _ -> Ok(True)
+      }
+    }
     EnumNode(values) -> {
       validate_enum(node, values)
     }
@@ -42,6 +53,7 @@ fn validate_node(
     ArrayNode(items, tuple) -> {
       validate_array(node, items, tuple)
     }
+
     ContainsNode(v_node, min, max) -> {
       let res = validate_array_contains(node, v_node, min, max)
       case res {
@@ -58,6 +70,7 @@ fn validate_node(
     SimpleValidation(True) -> {
       Ok(True)
     }
+    ObjectNode -> validate_object(node)
     SimpleValidation(False) -> {
       Error([FalseSchema])
     }
@@ -126,6 +139,15 @@ fn validate_array_contains(
       |> list.append(max_errs)
     }
     _ -> []
+  }
+}
+
+pub fn validate_object(node: JsonValue) -> Result(Bool, List(InvalidEntry)) {
+  case node {
+    JsonObject(_d, _) -> {
+      Ok(True)
+    }
+    _ -> Error([InvalidDataType(node)])
   }
 }
 
@@ -201,7 +223,39 @@ fn validate_enum(
 }
 
 fn match_nodes(node1: JsonValue, node2: JsonValue) -> Bool {
-  node1 == node2
+  case node1, node2 {
+    JsonNumber(Some(i1), _, _, _), JsonNumber(Some(i2), _, _, _) -> i1 == i2
+    JsonNumber(Some(i), _, _, _), JsonNumber(_, Some(f), _, _)
+    | JsonNumber(_, Some(f), _, _), JsonNumber(Some(i), _, _, _)
+    -> f == int.to_float(i)
+    JsonArray(l1, _), JsonArray(l2, _) -> {
+      use <- bool.guard(when: dict.size(l1) != dict.size(l2), return: False)
+
+      match_dict(l1, l2)
+    }
+    JsonObject(l1, _), JsonObject(l2, _) -> {
+      use <- bool.guard(when: dict.size(l1) != dict.size(l2), return: False)
+
+      match_dict(l1, l2)
+    }
+    _, _ -> node1 == node2
+  }
+}
+
+fn match_dict(d1: Dict(a, JsonValue), d2: Dict(a, JsonValue)) -> Bool {
+  list.fold_until(dict.keys(d1), True, fn(_, k) {
+    case dict.get(d2, k) {
+      Error(_) -> Stop(False)
+      Ok(v2) -> {
+        let assert Ok(v1) = dict.get(d1, k)
+
+        case match_nodes(v1, v2) {
+          True -> Continue(True)
+          False -> Stop(False)
+        }
+      }
+    }
+  })
 }
 
 fn validate_all(node: JsonValue, validators: List(ValidationNode)) {
@@ -236,6 +290,15 @@ fn validate_any(node: JsonValue, validators: List(ValidationNode)) {
   })
 }
 
+fn validate_any_fail(node: JsonValue, validators: List(ValidationNode)) {
+  list.fold_until(validators, [], fn(errors, val) {
+    case validate_node(node, val) {
+      Ok(_) -> Continue([])
+      Error(err) -> Stop(list.append(errors, err))
+    }
+  })
+}
+
 fn validate_multinode(
   node: JsonValue,
   validators: List(ValidationNode),
@@ -245,6 +308,7 @@ fn validate_multinode(
     types.All -> validate_all
     types.Any -> validate_any
     types.AllBreakAfterFirst -> validate_all_break
+    types.AnyFail -> validate_any_fail
     types.None -> todo as "types none"
     types.One -> todo as "types one"
   }
