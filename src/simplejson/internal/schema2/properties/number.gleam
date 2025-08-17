@@ -118,7 +118,7 @@ fn exclusive_minimum(
       Ok(fn(jsonvalue: JsonValue) {
         case do_compare_numbers(value, or_value, jsonvalue) {
           Ok(order.Lt) -> Valid
-          Ok(_) -> InvalidComparison(v, "minimum", jsonvalue)
+          Ok(_) -> InvalidComparison(v, "exclusiveMinimum", jsonvalue)
           Error(err) -> err
         }
       })
@@ -135,7 +135,7 @@ fn maximum(
       Ok(fn(jsonvalue: JsonValue) {
         case do_compare_numbers(value, or_value, jsonvalue) {
           Ok(order.Eq) | Ok(order.Gt) -> Valid
-          Ok(_) -> InvalidComparison(v, "minimum", jsonvalue)
+          Ok(_) -> InvalidComparison(v, "maximum", jsonvalue)
           Error(err) -> err
         }
       })
@@ -152,7 +152,7 @@ fn exclusive_maximum(
       Ok(fn(jsonvalue: JsonValue) {
         case do_compare_numbers(value, or_value, jsonvalue) {
           Ok(order.Gt) -> Valid
-          Ok(_) -> InvalidComparison(v, "minimum", jsonvalue)
+          Ok(_) -> InvalidComparison(v, "exclusiveMaximum", jsonvalue)
           Error(err) -> err
         }
       })
