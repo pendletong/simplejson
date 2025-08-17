@@ -19,7 +19,7 @@ import simplejson/internal/schema2/types.{
 import simplejson/internal/utils.{unwrap_option_result}
 import simplejson/jsonvalue.{type JsonValue, JsonBool, JsonObject}
 
-pub const type_checks = [
+const type_checks = [
   #(StringValue("", "number"), number.num_properties, types.Number),
   #(StringValue("", "integer"), number.num_properties, types.Integer),
   #(StringValue("", "string"), string.string_properties, types.String),
@@ -58,7 +58,7 @@ pub fn get_validator(schema: String) -> Result(Schema, SchemaError) {
   get_validator_from_json(schema)
 }
 
-fn get_validator_from_json(
+pub fn get_validator_from_json(
   schema_json: JsonValue,
 ) -> Result(Schema, SchemaError) {
   use schema_uri <- result.try(get_property(
@@ -148,8 +148,7 @@ fn generate_root_validation(
 
   case instance_type {
     None -> {
-      todo
-      // Generate multinode for all datatypes
+      generate_multi_type_validation(schema_json, schema_root)
     }
     Some(StringValue(_, t)) -> {
       use validation <- result.try(get_validation_for_type(
@@ -169,6 +168,39 @@ fn generate_root_validation(
       Ok(MultipleValidation(l, types.Any))
     }
     _ -> todo
+  }
+}
+
+fn generate_multi_type_validation(
+  schema_json: JsonValue,
+  schema_root: JsonValue,
+) {
+  use l <- result.try(
+    list.map(type_checks, fn(tc) {
+      let assert #(StringValue(_, t), _, _) = tc
+      t
+    })
+    |> list.filter(fn(t) {
+      // Filter out integer checks as these will be covered
+      // under the number check
+      t != "integer"
+    })
+    |> list.try_map(fn(t) {
+      get_validation_for_type(schema_json, schema_json, t)
+    }),
+  )
+  case
+    list.find(l, fn(validation) {
+      case validation {
+        MultipleValidation([types.TypeValidation(_), ..], _) -> {
+          True
+        }
+        _ -> False
+      }
+    })
+  {
+    Ok(_) -> Ok(MultipleValidation(l, types.Any))
+    Error(_) -> Ok(SimpleValidation(True))
   }
 }
 
@@ -418,8 +450,4 @@ fn get_property(
     }
     _ -> Ok(None)
   }
-}
-
-fn map_to_value(json: JsonValue) -> Value {
-  todo
 }
