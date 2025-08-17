@@ -33,7 +33,9 @@ import gleam/option.{type Option, None, Some}
 
 const general_checks = [
   #(ArrayNode(None, None), array_properties),
-  #(ObjectNode, object_properties),
+  #(ObjectNode(None), object_properties),
+  #(NumberNode, int_properties),
+  #(StringNode, string_properties),
 ]
 
 pub fn validate(
@@ -283,14 +285,26 @@ fn generate_object_validation(
   dict: Dict(String, JsonValue),
   root: Option(ValidationNode),
 ) -> Result(ValidationNode, InvalidEntry) {
-  use items <- result.try(get_meta(dict, root, "items"))
-
-  "object validation" |> echo
-  items |> echo
-
   use props <- result.try(get_properties(object_properties, dict))
-  props |> echo as "schemaprops"
-  Ok(MultiNode([ObjectNode, PropertiesNode(props)], AllBreakAfterFirst))
+
+  use properties <- result.try(case dict.get(dict, "properties") {
+    Ok(JsonObject(l, _)) -> {
+      use val_nodes <- result.try(
+        list.try_map(dict.to_list(l), fn(i) {
+          use v <- result.try(generate_validation(i.1, root))
+          Ok(#(i.0, v))
+        }),
+      )
+      Ok(val_nodes |> dict.from_list |> Some)
+    }
+    Ok(_) -> Error(InvalidSchema(31))
+    Error(_) -> Ok(None)
+  })
+
+  Ok(MultiNode(
+    [ObjectNode(properties), PropertiesNode(props)],
+    AllBreakAfterFirst,
+  ))
 }
 
 fn generate_array_validation(
@@ -299,8 +313,6 @@ fn generate_array_validation(
 ) -> Result(ValidationNode, InvalidEntry) {
   use items <- result.try(get_meta(dict, root, "items"))
 
-  "array validation" |> echo
-  items |> echo
   use prefix_items <- result.try(case dict.get(dict, "prefixItems") {
     Ok(JsonArray(l, _)) -> {
       use val_nodes <- result.try(
@@ -327,7 +339,7 @@ fn generate_array_validation(
       Some(vn) -> [ContainsNode(vn, None, None)]
       None -> []
     }
-    |> list.append([ArrayNode(items, prefix_items), PropertiesNode(props)])
+    |> list.append([ArrayNode(items, prefix_items), PropertiesNode(props)], _)
 
   Ok(MultiNode(nodes, AllBreakAfterFirst))
 }

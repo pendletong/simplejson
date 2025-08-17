@@ -1,5 +1,5 @@
+import gleam/dict.{type Dict}
 import gleam/option.{type Option}
-
 import simplejson/jsonvalue.{type JsonValue}
 
 import simplejson/internal/schema/error.{type InvalidEntry}
@@ -28,7 +28,7 @@ pub type ValidationNode {
     items: Option(ValidationNode),
     prefix_items: Option(List(ValidationNode)),
   )
-  ObjectNode
+  ObjectNode(items: Option(Dict(String, ValidationNode)))
   ContainsNode(item: ValidationNode, max: Option(Int), min: Option(Int))
   EnumNode(value: List(JsonValue))
   BooleanNode
