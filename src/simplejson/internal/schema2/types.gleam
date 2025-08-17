@@ -26,7 +26,11 @@ pub type Combination {
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
   Validation(valid: fn(JsonValue) -> ValidationInfo)
-  MultipleValidation(tests: List(ValidationNode), combination: Combination)
+  MultipleValidation(
+    tests: List(ValidationNode),
+    combination: Combination,
+    map_error: fn(List(ValidationInfo)) -> List(ValidationInfo),
+  )
   IfThenValidation(when: ValidationNode, then: ValidationNode)
   TypeValidation(t: ValueType)
   ArraySubValidation(
