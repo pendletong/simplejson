@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/float
 import gleam/list.{Continue, Stop}
@@ -261,6 +262,36 @@ pub fn get_string_property(
   case dict.get(dict, property) {
     Ok(JsonString(val, _)) -> {
       Ok(Some(StringValue(property, val)))
+    }
+    Ok(_) -> Error(InvalidSchema(7))
+    _ -> Ok(None)
+  }
+}
+
+pub fn get_unique_string_list_property(
+  property: String,
+  dict: Dict(String, JsonValue),
+) -> Result(Option(PropertyValue), InvalidEntry) {
+  case dict.get(dict, property) {
+    Ok(JsonArray(_, _) as a) -> {
+      case value_to_property(property, a) {
+        ListValue(_, l) as lv -> {
+          use <- bool.guard(
+            list.find(l, fn(i) {
+              case i {
+                StringValue(_, _) -> False
+                _ -> True
+              }
+            })
+              |> result.is_ok,
+            Error(InvalidSchema(11)),
+          )
+          use <- bool.guard(list.unique(l) != l, Error(InvalidSchema(10)))
+
+          Ok(Some(lv))
+        }
+        _ -> Error(InvalidSchema(9))
+      }
     }
     Ok(_) -> Error(InvalidSchema(7))
     _ -> Ok(None)

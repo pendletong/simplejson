@@ -70,7 +70,7 @@ fn validate_node(
     SimpleValidation(True) -> {
       Ok(True)
     }
-    ObjectNode -> validate_object(node)
+    ObjectNode(items) -> validate_object(node, items)
     SimpleValidation(False) -> {
       Error([FalseSchema])
     }
@@ -142,10 +142,28 @@ fn validate_array_contains(
   }
 }
 
-pub fn validate_object(node: JsonValue) -> Result(Bool, List(InvalidEntry)) {
+pub fn validate_object(
+  node: JsonValue,
+  items: Option(Dict(String, ValidationNode)),
+) -> Result(Bool, List(InvalidEntry)) {
   case node {
-    JsonObject(_d, _) -> {
-      Ok(True)
+    JsonObject(d, _) -> {
+      case items {
+        None -> Ok(True)
+        Some(props) -> {
+          dict.to_list(props)
+          |> list.try_each(fn(i) {
+            let #(key, validation) = i
+            case dict.get(d, key) {
+              Error(_) -> Ok(True)
+              Ok(v) -> {
+                validate_node(v, validation)
+              }
+            }
+          })
+          |> result.replace(True)
+        }
+      }
     }
     _ -> Error([InvalidDataType(node)])
   }
@@ -223,7 +241,7 @@ fn validate_enum(
 }
 
 fn match_nodes(node1: JsonValue, node2: JsonValue) -> Bool {
-  case node1, node2 {
+  case node1 |> echo as "Node1", node2 |> echo as "Node2" {
     JsonNumber(Some(i1), _, _, _), JsonNumber(Some(i2), _, _, _) -> i1 == i2
     JsonNumber(Some(i), _, _, _), JsonNumber(_, Some(f), _, _)
     | JsonNumber(_, Some(f), _, _), JsonNumber(Some(i), _, _, _)
