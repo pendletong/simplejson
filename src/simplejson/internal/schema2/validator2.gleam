@@ -3,7 +3,7 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/schema2/types.{
   type Schema, type ValidationInfo, type ValidationNode, type ValueType,
-  AlwaysFail, Schema, Valid,
+  AlwaysFail, MultipleErrors, MultipleInfo, Schema, Valid,
 }
 import simplejson/jsonvalue.{type JsonValue}
 
@@ -27,11 +27,18 @@ fn do_validate(json: JsonValue, validator: ValidationNode) -> ValidationInfo {
         v -> v
       }
     }
-    types.MultipleValidation(tests:, combination:) -> {
-      case do_multiple_validation(json, tests, combination) {
-        #(True, _) -> Valid
-        #(False, [vi]) -> vi
-        #(False, vis) -> types.MultipleInfo(vis)
+    types.MultipleValidation(tests:, combination:, map_error:) -> {
+      case
+        {
+          case do_multiple_validation(json, tests, combination) {
+            #(True, _) -> [Valid]
+            #(False, [vi]) -> map_error([vi])
+            #(False, vis) -> map_error(vis)
+          }
+        }
+      {
+        [v] -> v
+        v -> MultipleInfo(v)
       }
     }
     types.ObjectSubValidation(_, _, _) -> todo

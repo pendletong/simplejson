@@ -1,5 +1,6 @@
 import gleam/bool
 import gleam/dict
+import gleam/function
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
@@ -10,10 +11,10 @@ import simplejson/internal/schema2/properties/number
 import simplejson/internal/schema2/properties/object
 import simplejson/internal/schema2/properties/string
 import simplejson/internal/schema2/types.{
-  type Property, type Schema, type SchemaError, type ValidationNode, type Value,
-  Array, ArraySubValidation, ArrayValue, InvalidJson, InvalidType,
-  MultipleValidation, Object, Property, Schema, SchemaError, SimpleValidation,
-  StringValue, Validation,
+  type Property, type Schema, type SchemaError, type ValidationInfo,
+  type ValidationNode, type Value, Array, ArraySubValidation, ArrayValue,
+  InvalidJson, InvalidType, MultipleValidation, Object, Property, Schema,
+  SchemaError, SimpleValidation, StringValue, Validation,
 }
 
 import simplejson/internal/utils.{unwrap_option_result}
@@ -165,7 +166,7 @@ fn generate_root_validation(
           get_validation_for_type(schema_json, schema_json, t)
         }),
       )
-      Ok(MultipleValidation(l, types.Any))
+      Ok(MultipleValidation(l, types.Any, function.identity))
     }
     _ -> todo
   }
@@ -192,14 +193,15 @@ fn generate_multi_type_validation(
   case
     list.find(l, fn(validation) {
       case validation {
-        MultipleValidation([types.TypeValidation(_), ..], _) -> {
+        MultipleValidation([types.TypeValidation(_), ..], _, _) -> {
           True
         }
         _ -> False
       }
     })
   {
-    Ok(_) -> Ok(MultipleValidation(l, types.Any))
+    Ok(_) ->
+      Ok(MultipleValidation(l, types.Any, filter_validation_to_non_type_errors))
     Error(_) -> Ok(SimpleValidation(True))
   }
 }
@@ -247,9 +249,20 @@ fn get_validation_for_type(
     |> option.values
   {
     [v] -> v
-    v -> types.MultipleValidation(v, types.All)
+    v -> types.MultipleValidation(v, types.All, function.identity)
   }
   |> Ok
+}
+
+fn filter_validation_to_non_type_errors(
+  v: List(ValidationInfo),
+) -> List(ValidationInfo) {
+  list.filter(v, fn(vi) {
+    case vi {
+      types.IncorrectType(_, _) -> False
+      _ -> True
+    }
+  })
 }
 
 fn get_array_subvalidation(
