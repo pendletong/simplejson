@@ -1,10 +1,9 @@
-import gleam/dict
 import gleam/float
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/schema2/types.{
   type Schema, type ValidationInfo, type ValidationNode, type ValueType,
-  AlwaysFail, AnyFail, Schema, Valid, ValidationError,
+  AlwaysFail, Schema, Valid,
 }
 import simplejson/jsonvalue.{type JsonValue}
 
@@ -21,8 +20,13 @@ pub fn validate(
 
 fn do_validate(json: JsonValue, validator: ValidationNode) -> ValidationInfo {
   case validator {
-    types.ArraySubValidation(prefix:, items:, contains:) -> todo
-    types.IfThenValidation(when:, then:) -> todo
+    types.ArraySubValidation(_, _, _) -> todo
+    types.IfThenValidation(when:, then:) -> {
+      case do_validate(json, when) {
+        Valid -> do_validate(json, then)
+        v -> v
+      }
+    }
     types.MultipleValidation(tests:, combination:) -> {
       case do_multiple_validation(json, tests, combination) {
         #(True, _) -> Valid
@@ -30,7 +34,7 @@ fn do_validate(json: JsonValue, validator: ValidationNode) -> ValidationInfo {
         #(False, vis) -> types.MultipleInfo(vis)
       }
     }
-    types.ObjectSubValidation(props:, pattern_props:, additional_prop:) -> todo
+    types.ObjectSubValidation(_, _, _) -> todo
     types.SimpleValidation(valid:) -> {
       case valid {
         True -> Valid
@@ -43,7 +47,7 @@ fn do_validate(json: JsonValue, validator: ValidationNode) -> ValidationInfo {
         False -> types.IncorrectType(t, json)
       }
     }
-    types.Validation(valid:) -> todo
+    types.Validation(valid:) -> valid(json)
   }
 }
 
@@ -109,7 +113,7 @@ fn validate_type(t: ValueType, json: JsonValue) -> Bool {
     }
     types.Integer -> {
       case json {
-        jsonvalue.JsonNumber(Some(i), _, _, _) -> True
+        jsonvalue.JsonNumber(Some(_), _, _, _) -> True
         jsonvalue.JsonNumber(_, Some(f), _, _) -> {
           float.floor(f) == f
         }

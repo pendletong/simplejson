@@ -4,7 +4,8 @@ import gleam/list
 import gleam/result
 import gleam/string
 import simplejson
-import simplejson/internal/schema/schema
+import simplejson/internal/schema2/schema2
+import simplejson/internal/schema2/validator2
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{JsonArray, JsonBool, JsonObject, JsonString}
 import simplifile
@@ -23,7 +24,7 @@ pub fn suite_tests() {
   |> list.filter_map(fn(filename) {
     #(filename, string.contains(filename, "/optional/")) |> echo
     use <- bool.guard(
-      when: string.contains(filename, "/optional/") && bool.negate(run_optional),
+      when: string.contains(filename, "/optional/") && !run_optional,
       return: Error(Nil),
     )
     case
@@ -56,14 +57,18 @@ pub fn suite_tests() {
                             let assert JsonString(description, _) = description
                             Ok(
                               it(description <> " -> " <> desc, fn() {
-                                let res = schema.validate_json(schema, data)
+                                let schema =
+                                  schema2.get_validator_from_json(schema)
+                                  |> expect.to_be_ok
+                                let validated =
+                                  validator2.validate(data, schema)
                                 case valid {
                                   True -> {
-                                    expect.to_be_ok(res)
+                                    expect.to_be_true(validated.0)
                                     Nil
                                   }
                                   False -> {
-                                    expect.to_be_error(res)
+                                    expect.to_be_some(validated.1)
                                     Nil
                                   }
                                 }

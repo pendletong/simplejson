@@ -4,7 +4,8 @@ import gleam/list
 import gleam/result
 import gleam/string
 import simplejson
-import simplejson/internal/schema/schema
+import simplejson/internal/schema2/schema2
+import simplejson/internal/schema2/validator2
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{JsonArray, JsonBool, JsonObject, JsonString}
 import simplifile
@@ -20,6 +21,7 @@ const files = [
   "enum.json",
   "minProperties.json",
   "maxProperties.json",
+  "items.json",
 ]
 
 pub fn main() {
@@ -75,14 +77,18 @@ pub fn suite_tests() {
                             let assert JsonString(description, _) = description
                             Ok(
                               it(description <> " -> " <> desc, fn() {
-                                let res = schema.validate_json(schema, data)
+                                let schema =
+                                  schema2.get_validator_from_json(schema)
+                                  |> expect.to_be_ok
+                                let validated =
+                                  validator2.validate(data, schema)
                                 case valid {
                                   True -> {
-                                    expect.to_be_ok(res)
+                                    expect.to_be_true(validated.0)
                                     Nil
                                   }
                                   False -> {
-                                    expect.to_be_error(res)
+                                    expect.to_be_some(validated.1)
                                     Nil
                                   }
                                 }

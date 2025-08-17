@@ -3,9 +3,9 @@ import gleam/float
 import gleam/int
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
+import gleam/order.{Gt}
 import gleam/regexp.{type Regexp}
 import gleam/result
-import simplejson/internal/parser
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
 
@@ -25,7 +25,7 @@ pub type Combination {
 
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
-  Validation(valid: fn(JsonValue) -> Result(Nil, SchemaError))
+  Validation(valid: fn(JsonValue) -> ValidationInfo)
   MultipleValidation(tests: List(ValidationNode), combination: Combination)
   IfThenValidation(when: ValidationNode, then: ValidationNode)
   TypeValidation(t: ValueType)
@@ -57,8 +57,10 @@ pub type ValidationInfo {
   ValidationError(desc: String)
   AlwaysFail
   IncorrectType(expect: ValueType, actual: JsonValue)
+  InvalidComparison(expect: Value, cmp: String, actual: JsonValue)
   MultipleInfo(infos: List(ValidationInfo))
   AnyFail
+  SchemaFailure
 }
 
 pub type ValueType {
@@ -93,6 +95,21 @@ pub type Property {
 
 pub fn ok_fn(_, _) {
   Ok(True)
+}
+
+pub fn gtzero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
+  case v {
+    NumberValue(_, Some(i), _) -> {
+      Ok(int.compare(i, 0) == Gt)
+    }
+    NumberValue(_, _, Some(f)) -> {
+      Ok(float.compare(f, 0.0) == Gt)
+    }
+    IntValue(_, i) -> {
+      Ok(int.compare(i, 0) == Gt)
+    }
+    _ -> Error(SchemaError)
+  }
 }
 
 pub fn valid_type_fn(t: Value, p: Property) -> Result(Bool, SchemaError) {
