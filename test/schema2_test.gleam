@@ -456,77 +456,161 @@ pub fn schema_type_tests() {
 }
 
 pub fn schema_number_tests() {
-  describe("minimum tests", [
-    it("should pass", fn() {
-      let schema =
-        schema2.get_validator("{\"type\":\"number\",\"minimum\":1}")
-        |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("1")
-      validator2.validate(json, schema) |> expect.to_equal(#(True, None))
-      let schema =
-        schema2.get_validator("{\"type\":\"number\",\"minimum\":-1}")
-        |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("1")
-      validator2.validate(json, schema) |> expect.to_equal(#(True, None))
-      let schema =
-        schema2.get_validator("{\"type\":\"number\",\"minimum\":0}")
-        |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("1")
-      validator2.validate(json, schema) |> expect.to_equal(#(True, None))
-      let schema = schema2.get_validator("{\"minimum\":1}") |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("2")
-      validator2.validate(json, schema) |> expect.to_equal(#(True, None))
-      let schema = schema2.get_validator("{\"minimum\":2.0}") |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("2")
-      validator2.validate(json, schema) |> expect.to_equal(#(True, None))
-      let schema = schema2.get_validator("{\"minimum\":2.1}") |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("2.1")
-      validator2.validate(json, schema) |> expect.to_equal(#(True, None))
-      let schema =
-        schema2.get_validator("{\"minimum\":-1.5}") |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("0")
-      validator2.validate(json, schema) |> expect.to_equal(#(True, None))
-    }),
-    it("should fail", fn() {
-      let schema =
-        schema2.get_validator("{\"type\":\"number\",\"minimum\":1}")
-        |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("0")
-      validator2.validate(json, schema)
-      |> expect.to_equal(#(
-        False,
-        Some(InvalidComparison(
-          types.NumberValue("minimum", Some(1), None),
-          "minimum",
-          JsonNumber(Some(0), None, Some("0"), None),
-        )),
-      ))
-      let schema =
-        schema2.get_validator("{\"type\":\"number\",\"minimum\":-1}")
-        |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("-1.1")
-      validator2.validate(json, schema)
-      |> expect.to_equal(#(
-        False,
-        Some(InvalidComparison(
-          types.NumberValue("minimum", Some(-1), None),
-          "minimum",
-          JsonNumber(None, Some(-1.1), Some("-1.1"), None),
-        )),
-      ))
-      let schema =
-        schema2.get_validator("{\"minimum\":5}")
-        |> expect.to_be_ok
-      let assert Ok(json) = simplejson.parse("3")
-      validator2.validate(json, schema)
-      |> expect.to_equal(#(
-        False,
-        Some(InvalidComparison(
-          types.NumberValue("minimum", Some(5), None),
-          "minimum",
-          JsonNumber(Some(3), None, Some("3"), None),
-        )),
-      ))
-    }),
+  describe("numeric comparison tests", [
+    describe("minimum tests", [
+      it("should pass", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"minimum\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"minimum\":-1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"minimum\":0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema = schema2.get_validator("{\"minimum\":1}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"minimum\":2.0}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"minimum\":2.1}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2.1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"minimum\":-1.5}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+      }),
+      it("should fail", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"minimum\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("minimum", Some(1), None),
+            "minimum",
+            JsonNumber(Some(0), None, Some("0"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"minimum\":-1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-1.1")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("minimum", Some(-1), None),
+            "minimum",
+            JsonNumber(None, Some(-1.1), Some("-1.1"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"minimum\":5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("3")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("minimum", Some(5), None),
+            "minimum",
+            JsonNumber(Some(3), None, Some("3"), None),
+          )),
+        ))
+      }),
+    ]),
+
+    describe("exclusiveMinimum tests", [
+      it("should pass", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMinimum\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMinimum\":-1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMinimum\":0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMinimum\":1}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1.01")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMinimum\":2.0}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2.01")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMinimum\":2.1}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2.11")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMinimum\":-1.5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-1.4")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+      }),
+      it("should fail", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMinimum\":0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("exclusiveMinimum", Some(0), None),
+            "exclusiveMinimum",
+            JsonNumber(Some(0), None, Some("0"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator(
+            "{\"type\":\"number\",\"exclusiveMinimum\":-1.1}",
+          )
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-1.1")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("exclusiveMinimum", None, Some(-1.1)),
+            "exclusiveMinimum",
+            JsonNumber(None, Some(-1.1), Some("-1.1"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"exclusiveMinimum\":5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("3")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("exclusiveMinimum", Some(5), None),
+            "exclusiveMinimum",
+            JsonNumber(Some(3), None, Some("3"), None),
+          )),
+        ))
+      }),
+    ]),
   ])
 }
