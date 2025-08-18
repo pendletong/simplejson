@@ -3,7 +3,7 @@ import gleam/option.{None, Some}
 import simplejson
 import simplejson/internal/schema2/schema2
 import simplejson/internal/schema2/types.{
-  AlwaysFail, IncorrectType, InvalidComparison, MultipleInfo,
+  AlwaysFail, IncorrectType, InvalidComparison, MultipleInfo, ValidationError,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/jsonvalue.{JsonArray, JsonNumber}
@@ -609,6 +609,247 @@ pub fn schema_number_tests() {
             "exclusiveMinimum",
             JsonNumber(Some(3), None, Some("3"), None),
           )),
+        ))
+      }),
+    ]),
+    describe("maximum tests", [
+      it("should pass", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"maximum\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"maximum\":-1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"maximum\":0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema = schema2.get_validator("{\"maximum\":2}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"maximum\":2.0}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"maximum\":2.1}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2.1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"maximum\":-1.5}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-2")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+      }),
+      it("should fail", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"maximum\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("maximum", Some(1), None),
+            "maximum",
+            JsonNumber(Some(2), None, Some("2"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"maximum\":-1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-0.9")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("maximum", Some(-1), None),
+            "maximum",
+            JsonNumber(None, Some(-0.9), Some("-0.9"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"maximum\":3}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("5")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("maximum", Some(3), None),
+            "maximum",
+            JsonNumber(Some(5), None, Some("5"), None),
+          )),
+        ))
+      }),
+    ]),
+
+    describe("exclusiveMaximum tests", [
+      it("should pass", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMaximum\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMaximum\":-1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-2")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMaximum\":0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-1")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMaximum\":1}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0.99")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMaximum\":2.0}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("1.99")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMaximum\":2.1}") |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("2.09")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"exclusiveMaximum\":-1.5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-1.6")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+      }),
+      it("should fail", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"exclusiveMaximum\":0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("exclusiveMaximum", Some(0), None),
+            "exclusiveMaximum",
+            JsonNumber(Some(0), None, Some("0"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator(
+            "{\"type\":\"number\",\"exclusiveMaximum\":-1.1}",
+          )
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-1.1")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("exclusiveMaximum", None, Some(-1.1)),
+            "exclusiveMaximum",
+            JsonNumber(None, Some(-1.1), Some("-1.1"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"exclusiveMaximum\":3}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("5")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NumberValue("exclusiveMaximum", Some(3), None),
+            "exclusiveMaximum",
+            JsonNumber(Some(5), None, Some("5"), None),
+          )),
+        ))
+      }),
+    ]),
+    describe("multipleOf tests", [
+      it("is multiple", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("0")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("5")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":2.2}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("4.4")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":0.1}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("3")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-10")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":3.0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("9")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("55.0")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+      }),
+      it("not multiple", fn() {
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("11")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(ValidationError("11 is not multiple of 5")),
+        ))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":2}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-11")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(ValidationError("-11 is not multiple of 2")),
+        ))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":5.0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("-11")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(ValidationError("-11 is not multiple of 5")),
+        ))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("11.0")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(ValidationError("11.0 is not multiple of 5")),
+        ))
+        let schema =
+          schema2.get_validator("{\"type\":\"number\",\"multipleOf\":5}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("5.1")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(ValidationError("5.1 is not multiple of 5")),
         ))
       }),
     ]),
