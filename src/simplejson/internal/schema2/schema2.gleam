@@ -13,8 +13,8 @@ import simplejson/internal/schema2/properties/string
 import simplejson/internal/schema2/types.{
   type Property, type Schema, type SchemaError, type ValidationInfo,
   type ValidationNode, type Value, Array, ArraySubValidation, ArrayValue,
-  InvalidJson, InvalidType, MultipleValidation, Object, Property, Schema,
-  SchemaError, SimpleValidation, StringValue, Validation,
+  InvalidJson, InvalidType, MultipleValidation, NoType, Object, Property, Schema,
+  SchemaError, SimpleValidation, StringValue, TypeValidation, Validation,
 }
 
 import simplejson/internal/utils.{unwrap_option_result}
@@ -113,14 +113,13 @@ fn generate_root_validation(
     when: !utils.is_object(schema_json),
     return: Error(SchemaError),
   )
-  use instance_type <- result.try(get_property(
-    schema_json,
+  let type_prop =
     Property(
       "type",
       types.Types([types.String, types.Array(types.String)]),
       types.valid_type_fn,
-    ),
-  ))
+    )
+  use instance_type <- result.try(get_property(schema_json, type_prop))
 
   use enum <- result.try(get_property(
     schema_json,
@@ -160,9 +159,20 @@ fn generate_root_validation(
       Ok(validation)
     }
     Some(ArrayValue(_, value:)) -> {
-      use l <- result.try(
-        list.try_map(value, fn(t) {
+      use <- bool.guard(when: value == [], return: Ok(TypeValidation(NoType)))
+      let l =
+        list.map(value, fn(t) {
           let assert jsonvalue.JsonString(t, _) = t
+          t
+        })
+
+      use <- bool.guard(
+        when: l != list.unique(l),
+        return: Error(types.InvalidProperty("type", schema_json)),
+      )
+
+      use l <- result.try(
+        list.try_map(l, fn(t) {
           get_validation_for_type(schema_json, schema_json, t)
         }),
       )
@@ -193,7 +203,7 @@ fn generate_multi_type_validation(
   case
     list.find(l, fn(validation) {
       case validation {
-        MultipleValidation([types.TypeValidation(_), ..], _, _) -> {
+        MultipleValidation([TypeValidation(_), ..], _, _) -> {
           True
         }
         _ -> False
@@ -226,7 +236,7 @@ fn get_validation_for_type(
     }),
   )
 
-  let main_validation = types.TypeValidation(type_check)
+  let main_validation = TypeValidation(type_check)
 
   use sub_validations <- result.try(case type_check {
     Array(_) -> {

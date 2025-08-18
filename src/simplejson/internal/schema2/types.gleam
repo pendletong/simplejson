@@ -3,7 +3,7 @@ import gleam/float
 import gleam/int
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
-import gleam/order.{Gt}
+import gleam/order.{Gt, Lt}
 import gleam/regexp.{type Regexp}
 import gleam/result
 import simplejson/internal/stringify
@@ -77,6 +77,7 @@ pub type ValueType {
   Null
   AnyType
   Types(List(ValueType))
+  NoType
 }
 
 pub type Value {
@@ -111,6 +112,21 @@ pub fn gtzero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
     }
     IntValue(_, i) -> {
       Ok(int.compare(i, 0) == Gt)
+    }
+    _ -> Error(SchemaError)
+  }
+}
+
+pub fn gtezero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
+  case v {
+    NumberValue(_, Some(i), _) -> {
+      Ok(int.compare(i, 0) != Lt)
+    }
+    NumberValue(_, _, Some(f)) -> {
+      Ok(float.compare(f, 0.0) != Lt)
+    }
+    IntValue(_, i) -> {
+      Ok(int.compare(i, 0) != Lt)
     }
     _ -> Error(SchemaError)
   }
@@ -255,6 +271,7 @@ pub fn validate_type(
     }
     Null -> todo
     AnyType -> todo
+    NoType -> todo
     Types(types) -> {
       case
         list.fold_until(types, None, fn(_, t) {

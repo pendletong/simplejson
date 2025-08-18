@@ -159,6 +159,7 @@ fn validate_type(t: ValueType, json: JsonValue) -> Bool {
         _ -> False
       }
     }
+    types.NoType -> False
     types.Types(l) -> {
       list.any(l, validate_type(_, json))
     }
