@@ -160,23 +160,23 @@ fn generate_root_validation(
     }
     Some(ArrayValue(_, value:)) -> {
       use <- bool.guard(when: value == [], return: Ok(TypeValidation(NoType)))
-      let l =
+      let types =
         list.map(value, fn(t) {
           let assert jsonvalue.JsonString(t, _) = t
           t
         })
 
       use <- bool.guard(
-        when: l != list.unique(l),
+        when: types != list.unique(types),
         return: Error(types.InvalidProperty("type", schema_json)),
       )
 
-      use l <- result.try(
-        list.try_map(l, fn(t) {
+      use validations <- result.try(
+        list.try_map(types, fn(t) {
           get_validation_for_type(schema_json, schema_json, t)
         }),
       )
-      Ok(MultipleValidation(l, types.Any, function.identity))
+      Ok(MultipleValidation(validations, types.Any, function.identity))
     }
     _ -> todo
   }
