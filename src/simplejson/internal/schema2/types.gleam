@@ -105,13 +105,22 @@ pub fn ok_fn(_, _) {
 pub fn gtzero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
   case v {
     NumberValue(_, Some(i), _) -> {
-      Ok(int.compare(i, 0) == Gt)
+      case int.compare(i, 0) == Gt {
+        True -> Ok(True)
+        False -> Error(SchemaError)
+      }
     }
     NumberValue(_, _, Some(f)) -> {
-      Ok(float.compare(f, 0.0) == Gt)
+      case float.compare(f, 0.0) == Gt {
+        True -> Ok(True)
+        False -> Error(SchemaError)
+      }
     }
     IntValue(_, i) -> {
-      Ok(int.compare(i, 0) == Gt)
+      case int.compare(i, 0) == Gt {
+        True -> Ok(True)
+        False -> Error(SchemaError)
+      }
     }
     _ -> Error(SchemaError)
   }
@@ -120,13 +129,22 @@ pub fn gtzero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
 pub fn gtezero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
   case v {
     NumberValue(_, Some(i), _) -> {
-      Ok(int.compare(i, 0) != Lt)
+      case int.compare(i, 0) != Lt {
+        True -> Ok(True)
+        False -> Error(SchemaError)
+      }
     }
     NumberValue(_, _, Some(f)) -> {
-      Ok(float.compare(f, 0.0) != Lt)
+      case float.compare(f, 0.0) != Lt {
+        True -> Ok(True)
+        False -> Error(SchemaError)
+      }
     }
     IntValue(_, i) -> {
-      Ok(int.compare(i, 0) != Lt)
+      case int.compare(i, 0) != Lt {
+        True -> Ok(True)
+        False -> Error(SchemaError)
+      }
     }
     _ -> Error(SchemaError)
   }
@@ -288,7 +306,7 @@ pub fn validate_type(
   })
 
   case prop.validation(value, prop) {
-    Error(e) -> Error(e)
+    Error(_) -> Error(InvalidProperty(prop.name, json))
     Ok(False) -> Ok(None)
     Ok(True) -> Ok(Some(value))
   }

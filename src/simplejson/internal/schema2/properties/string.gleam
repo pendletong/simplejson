@@ -1,17 +1,52 @@
 import gleam/int
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/order.{Eq, Gt, Lt}
+import gleam/regexp
 import gleam/string
 import simplejson/internal/schema2/types.{
   type SchemaError, type ValidationInfo, type Value, InvalidComparison,
-  NumberValue, SchemaError, SchemaFailure, Valid,
+  NumberValue, SchemaError, SchemaFailure, StringValue, Valid,
 }
 import simplejson/jsonvalue.{type JsonValue}
 
 pub const string_properties = [
   #(types.Property("maxLength", types.Integer, types.gtezero_fn), max_length),
   #(types.Property("minLength", types.Integer, types.gtezero_fn), min_length),
+  #(types.Property("pattern", types.String, validate_regex), pattern),
 ]
+
+fn validate_regex(v: Value, p: types.Property) -> Result(Bool, SchemaError) {
+  case v {
+    types.StringValue(name: _, value:) -> {
+      case regexp.from_string(value) {
+        Error(_) ->
+          Error(types.InvalidProperty(p.name, jsonvalue.JsonString(value, None)))
+        Ok(_) -> Ok(True)
+      }
+    }
+    _ -> Error(SchemaError)
+  }
+}
+
+fn pattern(v: Value) -> Result(fn(JsonValue) -> ValidationInfo, SchemaError) {
+  case v {
+    StringValue(_, value) -> {
+      Ok(fn(jsonvalue: JsonValue) {
+        case jsonvalue {
+          jsonvalue.JsonString(str, _) -> {
+            let assert Ok(r) = regexp.from_string(value)
+            case regexp.check(r, str) {
+              False -> InvalidComparison(v, "pattern", jsonvalue)
+              True -> Valid
+            }
+          }
+          _ -> SchemaFailure
+        }
+      })
+    }
+    _ -> Error(SchemaError)
+  }
+}
 
 fn max_length(v: Value) -> Result(fn(JsonValue) -> ValidationInfo, SchemaError) {
   case v {
