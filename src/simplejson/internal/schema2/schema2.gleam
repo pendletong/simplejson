@@ -59,6 +59,10 @@ pub fn get_validator(schema: String) -> Result(Schema, SchemaError) {
   get_validator_from_json(schema)
 }
 
+type Context {
+  Context(current_node: JsonValue, root_node: JsonValue)
+}
+
 pub fn get_validator_from_json(
   schema_json: JsonValue,
 ) -> Result(Schema, SchemaError) {
@@ -67,7 +71,7 @@ pub fn get_validator_from_json(
     Property("$schema", types.String, types.ok_fn),
     // This needs to be fixed to validate uris
   ))
-  case generate_validator(schema_json, schema_json) {
+  case generate_validator(Context(schema_json, schema_json)) {
     Ok(validator) ->
       Ok(Schema(
         schema_uri
@@ -86,10 +90,9 @@ pub fn get_validator_from_json(
 }
 
 fn generate_validator(
-  schema_json: JsonValue,
-  schema_root: JsonValue,
+  context: Context,
 ) -> Result(types.ValidationNode, SchemaError) {
-  case schema_json {
+  case context.current_node {
     jsonvalue.JsonBool(b, _) -> {
       Ok(SimpleValidation(b))
     }
@@ -97,7 +100,7 @@ fn generate_validator(
       case dict.is_empty(d) {
         True -> Ok(SimpleValidation(True))
         _ -> {
-          generate_root_validation(schema_json, schema_root)
+          generate_root_validation(context)
         }
       }
     }
@@ -106,11 +109,10 @@ fn generate_validator(
 }
 
 fn generate_root_validation(
-  schema_json: JsonValue,
-  schema_root: JsonValue,
+  context: Context,
 ) -> Result(types.ValidationNode, SchemaError) {
   use <- bool.guard(
-    when: !utils.is_object(schema_json),
+    when: !utils.is_object(context.current_node),
     return: Error(SchemaError),
   )
   let type_prop =
@@ -119,43 +121,39 @@ fn generate_root_validation(
       types.Types([types.String, types.Array(types.String)]),
       types.valid_type_fn,
     )
-  use instance_type <- result.try(get_property(schema_json, type_prop))
+  use instance_type <- result.try(get_property(context.current_node, type_prop))
 
   use enum <- result.try(get_property(
-    schema_json,
+    context.current_node,
     Property("enum", Array(types.AnyType), fn(v, p) {
       case v {
         ArrayValue(_, value:) -> {
           case value {
-            [] -> Error(InvalidType(schema_json, p))
+            [] -> Error(InvalidType(context.current_node, p))
             _ -> {
               case { list.unique(value) |> list.length } == list.length(value) {
                 True -> Ok(True)
-                False -> Error(InvalidType(schema_json, p))
+                False -> Error(InvalidType(context.current_node, p))
               }
             }
           }
         }
-        _ -> Error(InvalidType(schema_json, p))
+        _ -> Error(InvalidType(context.current_node, p))
       }
     }),
   ))
 
   use const_val <- result.try(get_property(
-    schema_json,
+    context.current_node,
     Property("const", types.AnyType, types.ok_fn),
   ))
 
   case instance_type {
     None -> {
-      generate_multi_type_validation(schema_json, schema_root)
+      generate_multi_type_validation(context)
     }
     Some(StringValue(_, t)) -> {
-      use validation <- result.try(get_validation_for_type(
-        schema_json,
-        schema_root,
-        t,
-      ))
+      use validation <- result.try(get_validation_for_type(context, t))
       Ok(validation)
     }
     Some(ArrayValue(_, value:)) -> {
@@ -168,13 +166,11 @@ fn generate_root_validation(
 
       use <- bool.guard(
         when: types != list.unique(types),
-        return: Error(types.InvalidProperty("type", schema_json)),
+        return: Error(types.InvalidProperty("type", context.current_node)),
       )
 
       use validations <- result.try(
-        list.try_map(types, fn(t) {
-          get_validation_for_type(schema_json, schema_json, t)
-        }),
+        list.try_map(types, fn(t) { get_validation_for_type(context, t) }),
       )
       Ok(MultipleValidation(validations, types.Any, function.identity))
     }
@@ -182,10 +178,7 @@ fn generate_root_validation(
   }
 }
 
-fn generate_multi_type_validation(
-  schema_json: JsonValue,
-  schema_root: JsonValue,
-) {
+fn generate_multi_type_validation(context: Context) {
   use l <- result.try(
     list.map(type_checks, fn(tc) {
       let assert #(StringValue(_, t), _, _) = tc
@@ -196,9 +189,7 @@ fn generate_multi_type_validation(
       // under the number check
       t != "integer"
     })
-    |> list.try_map(fn(t) {
-      get_validation_for_type(schema_json, schema_json, t)
-    }),
+    |> list.try_map(fn(t) { get_validation_for_type(context, t) }),
   )
   case
     list.find(l, fn(validation) {
@@ -217,15 +208,14 @@ fn generate_multi_type_validation(
 }
 
 fn get_validation_for_type(
-  schema_json: JsonValue,
-  schema_root: JsonValue,
+  context: Context,
   t: String,
 ) -> Result(types.ValidationNode, SchemaError) {
   use #(type_check, checks) <- result.try(get_checks(t))
   use validations <- result.try(
     list.try_fold(checks, [], fn(l, v) {
       let #(prop, v) = v
-      case get_property(schema_json, prop) {
+      case get_property(context.current_node, prop) {
         Error(e) -> Error(e)
         Ok(Some(val)) -> {
           use validation_fn <- result.try(v(val))
@@ -240,14 +230,11 @@ fn get_validation_for_type(
 
   use sub_validations <- result.try(case type_check {
     Array(_) -> {
-      use subval <- result.try(get_array_subvalidation(schema_json, schema_root))
+      use subval <- result.try(get_array_subvalidation(context))
       Ok(subval)
     }
     Object(_) -> {
-      use subval <- result.try(get_object_subvalidation(
-        schema_json,
-        schema_root,
-      ))
+      use subval <- result.try(get_object_subvalidation(context))
       Ok(subval)
     }
     _ -> Ok(None)
@@ -276,21 +263,20 @@ fn filter_validation_to_non_type_errors(
 }
 
 fn get_array_subvalidation(
-  schema_json: JsonValue,
-  schema_root: JsonValue,
+  context: Context,
 ) -> Result(Option(types.ValidationNode), SchemaError) {
   use prefix_items <- result.try(
     get_property(
-      schema_json,
+      context.current_node,
       Property(
         "prefixItems",
         Array(types.Types([types.Object(types.AnyType), types.Boolean])),
         fn(v, p) {
           case v {
             ArrayValue(_, []) ->
-              Error(types.InvalidProperty(p.name, schema_json))
+              Error(types.InvalidProperty(p.name, context.current_node))
             ArrayValue(_, _) -> Ok(True)
-            _ -> Error(types.InvalidProperty(p.name, schema_json))
+            _ -> Error(types.InvalidProperty(p.name, context.current_node))
           }
         },
       ),
@@ -299,7 +285,9 @@ fn get_array_subvalidation(
       option.map(v, fn(pi) {
         case pi {
           ArrayValue(_, items) -> {
-            list.try_map(items, fn(i) { generate_validator(i, schema_root) })
+            list.try_map(items, fn(i) {
+              generate_validator(Context(..context, current_node: i))
+            })
           }
           _ -> Error(SchemaError)
         }
@@ -309,7 +297,7 @@ fn get_array_subvalidation(
   )
   use items <- result.try(
     get_property(
-      schema_json,
+      context.current_node,
       Property(
         "items",
         types.Types([types.Object(types.AnyType), types.Boolean]),
@@ -317,13 +305,13 @@ fn get_array_subvalidation(
       ),
     )
     |> result.try(fn(i) {
-      option.map(i, value_to_validation(_, schema_json, schema_root))
+      option.map(i, value_to_validation(_, context))
       |> unwrap_option_result
     }),
   )
   use contains <- result.try(
     get_property(
-      schema_json,
+      context.current_node,
       Property(
         "contains",
         types.Types([types.Object(types.AnyType), types.Boolean]),
@@ -331,7 +319,7 @@ fn get_array_subvalidation(
       ),
     )
     |> result.try(fn(v) {
-      option.map(v, value_to_validation(_, schema_json, schema_root))
+      option.map(v, value_to_validation(_, context))
       |> unwrap_option_result
     }),
   )
@@ -347,21 +335,21 @@ fn get_array_subvalidation(
 
 fn value_to_validation(
   v: Value,
-  schema_json: JsonValue,
-  schema_root: JsonValue,
+  context: Context,
 ) -> Result(types.ValidationNode, SchemaError) {
   case v {
     types.ObjectValue(_, o) ->
-      generate_validator(JsonObject(o, None), schema_root)
+      generate_validator(Context(..context, current_node: JsonObject(o, None)))
     types.BooleanValue(_, b) ->
-      generate_validator(jsonvalue.JsonBool(b, None), schema_root)
-    _ -> Error(types.InvalidProperty(v.name, schema_json))
+      generate_validator(
+        Context(..context, current_node: jsonvalue.JsonBool(b, None)),
+      )
+    _ -> Error(types.InvalidProperty(v.name, context.current_node))
   }
 }
 
 fn get_object_subvalidation(
-  schema_json: JsonValue,
-  schema_root: JsonValue,
+  context: Context,
 ) -> Result(Option(types.ValidationNode), SchemaError) {
   let p =
     Property(
@@ -371,14 +359,14 @@ fn get_object_subvalidation(
     )
 
   use properties <- result.try(
-    get_property(schema_json, p)
+    get_property(context.current_node, p)
     |> result.try(fn(v) {
       case v {
         None -> Ok(None)
         Some(types.ObjectValue(_, d)) -> {
-          dict_to_validations(d, schema_root, Ok)
+          dict_to_validations(d, context, Ok)
         }
-        Some(_) -> Error(InvalidType(schema_json, p))
+        Some(_) -> Error(InvalidType(context.current_node, p))
       }
     }),
   )
@@ -391,24 +379,24 @@ fn get_object_subvalidation(
     )
 
   use pattern_properties <- result.try(
-    get_property(schema_json, p)
+    get_property(context.current_node, p)
     |> result.try(fn(v) {
       case v {
         None -> Ok(None)
         Some(types.ObjectValue(_, d)) -> {
-          dict_to_validations(d, schema_root, fn(k) {
+          dict_to_validations(d, context, fn(k) {
             regexp.compile(k, regexp.Options(False, False))
-            |> result.replace_error(InvalidType(schema_json, p))
+            |> result.replace_error(InvalidType(context.current_node, p))
           })
         }
-        Some(_) -> Error(InvalidType(schema_json, p))
+        Some(_) -> Error(InvalidType(context.current_node, p))
       }
     }),
   )
 
   use additional_properties <- result.try(
     get_property(
-      schema_json,
+      context.current_node,
       Property(
         "additionalProperties",
         types.Types([types.Object(types.AnyType), types.Boolean]),
@@ -416,7 +404,7 @@ fn get_object_subvalidation(
       ),
     )
     |> result.try(fn(i) {
-      option.map(i, value_to_validation(_, schema_json, schema_root))
+      option.map(i, value_to_validation(_, context))
       |> unwrap_option_result
     }),
   )
@@ -439,7 +427,7 @@ fn get_object_subvalidation(
 
 fn dict_to_validations(
   d: dict.Dict(String, JsonValue),
-  schema_root: JsonValue,
+  context: Context,
   km: fn(String) -> Result(k, SchemaError),
 ) -> Result(Option(dict.Dict(k, ValidationNode)), SchemaError) {
   d
@@ -448,7 +436,7 @@ fn dict_to_validations(
     case e {
       #(k, JsonObject(_, _) as jv) | #(k, JsonBool(_, _) as jv) -> {
         use k <- result.try(km(k))
-        generate_validator(jv, schema_root)
+        generate_validator(Context(..context, current_node: jv))
         |> result.map(fn(v) { #(k, v) })
       }
       _ -> Error(SchemaError)
