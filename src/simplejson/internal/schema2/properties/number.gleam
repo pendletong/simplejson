@@ -68,7 +68,7 @@ fn multiple_of(
           }
             |> result.replace_error(SchemaFailure),
           fn(f_val) {
-            case f_val |> echo == 0.0 {
+            case f_val == 0.0 {
               True -> Ok(Valid)
               False -> {
                 let #(v1, v2) = case value, or_value, jsonvalue {
