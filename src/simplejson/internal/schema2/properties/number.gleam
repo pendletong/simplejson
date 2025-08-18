@@ -70,7 +70,24 @@ fn multiple_of(
           fn(f_val) {
             case f_val |> echo == 0.0 {
               True -> Ok(Valid)
-              False -> Error(ValidationError("Not multiple of"))
+              False -> {
+                let #(v1, v2) = case value, or_value, jsonvalue {
+                  Some(i), _, JsonNumber(Some(i2), _, _, _) -> {
+                    #(int.to_string(i2), int.to_string(i))
+                  }
+                  Some(i), _, JsonNumber(_, Some(f2), _, _) -> {
+                    #(float.to_string(f2), int.to_string(i))
+                  }
+                  _, Some(f), JsonNumber(Some(i2), _, _, _) -> {
+                    #(int.to_string(i2), float.to_string(f))
+                  }
+                  _, Some(f), JsonNumber(_, Some(f2), _, _) -> {
+                    #(float.to_string(f2), float.to_string(f))
+                  }
+                  _, _, _ -> #("X", "X")
+                }
+                Error(ValidationError(v1 <> " is not multiple of " <> v2))
+              }
             }
           },
         )
