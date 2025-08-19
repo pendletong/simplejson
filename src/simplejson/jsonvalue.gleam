@@ -16,7 +16,6 @@ pub type JsonValue {
   JsonNumber(
     int: Option(Int),
     float: Option(Float),
-    original: Option(String),
     metadata: Option(JsonMetaData),
   )
   /// Wraps a boolean value

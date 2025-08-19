@@ -236,7 +236,7 @@ pub fn validate_type(
     }
     Number -> {
       case json {
-        jsonvalue.JsonNumber(i, f, _, _) -> {
+        jsonvalue.JsonNumber(i, f, _) -> {
           NumberValue(prop.name, i, f)
           |> Ok
         }
@@ -245,7 +245,7 @@ pub fn validate_type(
     }
     Integer -> {
       case json {
-        jsonvalue.JsonNumber(i, f, _, _) -> {
+        jsonvalue.JsonNumber(i, f, _) -> {
           case f {
             Some(f) -> {
               let i = float.truncate(f)
@@ -319,8 +319,8 @@ pub fn map_json_to_value(name: String, json: JsonValue) -> Value {
     JsonObject(object, _) -> ObjectValue(name, object)
     jsonvalue.JsonBool(bool, _) -> BooleanValue(name, bool)
     jsonvalue.JsonNull(_) -> NullValue(name)
-    jsonvalue.JsonNumber(Some(i), _, _, _) -> IntValue(name, i)
-    jsonvalue.JsonNumber(_, Some(f), _, _) -> NumberValue(name, None, Some(f))
+    jsonvalue.JsonNumber(Some(i), _, _) -> IntValue(name, i)
+    jsonvalue.JsonNumber(_, Some(f), _) -> NumberValue(name, None, Some(f))
     jsonvalue.JsonString(str, _) -> StringValue(name, str)
     _ -> {
       panic as "Invalid number construction!?!"

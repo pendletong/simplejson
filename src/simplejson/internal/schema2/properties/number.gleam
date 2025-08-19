@@ -52,16 +52,16 @@ fn multiple_of(
       Ok(fn(jsonvalue: JsonValue) {
         result.try(
           case value, or_value, jsonvalue {
-            Some(i), _, JsonNumber(Some(i2), _, _, _) -> {
+            Some(i), _, JsonNumber(Some(i2), _, _) -> {
               int.modulo(i2, i) |> result.map(int.to_float)
             }
-            Some(i), _, JsonNumber(_, Some(f2), _, _) -> {
+            Some(i), _, JsonNumber(_, Some(f2), _) -> {
               float.modulo(f2, int.to_float(i))
             }
-            _, Some(f), JsonNumber(Some(i2), _, _, _) -> {
+            _, Some(f), JsonNumber(Some(i2), _, _) -> {
               float.modulo(int.to_float(i2), f)
             }
-            _, Some(f), JsonNumber(_, Some(f2), _, _) -> {
+            _, Some(f), JsonNumber(_, Some(f2), _) -> {
               float.modulo(f2, f)
             }
             _, _, _ -> Error(Nil)
@@ -72,16 +72,16 @@ fn multiple_of(
               True -> Ok(Valid)
               False -> {
                 let #(v1, v2) = case value, or_value, jsonvalue {
-                  Some(i), _, JsonNumber(Some(i2), _, _, _) -> {
+                  Some(i), _, JsonNumber(Some(i2), _, _) -> {
                     #(int.to_string(i2), int.to_string(i))
                   }
-                  Some(i), _, JsonNumber(_, Some(f2), _, _) -> {
+                  Some(i), _, JsonNumber(_, Some(f2), _) -> {
                     #(float.to_string(f2), int.to_string(i))
                   }
-                  _, Some(f), JsonNumber(Some(i2), _, _, _) -> {
+                  _, Some(f), JsonNumber(Some(i2), _, _) -> {
                     #(int.to_string(i2), float.to_string(f))
                   }
-                  _, Some(f), JsonNumber(_, Some(f2), _, _) -> {
+                  _, Some(f), JsonNumber(_, Some(f2), _) -> {
                     #(float.to_string(f2), float.to_string(f))
                   }
                   _, _, _ -> #("X", "X")
@@ -100,11 +100,11 @@ fn multiple_of(
 
 fn do_compare_numbers(value, or_value, jsonvalue) {
   case value, or_value, jsonvalue {
-    Some(i), None, JsonNumber(Some(i2), _, _, _) -> Ok(int.compare(i, i2))
-    Some(i), None, JsonNumber(_, Some(f2), _, _) ->
+    Some(i), None, JsonNumber(Some(i2), _, _) -> Ok(int.compare(i, i2))
+    Some(i), None, JsonNumber(_, Some(f2), _) ->
       Ok(float.compare(int.to_float(i), f2))
-    None, Some(f), JsonNumber(_, Some(f2), _, _) -> Ok(float.compare(f, f2))
-    None, Some(f2), JsonNumber(Some(i2), _, _, _) ->
+    None, Some(f), JsonNumber(_, Some(f2), _) -> Ok(float.compare(f, f2))
+    None, Some(f2), JsonNumber(Some(i2), _, _) ->
       Ok(float.compare(f2, int.to_float(i2)))
     _, _, _ -> Error(SchemaFailure)
   }

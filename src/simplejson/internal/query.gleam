@@ -522,20 +522,16 @@ fn jsonvalue_to_literal(jv: JsonValue) -> Literal {
     JsonObject(obj, _) -> Object(obj)
     JsonBool(_, bool:) -> Boolean(bool)
     JsonNull(_) -> Null
-    JsonNumber(_, int: Some(i), float: _, original: _) -> {
+    JsonNumber(_, int: Some(i), float: _) -> {
       let assert Ok(bd) = bigdecimal.from_string(int.to_string(i))
       Number(bd)
     }
-    JsonNumber(_, int: _, float: _, original: Some(s)) -> {
-      let assert Ok(#(n, _)) = jsonpath.parse_literal_number(s)
-      n
-    }
-    JsonNumber(_, int: _, float: Some(f), original: _) -> {
+    JsonNumber(_, int: _, float: Some(f)) -> {
       Number(bigdecimal.from_float(f))
     }
 
     JsonString(_, str:) -> String(str)
-    JsonNumber(_, int: None, float: None, original: None) -> {
+    JsonNumber(_, int: None, float: None) -> {
       // This branch should never happen.
       // Originally we panicked here but I think it is probably more
       // useful to just return zero (maybe the JsonValue should have

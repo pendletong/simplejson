@@ -24,50 +24,32 @@ pub fn simple_stringify_tests() {
       stringify.to_string(JsonBool(False, None)) |> expect.to_equal("false")
     }),
     it("number", fn() {
-      stringify.to_string(JsonNumber(Some(1), None, Some("1"), None))
+      stringify.to_string(JsonNumber(Some(1), None, None))
       |> expect.to_equal("1")
-      stringify.to_string(JsonNumber(
-        Some(9_090_981),
-        None,
-        Some("9090981"),
-        None,
-      ))
+      stringify.to_string(JsonNumber(Some(9_090_981), None, None))
       |> expect.to_equal("9090981")
-      stringify.to_string(JsonNumber(None, Some(0.1), Some("0.1"), None))
+      stringify.to_string(JsonNumber(None, Some(0.1), None))
       |> expect.to_equal("0.1")
-      stringify.to_string(JsonNumber(None, Some(0.1234), Some("0.1234"), None))
+      stringify.to_string(JsonNumber(None, Some(0.1234), None))
       |> expect.to_equal("0.1234")
-      stringify.to_string(JsonNumber(
-        None,
-        Some(9876.1234),
-        Some("9876.1234"),
-        None,
-      ))
+      stringify.to_string(JsonNumber(None, Some(9876.1234), None))
       |> expect.to_equal("9876.1234")
-      stringify.to_string(JsonNumber(Some(-1), None, Some("-1"), None))
+      stringify.to_string(JsonNumber(Some(-1), None, None))
       |> expect.to_equal("-1")
-      stringify.to_string(JsonNumber(
-        Some(09_090_981),
-        None,
-        Some("-9090981"),
-        None,
-      ))
+      stringify.to_string(JsonNumber(Some(-9_090_981), None, None))
       |> expect.to_equal("-9090981")
-      stringify.to_string(JsonNumber(None, Some(-0.1), Some("-0.1"), None))
+      stringify.to_string(JsonNumber(None, Some(-0.1), None))
       |> expect.to_equal("-0.1")
-      stringify.to_string(JsonNumber(None, Some(-0.1234), Some("-0.1234"), None))
+      stringify.to_string(JsonNumber(None, Some(-0.1234), None))
       |> expect.to_equal("-0.1234")
-      stringify.to_string(JsonNumber(
-        None,
-        Some(-9876.1234),
-        Some("-9876.1234"),
-        None,
-      ))
+      stringify.to_string(JsonNumber(None, Some(-9876.1234), None))
       |> expect.to_equal("-9876.1234")
-      stringify.to_string(JsonNumber(Some(120_000), None, Some("1.2e5"), None))
-      |> expect.to_equal("1.2e5")
-      stringify.to_string(JsonNumber(None, Some(0.002), Some("2e-3"), None))
+      stringify.to_string(JsonNumber(Some(120_000), None, None))
+      |> expect.to_equal("120000")
+      stringify.to_string(JsonNumber(None, Some(0.002), None))
       |> expect.to_equal("2e-3")
+      stringify.to_string(JsonNumber(None, Some(0.000000002), None))
+      |> expect.to_equal("2.0e-9")
     }),
     it("string", fn() {
       stringify.to_string(JsonString("", None)) |> expect.to_equal("\"\"")
@@ -111,31 +93,31 @@ pub fn simple_stringify_tests() {
       stringify.to_string(JsonArray(dict.new(), None)) |> expect.to_equal("[]")
       stringify.to_string(JsonArray(
         dict.from_list([
-          #(0, JsonNumber(Some(1), None, None, None)),
-          #(1, JsonNumber(Some(2), None, None, None)),
-          #(2, JsonNumber(Some(3), None, None, None)),
+          #(0, JsonNumber(Some(1), None, None)),
+          #(1, JsonNumber(Some(2), None, None)),
+          #(2, JsonNumber(Some(3), None, None)),
         ]),
         None,
       ))
       |> expect.to_equal("[1,2,3]")
       stringify.to_string(JsonArray(
         dict.from_list([
-          #(0, JsonNumber(Some(1), None, None, None)),
-          #(1, JsonNumber(None, Some(2.5), None, None)),
-          #(2, JsonNumber(Some(3), None, None, None)),
+          #(0, JsonNumber(Some(1), None, None)),
+          #(1, JsonNumber(None, Some(2.5), None)),
+          #(2, JsonNumber(Some(3), None, None)),
         ]),
         None,
       ))
       |> expect.to_equal("[1,2.5,3]")
       stringify.to_string(JsonArray(
         dict.from_list([
-          #(0, JsonNumber(Some(1), None, None, None)),
-          #(1, JsonNumber(Some(2), None, None, None)),
-          #(2, JsonNumber(None, Some(20_000.5), Some("2.00005e4"), None)),
+          #(0, JsonNumber(Some(1), None, None)),
+          #(1, JsonNumber(Some(2), None, None)),
+          #(2, JsonNumber(None, Some(20_000.5), None)),
         ]),
         None,
       ))
-      |> expect.to_equal("[1,2,2.00005e4]")
+      |> expect.to_equal("[1,2,20000.5]")
       stringify.to_string(JsonArray(
         dict.from_list([
           #(
