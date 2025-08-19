@@ -13,7 +13,8 @@ pub fn main() {
   //   )
   // schema |> validator2.validate(json, _) |> echo
 
-  let assert Ok(schema) = schema2.get_validator("{\"minimum\":5}")
-  let assert Ok(json) = simplejson.parse("3")
-  validator2.validate(json, schema)
+  let assert Ok(schema) =
+    schema2.get_validator("{\"type\":\"array\", \"uniqueItems\":true}") |> echo
+  let assert Ok(json) = simplejson.parse("[1,3,5,4,5]")
+  validator2.validate(json, schema) |> echo
 }
