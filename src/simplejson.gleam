@@ -12,6 +12,7 @@ import simplejson/internal/parser
 import simplejson/internal/pointer
 import simplejson/internal/query
 import simplejson/internal/stringify
+import simplejson/internal/utils
 import simplejson/jsonvalue.{
   type JsonPathError, type JsonValue, type ParseError, JsonArray, JsonBool,
   JsonNull, JsonNumber, JsonObject, JsonString,
@@ -46,21 +47,8 @@ import simplejson/jsonvalue.{
 /// ```
 pub fn parse(json: String) -> Result(JsonValue, ParseError) {
   case parser.parse(json) {
-    Ok(json) -> Ok(strip_metadata(json))
+    Ok(json) -> Ok(utils.strip_metadata(json))
     Error(_) as err -> err
-  }
-}
-
-fn strip_metadata(json: JsonValue) -> JsonValue {
-  case json {
-    JsonNull(_) -> JsonNull(None)
-    JsonBool(b, _) -> JsonBool(b, None)
-    JsonString(s, _) -> JsonString(s, None)
-    JsonNumber(i, f, o, _) -> JsonNumber(i, f, o, None)
-    JsonArray(l, _) ->
-      JsonArray(dict.map_values(l, fn(_k, v) { strip_metadata(v) }), None)
-    JsonObject(d, _) ->
-      JsonObject(dict.map_values(d, fn(_k, v) { strip_metadata(v) }), None)
   }
 }
 

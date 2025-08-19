@@ -3,11 +3,11 @@ import gleam/option.{None, Some}
 import simplejson
 import simplejson/internal/schema2/schema2
 import simplejson/internal/schema2/types.{
-  AlwaysFail, IncorrectType, InvalidComparison, MultipleInfo, StringValue,
-  ValidationError,
+  AlwaysFail, ArrayValue, BooleanValue, IncorrectType, IntValue,
+  InvalidComparison, MultipleInfo, StringValue, ValidationError,
 }
 import simplejson/internal/schema2/validator2
-import simplejson/jsonvalue.{JsonArray, JsonNumber, JsonString}
+import simplejson/jsonvalue.{JsonArray, JsonBool, JsonNumber, JsonString}
 import startest.{describe, it}
 import startest/expect
 
@@ -137,7 +137,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(types.Null, jsonvalue.JsonBool(True, None))),
+          Some(IncorrectType(types.Null, JsonBool(True, None))),
         ))
       }),
       it("String Type", fn() {
@@ -180,7 +180,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(types.String, jsonvalue.JsonBool(True, None))),
+          Some(IncorrectType(types.String, JsonBool(True, None))),
         ))
       }),
       it("Integer Type", fn() {
@@ -232,7 +232,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(types.Integer, jsonvalue.JsonBool(True, None))),
+          Some(IncorrectType(types.Integer, JsonBool(True, None))),
         ))
       }),
       it("Number Type", fn() {
@@ -278,7 +278,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(types.Number, jsonvalue.JsonBool(True, None))),
+          Some(IncorrectType(types.Number, JsonBool(True, None))),
         ))
       }),
       it("Boolean type", fn() {
@@ -376,10 +376,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(
-            types.Array(types.AnyType),
-            jsonvalue.JsonBool(True, None),
-          )),
+          Some(IncorrectType(types.Array(types.AnyType), JsonBool(True, None))),
         ))
       }),
       it("Object type", fn() {
@@ -431,10 +428,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(
-            types.Object(types.AnyType),
-            jsonvalue.JsonBool(True, None),
-          )),
+          Some(IncorrectType(types.Object(types.AnyType), JsonBool(True, None))),
         ))
       }),
     ]),
@@ -506,10 +500,10 @@ pub fn schema_type_tests() {
 }
 
 pub fn schema_number_tests() {
-  describe("numeric comparison tests", [
+  describe("Numeric Comparison Tests", [
     describe("Schema test", [
       it("Valid Schema", fn() {
-        schema2.get_validator("{\"minimum\":0}") |> expect.to_be_ok |> echo
+        schema2.get_validator("{\"minimum\":0}") |> expect.to_be_ok
         schema2.get_validator("{\"minimum\":99999}") |> expect.to_be_ok
         schema2.get_validator("{\"minimum\":-99999}") |> expect.to_be_ok
         schema2.get_validator("{\"maximum\":0}") |> expect.to_be_ok
@@ -941,7 +935,7 @@ pub fn schema_number_tests() {
 }
 
 pub fn schema_string_tests() {
-  describe("string comparison tests", [
+  describe("String Comparison Tests", [
     describe("Schema test", [
       it("Valid Schema", fn() {
         schema2.get_validator("{\"minLength\":0}") |> expect.to_be_ok
@@ -1104,6 +1098,322 @@ pub fn schema_string_tests() {
             "pattern",
             JsonString("123", None),
           )),
+        ))
+      }),
+    ]),
+  ])
+}
+
+pub fn schema_const_tests() {
+  describe("Const Tests", [
+    describe("Schema test", [
+      it("Valid Schema", fn() {
+        schema2.get_validator("{\"const\":0}") |> expect.to_be_ok
+        schema2.get_validator("{\"const\":null}") |> expect.to_be_ok
+        schema2.get_validator("{\"const\":\"s\"}") |> expect.to_be_ok
+        schema2.get_validator("{\"const\":true}") |> expect.to_be_ok
+        schema2.get_validator("{\"const\":[]}") |> expect.to_be_ok
+        schema2.get_validator("{\"const\":{}}") |> expect.to_be_ok
+        schema2.get_validator("{\"const\":{\"a\":123}}") |> expect.to_be_ok
+        Nil
+      }),
+    ]),
+    describe("Actual Tests", [
+      it("passes", fn() {
+        let schema =
+          schema2.get_validator("{\"const\":123}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("123")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":123}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("123.0")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":123.0}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("123")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":true}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("true")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":null}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("null")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":\"const\"}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("\"const\"")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":[]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[]")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":[0.0]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[0]")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":[0]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[0.0]")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":[[[[[[[]]]]]]]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[[[[[[[]]]]]]]")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":[1,2,3,4]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[1,2,3,4]")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":{}}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("{}")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"const\":{\"abc\":123,\"def\":null}}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("{\"abc\":123,\"def\":null}")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+      }),
+      it("fails", fn() {
+        let schema =
+          schema2.get_validator("{\"const\":123}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("124")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            IntValue("const", 123),
+            "equal",
+            JsonNumber(Some(124), None, Some("124"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"const\":null}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("124")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            types.NullValue("const"),
+            "equal",
+            JsonNumber(Some(124), None, Some("124"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"const\":true}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("false")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            BooleanValue("const", True),
+            "equal",
+            JsonBool(False, None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"const\":[1,2,3]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[1,2,4]")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            ArrayValue("const", [
+              JsonNumber(Some(1), None, Some("1"), None),
+              JsonNumber(Some(2), None, Some("2"), None),
+              JsonNumber(Some(3), None, Some("3"), None),
+            ]),
+            "equal",
+            JsonArray(
+              dict.from_list([
+                #(0, JsonNumber(Some(1), None, Some("1"), None)),
+                #(1, JsonNumber(Some(2), None, Some("2"), None)),
+                #(2, JsonNumber(Some(4), None, Some("4"), None)),
+              ]),
+              None,
+            ),
+          )),
+        ))
+      }),
+    ]),
+  ])
+}
+
+pub fn schema_enum_tests() {
+  describe("Enum Tests", [
+    describe("Schema Test", [
+      it("Valid Schema", fn() {
+        schema2.get_validator("{\"enum\":[0]}") |> expect.to_be_ok
+        schema2.get_validator("{\"enum\":[null]}") |> expect.to_be_ok
+        schema2.get_validator("{\"enum\":[\"s\"]}") |> expect.to_be_ok
+        schema2.get_validator("{\"enum\":[true]}") |> expect.to_be_ok
+        schema2.get_validator("{\"enum\":[[]]}") |> expect.to_be_ok
+        schema2.get_validator("{\"enum\":[{}]}") |> expect.to_be_ok
+        schema2.get_validator("{\"enum\":[{\"a\":123}]}") |> expect.to_be_ok
+        schema2.get_validator("{\"enum\":[{\"a\":123},321,\"a\"]}")
+        |> expect.to_be_ok
+        Nil
+      }),
+      it("Invalid Schema", fn() {
+        schema2.get_validator("{\"enum\":[]}") |> expect.to_be_error
+        schema2.get_validator("{\"enum\":[true, true]}") |> expect.to_be_error
+        schema2.get_validator("{\"enum\":[1,2,3,1]}") |> expect.to_be_error
+        schema2.get_validator("{\"enum\":[1,2,true,\"1\", 2]}")
+        |> expect.to_be_error
+        Nil
+      }),
+    ]),
+    describe("Actual Test", [
+      it("Passes", fn() {
+        let schema =
+          schema2.get_validator("{\"enum\":[123]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("123")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"enum\":[123.0]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("123")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"enum\":[123]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("123.0")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"enum\":[false]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("false")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"enum\":[123,999,true]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("true")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"enum\":[\"123\"]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("\"123\"")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"enum\":[[[[123]]]]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[[[123]]]")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+        let schema =
+          schema2.get_validator("{\"enum\":[{\"123\":{}}]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("{\"123\":{}}")
+        validator2.validate(json, schema) |> expect.to_equal(#(True, None))
+      }),
+      it("Fails", fn() {
+        let schema =
+          schema2.get_validator("{\"enum\":[123]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("124")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(InvalidComparison(
+            IntValue("enum", 123),
+            "equal",
+            JsonNumber(Some(124), None, Some("124"), None),
+          )),
+        ))
+        let schema =
+          schema2.get_validator("{\"enum\":[123, false]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("true")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(
+            MultipleInfo([
+              InvalidComparison(
+                BooleanValue("enum", False),
+                "equal",
+                JsonBool(True, None),
+              ),
+              InvalidComparison(
+                IntValue("enum", 123),
+                "equal",
+                JsonBool(True, None),
+              ),
+            ]),
+          ),
+        ))
+        let schema =
+          schema2.get_validator("{\"enum\":[123, [[[false]]]]}")
+          |> expect.to_be_ok
+        let assert Ok(json) = simplejson.parse("[[false]]")
+        validator2.validate(json, schema)
+        |> expect.to_equal(#(
+          False,
+          Some(
+            MultipleInfo([
+              InvalidComparison(
+                ArrayValue("enum", [
+                  JsonArray(
+                    dict.from_list([
+                      #(
+                        0,
+                        JsonArray(
+                          dict.from_list([#(0, JsonBool(False, None))]),
+                          None,
+                        ),
+                      ),
+                    ]),
+                    None,
+                  ),
+                ]),
+                "equal",
+                JsonArray(
+                  dict.from_list([
+                    #(
+                      0,
+                      JsonArray(
+                        dict.from_list([#(0, JsonBool(False, None))]),
+                        None,
+                      ),
+                    ),
+                  ]),
+                  None,
+                ),
+              ),
+              InvalidComparison(
+                IntValue("enum", 123),
+                "equal",
+                JsonArray(
+                  dict.from_list([
+                    #(
+                      0,
+                      JsonArray(
+                        dict.from_list([#(0, JsonBool(False, None))]),
+                        None,
+                      ),
+                    ),
+                  ]),
+                  None,
+                ),
+              ),
+            ]),
+          ),
         ))
       }),
     ]),
