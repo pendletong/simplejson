@@ -288,7 +288,7 @@ pub fn validate_type(
       }
     }
     Null -> todo
-    AnyType -> todo
+    AnyType -> Ok(map_json_to_value(prop.name, json))
     NoType -> todo
     Types(types) -> {
       case
@@ -309,5 +309,21 @@ pub fn validate_type(
     Error(_) -> Error(InvalidProperty(prop.name, json))
     Ok(False) -> Ok(None)
     Ok(True) -> Ok(Some(value))
+  }
+}
+
+pub fn map_json_to_value(name: String, json: JsonValue) -> Value {
+  case json {
+    JsonArray(array, _) ->
+      ArrayValue(name, stringify.dict_to_ordered_list(array))
+    JsonObject(object, _) -> ObjectValue(name, object)
+    jsonvalue.JsonBool(bool, _) -> BooleanValue(name, bool)
+    jsonvalue.JsonNull(_) -> NullValue(name)
+    jsonvalue.JsonNumber(Some(i), _, _, _) -> IntValue(name, i)
+    jsonvalue.JsonNumber(_, Some(f), _, _) -> NumberValue(name, None, Some(f))
+    jsonvalue.JsonString(str, _) -> StringValue(name, str)
+    _ -> {
+      panic as "Invalid number construction!?!"
+    }
   }
 }
