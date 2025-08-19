@@ -18,7 +18,7 @@ pub fn main() {
   startest.run(startest.default_config())
 }
 
-pub fn suite_tests() {
+pub fn suite_testzs() {
   simplifile.get_files("./JSON-Schema-Test-Suite/tests/draft2020-12")
   |> expect.to_be_ok
   |> list.filter_map(fn(filename) {

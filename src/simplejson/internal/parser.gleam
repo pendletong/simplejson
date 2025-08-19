@@ -578,7 +578,6 @@ fn do_parse_number(
       Ok(JsonNumber(
         Some(i),
         None,
-        Some(original),
         Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
@@ -595,21 +594,19 @@ fn do_parse_number(
           Ok(JsonNumber(
             Some(i),
             None,
-            Some(original),
             Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         }
-        False -> {
-          use f <- result.try(decode_float(num, fraction, -exp))
-          Ok(JsonNumber(
-            None,
-            Some(f),
-            Some(original),
+        False ->
+          create_number_from_float(
+            num,
+            fraction,
+            -exp,
             Some(JsonMetaData(original_pos.char, current_pos.char)),
-          ))
-        }
+          )
       }
     }
+
     "", "+" <> exp | "", exp -> {
       use exp <- result.try(
         int.parse(exp)
@@ -623,31 +620,28 @@ fn do_parse_number(
       Ok(JsonNumber(
         Some(i),
         None,
-        Some(original),
         Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
     _, "" -> {
-      use f <- result.try(decode_float(num, fraction, 0))
-      Ok(JsonNumber(
-        None,
-        Some(f),
-        Some(original),
+      create_number_from_float(
+        num,
+        fraction,
+        0,
         Some(JsonMetaData(original_pos.char, current_pos.char)),
-      ))
+      )
     }
     _, "-" <> exp -> {
       use exp <- result.try(
         int.parse(exp)
         |> result.replace_error(InvalidNumber(original, original_json, -1)),
       )
-      use f <- result.try(decode_float(num, fraction, -exp))
-      Ok(JsonNumber(
-        None,
-        Some(f),
-        Some(original),
+      create_number_from_float(
+        num,
+        fraction,
+        -exp,
         Some(JsonMetaData(original_pos.char, current_pos.char)),
-      ))
+      )
     }
     _, "+" <> exp | _, exp -> {
       use exp <- result.try(
@@ -665,24 +659,30 @@ fn do_parse_number(
           Ok(JsonNumber(
             Some(i),
             None,
-            Some(original),
             Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         }
-        False -> {
-          use f <- result.try(decode_float(num, fraction, exp))
-          Ok(JsonNumber(
-            None,
-            Some(f),
-            Some(original),
+        False ->
+          create_number_from_float(
+            num,
+            fraction,
+            exp,
             Some(JsonMetaData(original_pos.char, current_pos.char)),
-          ))
-        }
+          )
       }
     }
   })
 
   Ok(ReturnInfo(json, ret, current_pos))
+}
+
+fn create_number_from_float(num, fraction, exp, metadata) {
+  use #(f, i) <- result.try(decode_float(num, fraction, exp))
+  case i {
+    Some(i) -> JsonNumber(Some(i), None, metadata)
+    None -> JsonNumber(None, Some(f), metadata)
+  }
+  |> Ok
 }
 
 fn decode_int(
@@ -700,6 +700,10 @@ fn decode_int(
       use fraction <- result.try(
         int.parse(fraction) |> result.replace_error(InvalidInt(fraction)),
       )
+      let fraction = case int_val < 0 {
+        True -> -fraction
+        False -> fraction
+      }
 
       Ok(#(
         int_val * fast_exp(fraction_length) + fraction,
@@ -739,7 +743,7 @@ fn decode_float(
   int_val: String,
   fraction: String,
   exp: Int,
-) -> Result(Float, ParseError) {
+) -> Result(#(Float, Option(Int)), ParseError) {
   let float_val = case fraction {
     "" -> int_val <> ".0"
     _ -> int_val <> "." <> fraction
@@ -747,7 +751,7 @@ fn decode_float(
   use float_val <- result.try(
     float.parse(float_val) |> result.replace_error(InvalidFloat(float_val)),
   )
-  case int.compare(exp, 0) {
+  use f <- result.try(case int.compare(exp, 0) {
     Eq -> Ok(float_val)
     Gt -> {
       Ok(float_val *. int.to_float(fast_exp(exp)))
@@ -759,7 +763,13 @@ fn decode_float(
 
       Ok(float_val *. mult)
     }
+  })
+  let truncated = float.truncate(f)
+  case int.to_float(truncated) == f {
+    True -> #(f, Some(truncated))
+    False -> #(f, None)
   }
+  |> Ok
 }
 
 fn do_parse_exponent(

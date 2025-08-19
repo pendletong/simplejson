@@ -18,24 +18,24 @@ pub fn pointer_tests() {
       let assert Ok(json) = simplejson.parse("{\"a\":1}")
       simplejson.jsonpath(json, "a")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(Some(1), None, Some("1"), None))
+      |> expect.to_equal(JsonNumber(Some(1), None, None))
     }),
 
     it("array pos", fn() {
       let assert Ok(json) = simplejson.parse("[1,2,3]")
       simplejson.jsonpath(json, "#1")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(Some(2), None, Some("2"), None))
+      |> expect.to_equal(JsonNumber(Some(2), None, None))
       let assert Ok(json) = simplejson.parse("[1,2,3]")
       simplejson.jsonpath(json, "#0")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(Some(1), None, Some("1"), None))
+      |> expect.to_equal(JsonNumber(Some(1), None, None))
     }),
     it("properties and array pos", fn() {
       let assert Ok(json) = simplejson.parse("{\"a\":[1,2,{\"b\":123}]}")
       simplejson.jsonpath(json, "a.#2.b")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(Some(123), None, Some("123"), None))
+      |> expect.to_equal(JsonNumber(Some(123), None, None))
     }),
   ])
 }

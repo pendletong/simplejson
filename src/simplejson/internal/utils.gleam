@@ -27,7 +27,7 @@ pub fn strip_metadata(json: JsonValue) -> JsonValue {
     JsonNull(_) -> JsonNull(None)
     JsonBool(b, _) -> JsonBool(b, None)
     JsonString(s, _) -> JsonString(s, None)
-    JsonNumber(i, f, o, _) -> JsonNumber(i, f, o, None)
+    JsonNumber(i, f, _) -> JsonNumber(i, f, None)
     JsonArray(l, _) ->
       JsonArray(dict.map_values(l, fn(_k, v) { strip_metadata(v) }), None)
     JsonObject(d, _) ->

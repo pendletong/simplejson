@@ -27,10 +27,9 @@ fn create_string(json: JsonValue, acc: String) -> String {
     JsonArray(l, _) ->
       acc <> "[" <> encode_list(dict_to_ordered_list(l), "") <> "]"
     JsonNull(_) -> acc <> "null"
-    JsonNumber(_, _, Some(s), _) -> acc <> s
-    JsonNumber(Some(i), _, _, _) -> acc <> encode_int(i)
-    JsonNumber(_, Some(f), _, _) -> acc <> encode_float(f)
-    JsonNumber(None, None, _, _) -> {
+    JsonNumber(_, Some(f), _) -> acc <> encode_float(f)
+    JsonNumber(Some(i), _, _) -> acc <> encode_int(i)
+    JsonNumber(None, None, _) -> {
       // Should never happen but output 0 if it does
       acc <> "0"
     }
@@ -125,7 +124,7 @@ fn encode_list(l: List(JsonValue), acc: String) -> String {
     | [JsonNull(_) as el, ..rest]
     | [JsonObject(_, _) as el, ..rest]
     | [JsonString(_, _) as el, ..rest]
-    | [JsonNumber(_, _, _, _) as el, ..rest] -> {
+    | [JsonNumber(_, _, _) as el, ..rest] -> {
       encode_list(
         rest,
         acc

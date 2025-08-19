@@ -78,7 +78,7 @@ pub fn get_validator_from_json(
     | JsonObject(_, Some(_))
     | JsonArray(_, Some(_))
     | JsonNull(Some(_))
-    | JsonNumber(_, _, _, Some(_))
+    | JsonNumber(_, _, Some(_))
     | JsonString(_, Some(_)) -> utils.strip_metadata(schema_json)
     _ -> schema_json
   }
@@ -209,14 +209,14 @@ fn validate_const(v: Value) {
 
 fn compare_value_and_json(v: Value, json: JsonValue) -> Bool {
   case v, json {
-    NumberValue(_, Some(i), _), JsonNumber(Some(i2), _, _, _) -> i == i2
-    NumberValue(_, _, Some(f)), JsonNumber(_, Some(f2), _, _) -> f == f2
-    NumberValue(_, Some(i), _), JsonNumber(_, Some(f2), _, _) ->
+    NumberValue(_, Some(i), _), JsonNumber(Some(i2), _, _) -> i == i2
+    NumberValue(_, _, Some(f)), JsonNumber(_, Some(f2), _) -> f == f2
+    NumberValue(_, Some(i), _), JsonNumber(_, Some(f2), _) ->
       int.to_float(i) == f2
-    NumberValue(_, _, Some(f)), JsonNumber(Some(i2), _, _, _) ->
+    NumberValue(_, _, Some(f)), JsonNumber(Some(i2), _, _) ->
       f == int.to_float(i2)
-    IntValue(_, i), JsonNumber(Some(i2), _, _, _) -> i == i2
-    IntValue(_, i), JsonNumber(_, Some(f2), _, _) -> int.to_float(i) == f2
+    IntValue(_, i), JsonNumber(Some(i2), _, _) -> i == i2
+    IntValue(_, i), JsonNumber(_, Some(f2), _) -> int.to_float(i) == f2
     StringValue(_, s), JsonString(s2, _) -> s == s2
     BooleanValue(_, b), JsonBool(b2, _) -> b == b2
     NullValue(_), JsonNull(_) -> True
@@ -239,10 +239,8 @@ fn match_array_elements(l1, l2) {
 
 fn match_json_values(j1, j2) {
   case j1, j2 {
-    JsonNumber(Some(i), _, _, _), JsonNumber(_, Some(f), _, _) ->
-      int.to_float(i) == f
-    JsonNumber(_, Some(f), _, _), JsonNumber(Some(i), _, _, _) ->
-      int.to_float(i) == f
+    JsonNumber(Some(i), _, _), JsonNumber(_, Some(f), _) -> int.to_float(i) == f
+    JsonNumber(_, Some(f), _), JsonNumber(Some(i), _, _) -> int.to_float(i) == f
     _, _ -> j1 == j2
   }
 }

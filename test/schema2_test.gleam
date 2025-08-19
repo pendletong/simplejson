@@ -110,10 +110,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(
-            types.Null,
-            JsonNumber(Some(1), None, Some("1"), None),
-          )),
+          Some(IncorrectType(types.Null, JsonNumber(Some(1), None, None))),
         ))
         let assert Ok(json) = simplejson.parse("[]")
         validator2.validate(json, schema)
@@ -156,10 +153,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(
-            types.String,
-            JsonNumber(Some(1), None, Some("1"), None),
-          )),
+          Some(IncorrectType(types.String, JsonNumber(Some(1), None, None))),
         ))
         let assert Ok(json) = simplejson.parse("[]")
         validator2.validate(json, schema)
@@ -196,10 +190,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(
-            types.Integer,
-            JsonNumber(None, Some(2.1), Some("2.1"), None),
-          )),
+          Some(IncorrectType(types.Integer, JsonNumber(None, Some(2.1), None))),
         ))
         let assert Ok(json) = simplejson.parse("\"null\"")
         validator2.validate(json, schema)
@@ -300,10 +291,7 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(IncorrectType(
-            types.Boolean,
-            JsonNumber(Some(1), None, Some("1"), None),
-          )),
+          Some(IncorrectType(types.Boolean, JsonNumber(Some(1), None, None))),
         ))
         let assert Ok(json) = simplejson.parse("[]")
         validator2.validate(json, schema)
@@ -351,7 +339,7 @@ pub fn schema_type_tests() {
           False,
           Some(IncorrectType(
             types.Array(types.AnyType),
-            JsonNumber(Some(1), None, Some("1"), None),
+            JsonNumber(Some(1), None, None),
           )),
         ))
         let assert Ok(json) = simplejson.parse("{}")
@@ -403,7 +391,7 @@ pub fn schema_type_tests() {
           False,
           Some(IncorrectType(
             types.Object(types.AnyType),
-            JsonNumber(Some(1), None, Some("1"), None),
+            JsonNumber(Some(1), None, None),
           )),
         ))
         let assert Ok(json) = simplejson.parse("[]")
@@ -472,14 +460,8 @@ pub fn schema_type_tests() {
           False,
           Some(
             MultipleInfo([
-              IncorrectType(
-                types.String,
-                JsonNumber(Some(123), None, Some("123"), None),
-              ),
-              IncorrectType(
-                types.Null,
-                JsonNumber(Some(123), None, Some("123"), None),
-              ),
+              IncorrectType(types.String, JsonNumber(Some(123), None, None)),
+              IncorrectType(types.Null, JsonNumber(Some(123), None, None)),
             ]),
           ),
         ))
@@ -581,7 +563,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("minimum", Some(1), None),
             "minimum",
-            JsonNumber(Some(0), None, Some("0"), None),
+            JsonNumber(Some(0), None, None),
           )),
         ))
         let schema =
@@ -594,7 +576,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("minimum", Some(-1), None),
             "minimum",
-            JsonNumber(None, Some(-1.1), Some("-1.1"), None),
+            JsonNumber(None, Some(-1.1), None),
           )),
         ))
         let schema =
@@ -607,7 +589,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("minimum", Some(5), None),
             "minimum",
-            JsonNumber(Some(3), None, Some("3"), None),
+            JsonNumber(Some(3), None, None),
           )),
         ))
       }),
@@ -658,7 +640,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("exclusiveMinimum", Some(0), None),
             "exclusiveMinimum",
-            JsonNumber(Some(0), None, Some("0"), None),
+            JsonNumber(Some(0), None, None),
           )),
         ))
         let schema =
@@ -673,7 +655,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("exclusiveMinimum", None, Some(-1.1)),
             "exclusiveMinimum",
-            JsonNumber(None, Some(-1.1), Some("-1.1"), None),
+            JsonNumber(None, Some(-1.1), None),
           )),
         ))
         let schema =
@@ -686,7 +668,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("exclusiveMinimum", Some(5), None),
             "exclusiveMinimum",
-            JsonNumber(Some(3), None, Some("3"), None),
+            JsonNumber(Some(3), None, None),
           )),
         ))
       }),
@@ -735,7 +717,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("maximum", Some(1), None),
             "maximum",
-            JsonNumber(Some(2), None, Some("2"), None),
+            JsonNumber(Some(2), None, None),
           )),
         ))
         let schema =
@@ -748,7 +730,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("maximum", Some(-1), None),
             "maximum",
-            JsonNumber(None, Some(-0.9), Some("-0.9"), None),
+            JsonNumber(None, Some(-0.9), None),
           )),
         ))
         let schema =
@@ -761,7 +743,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("maximum", Some(3), None),
             "maximum",
-            JsonNumber(Some(5), None, Some("5"), None),
+            JsonNumber(Some(5), None, None),
           )),
         ))
       }),
@@ -812,7 +794,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("exclusiveMaximum", Some(0), None),
             "exclusiveMaximum",
-            JsonNumber(Some(0), None, Some("0"), None),
+            JsonNumber(Some(0), None, None),
           )),
         ))
         let schema =
@@ -827,7 +809,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("exclusiveMaximum", None, Some(-1.1)),
             "exclusiveMaximum",
-            JsonNumber(None, Some(-1.1), Some("-1.1"), None),
+            JsonNumber(None, Some(-1.1), None),
           )),
         ))
         let schema =
@@ -840,7 +822,7 @@ pub fn schema_number_tests() {
           Some(InvalidComparison(
             types.NumberValue("exclusiveMaximum", Some(3), None),
             "exclusiveMaximum",
-            JsonNumber(Some(5), None, Some("5"), None),
+            JsonNumber(Some(5), None, None),
           )),
         ))
       }),
@@ -918,7 +900,7 @@ pub fn schema_number_tests() {
         validator2.validate(json, schema)
         |> expect.to_equal(#(
           False,
-          Some(ValidationError("11.0 is not multiple of 5")),
+          Some(ValidationError("11 is not multiple of 5")),
         ))
         let schema =
           schema2.get_validator("{\"type\":\"number\",\"multipleOf\":5}")
@@ -1197,7 +1179,7 @@ pub fn schema_const_tests() {
           Some(InvalidComparison(
             IntValue("const", 123),
             "equal",
-            JsonNumber(Some(124), None, Some("124"), None),
+            JsonNumber(Some(124), None, None),
           )),
         ))
         let schema =
@@ -1210,7 +1192,7 @@ pub fn schema_const_tests() {
           Some(InvalidComparison(
             types.NullValue("const"),
             "equal",
-            JsonNumber(Some(124), None, Some("124"), None),
+            JsonNumber(Some(124), None, None),
           )),
         ))
         let schema =
@@ -1235,16 +1217,16 @@ pub fn schema_const_tests() {
           False,
           Some(InvalidComparison(
             ArrayValue("const", [
-              JsonNumber(Some(1), None, Some("1"), None),
-              JsonNumber(Some(2), None, Some("2"), None),
-              JsonNumber(Some(3), None, Some("3"), None),
+              JsonNumber(Some(1), None, None),
+              JsonNumber(Some(2), None, None),
+              JsonNumber(Some(3), None, None),
             ]),
             "equal",
             JsonArray(
               dict.from_list([
-                #(0, JsonNumber(Some(1), None, Some("1"), None)),
-                #(1, JsonNumber(Some(2), None, Some("2"), None)),
-                #(2, JsonNumber(Some(4), None, Some("4"), None)),
+                #(0, JsonNumber(Some(1), None, None)),
+                #(1, JsonNumber(Some(2), None, None)),
+                #(2, JsonNumber(Some(4), None, None)),
               ]),
               None,
             ),
@@ -1333,7 +1315,7 @@ pub fn schema_enum_tests() {
           Some(InvalidComparison(
             IntValue("enum", 123),
             "equal",
-            JsonNumber(Some(124), None, Some("124"), None),
+            JsonNumber(Some(124), None, None),
           )),
         ))
         let schema =
