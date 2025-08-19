@@ -120,8 +120,8 @@ fn validate_type(t: ValueType, json: JsonValue) -> Bool {
     }
     types.Integer -> {
       case json {
-        jsonvalue.JsonNumber(Some(_), _, _, _) -> True
-        jsonvalue.JsonNumber(_, Some(f), _, _) -> {
+        jsonvalue.JsonNumber(Some(_), _, _) -> True
+        jsonvalue.JsonNumber(_, Some(f), _) -> {
           float.floor(f) == f
         }
         _ -> False
@@ -137,7 +137,7 @@ fn validate_type(t: ValueType, json: JsonValue) -> Bool {
     }
     types.Number -> {
       case json {
-        jsonvalue.JsonNumber(_, _, _, _) -> {
+        jsonvalue.JsonNumber(_, _, _) -> {
           True
         }
         _ -> False

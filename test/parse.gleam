@@ -18,96 +18,44 @@ pub fn parse_number_tests() {
     it("Zero", fn() {
       simplejson.parse_with_metadata("0")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        Some(0),
-        None,
-        Some("0"),
-        Some(JsonMetaData(0, 1)),
-      ))
+      |> expect.to_equal(JsonNumber(Some(0), None, Some(JsonMetaData(0, 1))))
       simplejson.parse_with_metadata("-0")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        Some(0),
-        None,
-        Some("-0"),
-        Some(JsonMetaData(0, 2)),
-      ))
+      |> expect.to_equal(JsonNumber(Some(0), None, Some(JsonMetaData(0, 2))))
     }),
     it("Negative", fn() {
       simplejson.parse_with_metadata("-1")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        Some(-1),
-        None,
-        Some("-1"),
-        Some(JsonMetaData(0, 2)),
-      ))
+      |> expect.to_equal(JsonNumber(Some(-1), None, Some(JsonMetaData(0, 2))))
       simplejson.parse_with_metadata("-1.5")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        None,
-        Some(-1.5),
-        Some("-1.5"),
-        Some(JsonMetaData(0, 4)),
-      ))
+      |> expect.to_equal(JsonNumber(None, Some(-1.5), Some(JsonMetaData(0, 4))))
     }),
     it("Exponent", fn() {
       simplejson.parse_with_metadata("1e2")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        Some(100),
-        None,
-        Some("1e2"),
-        Some(JsonMetaData(0, 3)),
-      ))
+      |> expect.to_equal(JsonNumber(Some(100), None, Some(JsonMetaData(0, 3))))
       simplejson.parse_with_metadata("1e-2")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        None,
-        Some(0.01),
-        Some("1e-2"),
-        Some(JsonMetaData(0, 4)),
-      ))
+      |> expect.to_equal(JsonNumber(None, Some(0.01), Some(JsonMetaData(0, 4))))
       simplejson.parse_with_metadata("1e+2")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        Some(100),
-        None,
-        Some("1e2"),
-        Some(JsonMetaData(0, 4)),
-      ))
+      |> expect.to_equal(JsonNumber(Some(100), None, Some(JsonMetaData(0, 4))))
       simplejson.parse_with_metadata("1E2")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        Some(100),
-        None,
-        Some("1e2"),
-        Some(JsonMetaData(0, 3)),
-      ))
+      |> expect.to_equal(JsonNumber(Some(100), None, Some(JsonMetaData(0, 3))))
       simplejson.parse_with_metadata("1E-2")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        None,
-        Some(0.01),
-        Some("1e-2"),
-        Some(JsonMetaData(0, 4)),
-      ))
+      |> expect.to_equal(JsonNumber(None, Some(0.01), Some(JsonMetaData(0, 4))))
       simplejson.parse_with_metadata("-1e2")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        Some(-100),
-        None,
-        Some("-1e2"),
-        Some(JsonMetaData(0, 4)),
-      ))
+      |> expect.to_equal(JsonNumber(Some(-100), None, Some(JsonMetaData(0, 4))))
       simplejson.parse_with_metadata("-1e-2")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(
-        None,
-        Some(-0.01),
-        Some("-1e-2"),
-        Some(JsonMetaData(0, 5)),
-      ))
+      |> expect.to_equal(JsonNumber(None, Some(-0.01), Some(JsonMetaData(0, 5))))
+      simplejson.parse("-9.09e1")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonNumber(None, Some(-90.9), Some(JsonMetaData(0, 7))))
     }),
     it("Float", fn() {
       simplejson.parse_with_metadata("0.1234")
@@ -115,7 +63,6 @@ pub fn parse_number_tests() {
       |> expect.to_equal(JsonNumber(
         None,
         Some(0.1234),
-        Some("0.1234"),
         Some(JsonMetaData(0, 6)),
       ))
       simplejson.parse_with_metadata("-9876.1234")
@@ -123,9 +70,25 @@ pub fn parse_number_tests() {
       |> expect.to_equal(JsonNumber(
         None,
         Some(-9876.1234),
-        Some("-9876.1234"),
         Some(JsonMetaData(0, 10)),
       ))
+    }),
+    it("Truncate", fn() {
+      simplejson.parse_with_metadata("0.0")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonNumber(Some(0), None, Some(JsonMetaData(0, 3))))
+      simplejson.parse_with_metadata("99.0")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonNumber(Some(99), None, Some(JsonMetaData(0, 4))))
+      simplejson.parse_with_metadata("-99.0")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonNumber(Some(-99), None, Some(JsonMetaData(0, 5))))
+      simplejson.parse_with_metadata("9.9e1")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonNumber(Some(99), None, Some(JsonMetaData(0, 5))))
+      simplejson.parse_with_metadata("-9.9e1")
+      |> expect.to_be_ok
+      |> expect.to_equal(JsonNumber(Some(-99), None, Some(JsonMetaData(0, 7))))
     }),
   ])
 }
@@ -169,10 +132,7 @@ pub fn parse_array_tests() {
       |> expect.to_be_ok
       |> expect.to_equal(JsonArray(
         dict.from_list([
-          #(
-            0,
-            JsonNumber(Some(123), None, Some("123"), Some(JsonMetaData(1, 4))),
-          ),
+          #(0, JsonNumber(Some(123), None, Some(JsonMetaData(1, 4)))),
         ]),
         Some(JsonMetaData(0, 5)),
       ))
@@ -182,14 +142,8 @@ pub fn parse_array_tests() {
       |> expect.to_be_ok
       |> expect.to_equal(JsonArray(
         dict.from_list([
-          #(
-            0,
-            JsonNumber(Some(999), None, Some("999"), Some(JsonMetaData(1, 4))),
-          ),
-          #(
-            1,
-            JsonNumber(Some(111), None, Some("111"), Some(JsonMetaData(6, 9))),
-          ),
+          #(0, JsonNumber(Some(999), None, Some(JsonMetaData(1, 4)))),
+          #(1, JsonNumber(Some(111), None, Some(JsonMetaData(6, 9)))),
         ]),
         Some(JsonMetaData(0, 10)),
       ))
@@ -199,15 +153,7 @@ pub fn parse_array_tests() {
       |> expect.to_be_ok
       |> expect.to_equal(JsonArray(
         dict.from_list([
-          #(
-            0,
-            JsonNumber(
-              None,
-              Some(123.5),
-              Some("123.5"),
-              Some(JsonMetaData(1, 6)),
-            ),
-          ),
+          #(0, JsonNumber(None, Some(123.5), Some(JsonMetaData(1, 6)))),
         ]),
         Some(JsonMetaData(0, 7)),
       ))
@@ -217,24 +163,8 @@ pub fn parse_array_tests() {
       |> expect.to_be_ok
       |> expect.to_equal(JsonArray(
         dict.from_list([
-          #(
-            0,
-            JsonNumber(
-              None,
-              Some(999.5),
-              Some("999.5"),
-              Some(JsonMetaData(1, 6)),
-            ),
-          ),
-          #(
-            1,
-            JsonNumber(
-              None,
-              Some(111.5),
-              Some("111.5"),
-              Some(JsonMetaData(8, 13)),
-            ),
-          ),
+          #(0, JsonNumber(None, Some(999.5), Some(JsonMetaData(1, 6)))),
+          #(1, JsonNumber(None, Some(111.5), Some(JsonMetaData(8, 13)))),
         ]),
         Some(JsonMetaData(0, 14)),
       ))
@@ -244,10 +174,7 @@ pub fn parse_array_tests() {
       |> expect.to_be_ok
       |> expect.to_equal(JsonArray(
         dict.from_list([
-          #(
-            0,
-            JsonNumber(Some(999), None, Some("999"), Some(JsonMetaData(1, 4))),
-          ),
+          #(0, JsonNumber(Some(999), None, Some(JsonMetaData(1, 4)))),
           #(1, JsonString("111", Some(JsonMetaData(6, 11)))),
           #(2, JsonObject(dict.from_list([]), Some(JsonMetaData(13, 15)))),
         ]),
@@ -344,10 +271,7 @@ pub fn parse_object_tests() {
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         dict.from_list([
-          #(
-            "test",
-            JsonNumber(Some(999), None, Some("999"), Some(JsonMetaData(8, 11))),
-          ),
+          #("test", JsonNumber(Some(999), None, Some(JsonMetaData(8, 11)))),
         ]),
         Some(JsonMetaData(0, 12)),
       ))
@@ -378,10 +302,7 @@ pub fn parse_object_tests() {
       |> expect.to_be_ok
       |> expect.to_equal(JsonObject(
         dict.from_list([
-          #(
-            "1",
-            JsonNumber(Some(123), None, Some("123"), Some(JsonMetaData(26, 29))),
-          ),
+          #("1", JsonNumber(Some(123), None, Some(JsonMetaData(26, 29)))),
           #("2", JsonBool(False, Some(JsonMetaData(15, 20)))),
         ]),
         Some(JsonMetaData(0, 30)),

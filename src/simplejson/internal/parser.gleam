@@ -577,7 +577,6 @@ fn do_parse_number(
       Ok(JsonNumber(
         Some(decode_int(num, "", 0)),
         None,
-        Some(original),
         Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
 
@@ -593,14 +592,13 @@ fn do_parse_number(
           Ok(JsonNumber(
             Some(decode_int(num, "", -exp)),
             None,
-            Some(original),
             Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         False ->
-          Ok(JsonNumber(
-            None,
-            Some(decode_float(num, fraction, -exp)),
-            Some(original),
+          Ok(create_number_from_float(
+            num,
+            fraction,
+            -exp,
             Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
       }
@@ -617,15 +615,14 @@ fn do_parse_number(
       Ok(JsonNumber(
         Some(decode_int(num, "", exp)),
         None,
-        Some(original),
         Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
     _, "" ->
-      Ok(JsonNumber(
-        None,
-        Some(decode_float(num, fraction, 0)),
-        Some(original),
+      Ok(create_number_from_float(
+        num,
+        fraction,
+        0,
         Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     _, "-" <> exp -> {
@@ -633,10 +630,10 @@ fn do_parse_number(
         int.parse(exp)
         |> result.map_error(fn(_) { InvalidNumber(original, original_json, -1) }),
       )
-      Ok(JsonNumber(
-        None,
-        Some(decode_float(num, fraction, -exp)),
-        Some(original),
+      Ok(create_number_from_float(
+        num,
+        fraction,
+        -exp,
         Some(JsonMetaData(original_pos.char, current_pos.char)),
       ))
     }
@@ -655,14 +652,13 @@ fn do_parse_number(
           Ok(JsonNumber(
             Some(decode_int(num, fraction, exp)),
             None,
-            Some(original),
             Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
         False ->
-          Ok(JsonNumber(
-            None,
-            Some(decode_float(num, fraction, exp)),
-            Some(original),
+          Ok(create_number_from_float(
+            num,
+            fraction,
+            exp,
             Some(JsonMetaData(original_pos.char, current_pos.char)),
           ))
       }
@@ -672,6 +668,14 @@ fn do_parse_number(
   Ok(ReturnInfo(json, ret, current_pos))
 }
 
+fn create_number_from_float(num, fraction, exp, metadata) {
+  let #(f, i) = decode_float(num, fraction, exp)
+  case i {
+    Some(i) -> JsonNumber(Some(i), None, metadata)
+    None -> JsonNumber(None, Some(f), metadata)
+  }
+}
+
 fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
   let assert Ok(int_val) = int.parse(int_val)
   let #(int_val, exp) = case fraction {
@@ -679,6 +683,10 @@ fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
     fraction -> {
       let fraction_length = string.length(fraction)
       let assert Ok(fraction) = int.parse(fraction)
+      let fraction = case int_val < 0 {
+        True -> -fraction
+        False -> fraction
+      }
 
       #(int_val * fast_exp(fraction_length) + fraction, exp - fraction_length)
     }
@@ -710,13 +718,17 @@ fn exp2(y: Int, x: Int, n: Int) -> Int {
   }
 }
 
-fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
+fn decode_float(
+  int_val: String,
+  fraction: String,
+  exp: Int,
+) -> #(Float, Option(Int)) {
   let float_val = case fraction {
     "" -> int_val <> ".0"
     _ -> int_val <> "." <> fraction
   }
   let assert Ok(float_val) = float.parse(float_val)
-  case int.compare(exp, 0) {
+  let f = case int.compare(exp, 0) {
     Eq -> float_val
     Gt -> {
       float_val *. int.to_float(fast_exp(exp))
@@ -726,6 +738,11 @@ fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
 
       float_val *. mult
     }
+  }
+  let truncated = float.truncate(f)
+  case int.to_float(truncated) == f {
+    True -> #(f, Some(truncated))
+    False -> #(f, None)
   }
 }
 
