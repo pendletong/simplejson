@@ -5,14 +5,15 @@ import gleam/regexp
 import gleam/string
 import simplejson/internal/schema2/types.{
   type SchemaError, type ValidationInfo, type Value, InvalidComparison,
-  NumberValue, SchemaError, SchemaFailure, StringValue, Valid,
+  InvalidProperty, NumberValue, Property, SchemaError, SchemaFailure,
+  StringValue, Valid,
 }
-import simplejson/jsonvalue.{type JsonValue}
+import simplejson/jsonvalue.{type JsonValue, JsonString}
 
 pub const string_properties = [
-  #(types.Property("maxLength", types.Integer, types.gtezero_fn), max_length),
-  #(types.Property("minLength", types.Integer, types.gtezero_fn), min_length),
-  #(types.Property("pattern", types.String, validate_regex), pattern),
+  #(Property("maxLength", types.Integer, types.gtezero_fn), max_length),
+  #(Property("minLength", types.Integer, types.gtezero_fn), min_length),
+  #(Property("pattern", types.String, validate_regex), pattern),
 ]
 
 fn validate_regex(v: Value, p: types.Property) -> Result(Bool, SchemaError) {
@@ -20,7 +21,7 @@ fn validate_regex(v: Value, p: types.Property) -> Result(Bool, SchemaError) {
     types.StringValue(name: _, value:) -> {
       case regexp.from_string(value) {
         Error(_) ->
-          Error(types.InvalidProperty(p.name, jsonvalue.JsonString(value, None)))
+          Error(InvalidProperty(p.name, jsonvalue.JsonString(value, None)))
         Ok(_) -> Ok(True)
       }
     }
@@ -33,7 +34,7 @@ fn pattern(v: Value) -> Result(fn(JsonValue) -> ValidationInfo, SchemaError) {
     StringValue(_, value) -> {
       Ok(fn(jsonvalue: JsonValue) {
         case jsonvalue {
-          jsonvalue.JsonString(str, _) -> {
+          JsonString(str, _) -> {
             let assert Ok(r) = regexp.from_string(value)
             case regexp.check(r, str) {
               False -> InvalidComparison(v, "pattern", jsonvalue)
@@ -53,7 +54,7 @@ fn max_length(v: Value) -> Result(fn(JsonValue) -> ValidationInfo, SchemaError) 
     NumberValue(_, Some(value), _) -> {
       Ok(fn(jsonvalue: JsonValue) {
         case jsonvalue {
-          jsonvalue.JsonString(str, _) -> {
+          JsonString(str, _) -> {
             case int.compare(string.length(str), value) {
               Eq | Lt -> Valid
               Gt -> InvalidComparison(v, "maxLength", jsonvalue)
@@ -72,7 +73,7 @@ fn min_length(v: Value) -> Result(fn(JsonValue) -> ValidationInfo, SchemaError) 
     NumberValue(_, Some(value), _) -> {
       Ok(fn(jsonvalue: JsonValue) {
         case jsonvalue {
-          jsonvalue.JsonString(str, _) -> {
+          JsonString(str, _) -> {
             case int.compare(string.length(str), value) {
               Eq | Gt -> Valid
               Lt -> InvalidComparison(v, "minLength", jsonvalue)
