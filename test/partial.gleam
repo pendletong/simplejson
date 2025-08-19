@@ -17,9 +17,9 @@ const run_optional = False
 const files = [
   "type.json",
   "boolean_schema.json",
-  // "const.json",
-// "enum.json",
-// "minProperties.json",
+  "const.json",
+  "enum.json",
+  // "minProperties.json",
 // "maxProperties.json",
 // "items.json",
 ]
