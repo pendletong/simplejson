@@ -13,11 +13,12 @@ import simplejson/internal/schema2/properties/number
 import simplejson/internal/schema2/properties/object
 import simplejson/internal/schema2/properties/string
 import simplejson/internal/schema2/types.{
-  type Property, type Schema, type SchemaError, type ValidationInfo,
-  type ValidationNode, type Value, Array, ArraySubValidation, ArrayValue,
-  BooleanValue, IntValue, InvalidJson, InvalidType, MultipleValidation, NoType,
-  NullValue, NumberValue, Object, ObjectValue, Property, Schema, SchemaError,
-  SimpleValidation, StringValue, TypeValidation, Validation,
+  type Context, type Property, type Schema, type SchemaError,
+  type ValidationInfo, type ValidationNode, type Value, Array,
+  ArraySubValidation, ArrayValue, BooleanValue, Context, IntValue, InvalidJson,
+  InvalidType, MultipleValidation, NoType, NullValue, NumberValue, Object,
+  ObjectValue, Property, Schema, SchemaError, SimpleValidation, StringValue,
+  TypeValidation, Validation,
 }
 import simplejson/internal/stringify
 
@@ -28,28 +29,20 @@ import simplejson/jsonvalue.{
 }
 
 const type_checks = [
-  #(StringValue("", "number"), number.num_properties, types.Number),
-  #(StringValue("", "integer"), number.num_properties, types.Integer),
-  #(StringValue("", "string"), string.string_properties, types.String),
-  #(
-    StringValue("", "object"),
-    object.object_properties,
-    types.Object(types.AnyType),
-  ),
-  #(
-    StringValue("", "array"),
-    array.array_properties,
-    types.Array(types.AnyType),
-  ),
-  #(StringValue("", "null"), [], types.Null),
-  #(StringValue("", "boolean"), [], types.Boolean),
+  #("number", number.num_properties, types.Number),
+  #("integer", number.num_properties, types.Integer),
+  #("string", string.string_properties, types.String),
+  #("object", object.object_properties, types.Object(types.AnyType)),
+  #("array", array.array_properties, types.Array(types.AnyType)),
+  #("null", [], types.Null),
+  #("boolean", [], types.Boolean),
 ]
 
 fn get_checks(datatype: String) {
   case
     list.find(type_checks, fn(tc) {
       case tc {
-        #(StringValue(_, t), _, _) if t == datatype -> True
+        #(t, _, _) if t == datatype -> True
         _ -> False
       }
     })
@@ -66,10 +59,6 @@ pub fn get_validator(schema: String) -> Result(Schema, SchemaError) {
   get_validator_from_json(schema)
 }
 
-type Context {
-  Context(current_node: JsonValue, root_node: JsonValue)
-}
-
 pub fn get_validator_from_json(
   schema_json: JsonValue,
 ) -> Result(Schema, SchemaError) {
@@ -82,12 +71,13 @@ pub fn get_validator_from_json(
     | JsonString(_, Some(_)) -> utils.strip_metadata(schema_json)
     _ -> schema_json
   }
+  let context = Context(schema_json, schema_json)
   use schema_uri <- result.try(get_property(
-    schema_json,
-    Property("$schema", types.String, types.ok_fn),
+    context,
+    Property("$schema", types.String, types.ok_fn, None),
     // This needs to be fixed to validate uris
   ))
-  case generate_validator(Context(schema_json, schema_json)) {
+  case generate_validator(context) {
     Ok(validator) ->
       Ok(Schema(
         schema_uri
@@ -131,37 +121,53 @@ fn generate_root_validation(
     when: !utils.is_object(context.current_node),
     return: Error(SchemaError),
   )
+  use <- bool.lazy_guard(
+    when: {
+      let assert JsonObject(d, _) = context.current_node
+      dict.has_key(d, "$ref")
+    },
+    return: fn() { panic as "No $ref" },
+  )
+
   let type_prop =
     Property(
       "type",
       types.Types([types.String, types.Array(types.String)]),
       types.valid_type_fn,
+      None,
     )
-  use instance_type <- result.try(get_property(context.current_node, type_prop))
+  use instance_type <- result.try(get_property(context, type_prop))
 
   use enum <- result.try(get_property(
-    context.current_node,
-    Property("enum", Array(types.AnyType), fn(v, p) {
-      case v {
-        ArrayValue(_, value:) -> {
-          case value {
-            [] -> Error(InvalidType(context.current_node, p))
-            _ -> {
-              case { list.unique(value) |> list.length } == list.length(value) {
-                True -> Ok(True)
-                False -> Error(InvalidType(context.current_node, p))
+    context,
+    Property(
+      "enum",
+      Array(types.AnyType),
+      fn(v, _c, p) {
+        case v {
+          ArrayValue(_, value:) -> {
+            case value {
+              [] -> Error(InvalidType(context.current_node, p))
+              _ -> {
+                case
+                  { list.unique(value) |> list.length } == list.length(value)
+                {
+                  True -> Ok(True)
+                  False -> Error(InvalidType(context.current_node, p))
+                }
               }
             }
           }
+          _ -> Error(InvalidType(context.current_node, p))
         }
-        _ -> Error(InvalidType(context.current_node, p))
-      }
-    }),
+      },
+      None,
+    ),
   ))
 
   use const_val <- result.try(get_property(
-    context.current_node,
-    Property("const", types.AnyType, types.ok_fn),
+    context,
+    Property("const", types.AnyType, types.ok_fn, None),
   ))
 
   use type_validation <- result.try(construct_type_validation(
@@ -199,10 +205,10 @@ fn validate_enum(v: Value) {
 }
 
 fn validate_const(v: Value) {
-  Validation(fn(jsonvalue) {
+  Validation(fn(jsonvalue, ann) {
     case compare_value_and_json(v, jsonvalue) {
-      True -> types.Valid
-      False -> types.InvalidComparison(v, "equal", jsonvalue)
+      True -> #(types.Valid, ann)
+      False -> #(types.InvalidComparison(v, "equal", jsonvalue), ann)
     }
   })
 }
@@ -299,14 +305,14 @@ fn construct_type_validation(
 
 fn generate_multi_type_validation(context: Context) {
   use l <- result.try(
-    list.map(type_checks, fn(tc) {
-      let assert #(StringValue(_, t), _, _) = tc
-      t
-    })
-    |> list.filter(fn(t) {
+    list.filter_map(type_checks, fn(tc) {
+      let #(type_name, _, _) = tc
       // Filter out integer checks as these will be covered
       // under the number check
-      t != "integer"
+      case type_name {
+        _ if type_name == "integer" -> Error(Nil)
+        _ -> Ok(type_name)
+      }
     })
     |> list.try_map(fn(t) { get_validation_for_type(context, t) }),
   )
@@ -332,12 +338,12 @@ fn get_validation_for_type(
 ) -> Result(types.ValidationNode, SchemaError) {
   use #(type_check, checks) <- result.try(get_checks(t))
   use validations <- result.try(
-    list.try_fold(checks, [], fn(l, v) {
-      let #(prop, v) = v
-      case get_property(context.current_node, prop) {
+    list.try_fold(checks, [], fn(l, prop) {
+      case get_property(context, prop) {
         Error(e) -> Error(e)
         Ok(Some(val)) -> {
-          use validation_fn <- result.try(v(val))
+          let assert Some(validator_fn) = prop.validator_fn
+          use validation_fn <- result.try(validator_fn(val))
           Ok([Some(Validation(validation_fn)), ..l])
         }
         Ok(None) -> Ok(l)
@@ -356,11 +362,11 @@ fn get_validation_for_type(
       use subval <- result.try(get_object_subvalidation(context))
       Ok(subval)
     }
-    _ -> Ok(None)
+    _ -> Ok([None])
   })
 
   case
-    [[main_validation |> Some], [sub_validations], validations]
+    [[main_validation |> Some], sub_validations, validations]
     |> list.flatten
     |> option.values
   {
@@ -383,14 +389,14 @@ fn filter_validation_to_non_type_errors(
 
 fn get_array_subvalidation(
   context: Context,
-) -> Result(Option(types.ValidationNode), SchemaError) {
+) -> Result(List(Option(types.ValidationNode)), SchemaError) {
   use prefix_items <- result.try(
     get_property(
-      context.current_node,
+      context,
       Property(
         "prefixItems",
         Array(types.Types([types.Object(types.AnyType), types.Boolean])),
-        fn(v, p) {
+        fn(v, _c, p) {
           case v {
             ArrayValue(_, []) ->
               Error(types.InvalidProperty(p.name, context.current_node))
@@ -398,6 +404,7 @@ fn get_array_subvalidation(
             _ -> Error(types.InvalidProperty(p.name, context.current_node))
           }
         },
+        None,
       ),
     )
     |> result.try(fn(v) {
@@ -416,11 +423,12 @@ fn get_array_subvalidation(
   )
   use items <- result.try(
     get_property(
-      context.current_node,
+      context,
       Property(
         "items",
         types.Types([types.Object(types.AnyType), types.Boolean]),
         types.ok_fn,
+        None,
       ),
     )
     |> result.try(fn(i) {
@@ -430,11 +438,12 @@ fn get_array_subvalidation(
   )
   use contains <- result.try(
     get_property(
-      context.current_node,
+      context,
       Property(
         "contains",
         types.Types([types.Object(types.AnyType), types.Boolean]),
         types.ok_fn,
+        None,
       ),
     )
     |> result.try(fn(v) {
@@ -442,13 +451,36 @@ fn get_array_subvalidation(
       |> unwrap_option_result
     }),
   )
+  // Add in a min contains of 1 if there is not actual minContains
+  // property
+  use min_contains <- result.try(case contains {
+    Some(_) -> {
+      case context.current_node {
+        JsonObject(d, _) -> {
+          case dict.has_key(d, "minContains") {
+            True -> Ok(None)
+            False -> {
+              use min_fn <- result.try(array.get_min_contains(
+                NumberValue("", Some(1), None),
+                "contains",
+              ))
+              Ok(Some(Validation(min_fn)))
+            }
+          }
+        }
+        _ -> Error(SchemaError)
+      }
+    }
+    None -> Ok(None)
+  })
   case
     option.is_some(prefix_items)
     || option.is_some(items)
     || option.is_some(contains)
   {
-    True -> Ok(Some(ArraySubValidation(prefix_items, items, contains)))
-    False -> Ok(None)
+    True ->
+      Ok([Some(ArraySubValidation(prefix_items, items, contains)), min_contains])
+    False -> Ok([None])
   }
 }
 
@@ -467,16 +499,17 @@ fn value_to_validation(
 
 fn get_object_subvalidation(
   context: Context,
-) -> Result(Option(types.ValidationNode), SchemaError) {
+) -> Result(List(Option(types.ValidationNode)), SchemaError) {
   let p =
     Property(
       "properties",
       types.Object(types.Types([types.Object(types.AnyType), types.Boolean])),
       types.ok_fn,
+      None,
     )
 
   use properties <- result.try(
-    get_property(context.current_node, p)
+    get_property(context, p)
     |> result.try(fn(v) {
       case v {
         None -> Ok(None)
@@ -493,10 +526,11 @@ fn get_object_subvalidation(
       "patternProperties",
       types.Object(types.Types([types.Object(types.AnyType), types.Boolean])),
       types.ok_fn,
+      None,
     )
 
   use pattern_properties <- result.try(
-    get_property(context.current_node, p)
+    get_property(context, p)
     |> result.try(fn(v) {
       case v {
         None -> Ok(None)
@@ -505,6 +539,7 @@ fn get_object_subvalidation(
             regexp.compile(k, regexp.Options(False, False))
             |> result.replace_error(InvalidType(context.current_node, p))
           })
+          |> result.map(option.map(_, dict.to_list))
         }
         Some(_) -> Error(InvalidType(context.current_node, p))
       }
@@ -513,11 +548,12 @@ fn get_object_subvalidation(
 
   use additional_properties <- result.try(
     get_property(
-      context.current_node,
+      context,
       Property(
         "additionalProperties",
         types.Types([types.Object(types.AnyType), types.Boolean]),
         types.ok_fn,
+        None,
       ),
     )
     |> result.try(fn(i) {
@@ -531,14 +567,14 @@ fn get_object_subvalidation(
     || option.is_some(pattern_properties)
   {
     True ->
-      Ok(
+      Ok([
         Some(types.ObjectSubValidation(
           properties,
           pattern_properties,
           additional_properties,
         )),
-      )
-    False -> Ok(None)
+      ])
+    False -> Ok([None])
   }
 }
 
@@ -563,15 +599,15 @@ fn dict_to_validations(
 }
 
 fn get_property(
-  json: JsonValue,
+  context: Context,
   property: Property,
 ) -> Result(Option(Value), SchemaError) {
-  case json {
+  case context.current_node {
     JsonObject(d, _) -> {
       case dict.get(d, property.name) {
         Error(_) -> Ok(None)
         Ok(val) -> {
-          use t <- result.try(types.validate_type(val, property))
+          use t <- result.try(types.validate_type(val, context, property))
           Ok(t)
         }
       }
