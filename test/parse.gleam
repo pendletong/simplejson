@@ -53,7 +53,7 @@ pub fn parse_number_tests() {
       simplejson.parse_with_metadata("-1e-2")
       |> expect.to_be_ok
       |> expect.to_equal(JsonNumber(None, Some(-0.01), Some(JsonMetaData(0, 5))))
-      simplejson.parse("-9.09e1")
+      simplejson.parse_with_metadata("-9.09e1")
       |> expect.to_be_ok
       |> expect.to_equal(JsonNumber(None, Some(-90.9), Some(JsonMetaData(0, 7))))
     }),
@@ -88,7 +88,7 @@ pub fn parse_number_tests() {
       |> expect.to_equal(JsonNumber(Some(99), None, Some(JsonMetaData(0, 5))))
       simplejson.parse_with_metadata("-9.9e1")
       |> expect.to_be_ok
-      |> expect.to_equal(JsonNumber(Some(-99), None, Some(JsonMetaData(0, 7))))
+      |> expect.to_equal(JsonNumber(Some(-99), None, Some(JsonMetaData(0, 6))))
     }),
   ])
 }
