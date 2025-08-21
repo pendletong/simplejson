@@ -4,8 +4,6 @@
 //// To be used for simple conversion from string to a basic JSON structure
 //// and to then output that as a string again.
 
-import gleam/dict
-import gleam/option.{None}
 import gleam/result
 import simplejson/internal/jsonpath.{type JsonPath}
 import simplejson/internal/parser
@@ -13,10 +11,7 @@ import simplejson/internal/pointer
 import simplejson/internal/query
 import simplejson/internal/stringify
 import simplejson/internal/utils
-import simplejson/jsonvalue.{
-  type JsonPathError, type JsonValue, type ParseError, JsonArray, JsonBool,
-  JsonNull, JsonNumber, JsonObject, JsonString,
-}
+import simplejson/jsonvalue.{type JsonPathError, type JsonValue, type ParseError}
 
 /// Parse a given string into a JsonValue Result.
 /// Or return Error if unable.

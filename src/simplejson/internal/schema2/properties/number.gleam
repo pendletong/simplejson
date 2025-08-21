@@ -4,52 +4,57 @@ import gleam/option.{None, Some}
 import gleam/order
 import gleam/result
 import simplejson/internal/schema2/types.{
-  type Value, InvalidComparison, NumberValue, Property, SchemaError,
-  SchemaFailure, Valid, ValidationError, ok_fn,
+  type NodeAnnotation, type Value, InvalidComparison, NumberValue, Property,
+  SchemaError, SchemaFailure, Valid, ValidationError, ok_fn,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonNumber}
 
 pub const num_properties = [
-  #(
-    Property("minimum", types.Types([types.Integer, types.Number]), ok_fn),
-    minimum,
+  Property(
+    "minimum",
+    types.Types([types.Integer, types.Number]),
+    ok_fn,
+    Some(minimum),
   ),
-  #(
-    Property(
-      "exclusiveMinimum",
-      types.Types([types.Integer, types.Number]),
-      ok_fn,
-    ),
-    exclusive_minimum,
+
+  Property(
+    "exclusiveMinimum",
+    types.Types([types.Integer, types.Number]),
+    ok_fn,
+    Some(exclusive_minimum),
   ),
-  #(
-    Property("maximum", types.Types([types.Integer, types.Number]), ok_fn),
-    maximum,
+
+  Property(
+    "maximum",
+    types.Types([types.Integer, types.Number]),
+    ok_fn,
+    Some(maximum),
   ),
-  #(
-    Property(
-      "exclusiveMaximum",
-      types.Types([types.Integer, types.Number]),
-      ok_fn,
-    ),
-    exclusive_maximum,
+
+  Property(
+    "exclusiveMaximum",
+    types.Types([types.Integer, types.Number]),
+    ok_fn,
+    Some(exclusive_maximum),
   ),
-  #(
-    Property(
-      "multipleOf",
-      types.Types([types.Integer, types.Number]),
-      types.gtzero_fn,
-    ),
-    multiple_of,
+
+  Property(
+    "multipleOf",
+    types.Types([types.Integer, types.Number]),
+    types.gtzero_fn,
+    Some(multiple_of),
   ),
 ]
 
 fn multiple_of(
   v: Value,
-) -> Result(fn(JsonValue) -> types.ValidationInfo, types.SchemaError) {
+) -> Result(
+  fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
+  types.SchemaError,
+) {
   case v {
     NumberValue(_, value:, or_value:) -> {
-      Ok(fn(jsonvalue: JsonValue) {
+      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         result.try(
           case value, or_value, jsonvalue {
             Some(i), _, JsonNumber(Some(i2), _, _) -> {
@@ -66,10 +71,10 @@ fn multiple_of(
             }
             _, _, _ -> Error(Nil)
           }
-            |> result.replace_error(SchemaFailure),
+            |> result.replace_error(#(SchemaFailure, ann)),
           fn(f_val) {
             case f_val == 0.0 {
-              True -> Ok(Valid)
+              True -> Ok(#(Valid, ann))
               False -> {
                 let #(v1, v2) = case value, or_value, jsonvalue {
                   Some(i), _, JsonNumber(Some(i2), _, _) -> {
@@ -86,7 +91,10 @@ fn multiple_of(
                   }
                   _, _, _ -> #("X", "X")
                 }
-                Error(ValidationError(v1 <> " is not multiple of " <> v2))
+                Error(#(
+                  ValidationError(v1 <> " is not multiple of " <> v2),
+                  ann,
+                ))
               }
             }
           },
@@ -112,14 +120,17 @@ fn do_compare_numbers(value, or_value, jsonvalue) {
 
 fn minimum(
   v: Value,
-) -> Result(fn(JsonValue) -> types.ValidationInfo, types.SchemaError) {
+) -> Result(
+  fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
+  types.SchemaError,
+) {
   case v {
     NumberValue(_, value:, or_value:) -> {
-      Ok(fn(jsonvalue: JsonValue) {
+      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
-          Ok(order.Eq) | Ok(order.Lt) -> Valid
-          Ok(_) -> InvalidComparison(v, "minimum", jsonvalue)
-          Error(err) -> err
+          Ok(order.Eq) | Ok(order.Lt) -> #(Valid, ann)
+          Ok(_) -> #(InvalidComparison(v, "minimum", jsonvalue), ann)
+          Error(err) -> #(err, ann)
         }
       })
     }
@@ -129,14 +140,17 @@ fn minimum(
 
 fn exclusive_minimum(
   v: Value,
-) -> Result(fn(JsonValue) -> types.ValidationInfo, types.SchemaError) {
+) -> Result(
+  fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
+  types.SchemaError,
+) {
   case v {
     NumberValue(_, value:, or_value:) -> {
-      Ok(fn(jsonvalue: JsonValue) {
+      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
-          Ok(order.Lt) -> Valid
-          Ok(_) -> InvalidComparison(v, "exclusiveMinimum", jsonvalue)
-          Error(err) -> err
+          Ok(order.Lt) -> #(Valid, ann)
+          Ok(_) -> #(InvalidComparison(v, "exclusiveMinimum", jsonvalue), ann)
+          Error(err) -> #(err, ann)
         }
       })
     }
@@ -146,14 +160,17 @@ fn exclusive_minimum(
 
 fn maximum(
   v: Value,
-) -> Result(fn(JsonValue) -> types.ValidationInfo, types.SchemaError) {
+) -> Result(
+  fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
+  types.SchemaError,
+) {
   case v {
     NumberValue(_, value:, or_value:) -> {
-      Ok(fn(jsonvalue: JsonValue) {
+      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
-          Ok(order.Eq) | Ok(order.Gt) -> Valid
-          Ok(_) -> InvalidComparison(v, "maximum", jsonvalue)
-          Error(err) -> err
+          Ok(order.Eq) | Ok(order.Gt) -> #(Valid, ann)
+          Ok(_) -> #(InvalidComparison(v, "maximum", jsonvalue), ann)
+          Error(err) -> #(err, ann)
         }
       })
     }
@@ -163,14 +180,17 @@ fn maximum(
 
 fn exclusive_maximum(
   v: Value,
-) -> Result(fn(JsonValue) -> types.ValidationInfo, types.SchemaError) {
+) -> Result(
+  fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
+  types.SchemaError,
+) {
   case v {
     NumberValue(_, value:, or_value:) -> {
-      Ok(fn(jsonvalue: JsonValue) {
+      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
-          Ok(order.Gt) -> Valid
-          Ok(_) -> InvalidComparison(v, "exclusiveMaximum", jsonvalue)
-          Error(err) -> err
+          Ok(order.Gt) -> #(Valid, ann)
+          Ok(_) -> #(InvalidComparison(v, "exclusiveMaximum", jsonvalue), ann)
+          Error(err) -> #(err, ann)
         }
       })
     }

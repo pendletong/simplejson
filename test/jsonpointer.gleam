@@ -56,61 +56,61 @@ pub fn pointer_tests() {
       it("test 4", fn() {
         simplejson.apply_pointer(basic_json, "/")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(0), None, Some("0"), None))
+        |> expect.to_equal(JsonNumber(Some(0), None, None))
         Nil
       }),
       it("test 5", fn() {
         simplejson.apply_pointer(basic_json, "/a~1b")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(1), None, Some("1"), None))
+        |> expect.to_equal(JsonNumber(Some(1), None, None))
         Nil
       }),
       it("test 6", fn() {
         simplejson.apply_pointer(basic_json, "/c%d")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(2), None, Some("2"), None))
+        |> expect.to_equal(JsonNumber(Some(2), None, None))
         Nil
       }),
       it("test 7", fn() {
         simplejson.apply_pointer(basic_json, "/e^f")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(3), None, Some("3"), None))
+        |> expect.to_equal(JsonNumber(Some(3), None, None))
         Nil
       }),
       it("test 8", fn() {
         simplejson.apply_pointer(basic_json, "/g|h")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(4), None, Some("4"), None))
+        |> expect.to_equal(JsonNumber(Some(4), None, None))
         Nil
       }),
       it("test 9", fn() {
         simplejson.apply_pointer(basic_json, "/i\\\\j")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(5), None, Some("5"), None))
+        |> expect.to_equal(JsonNumber(Some(5), None, None))
         Nil
       }),
       it("test 10", fn() {
         simplejson.apply_pointer(basic_json, "/k\\\"l")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(6), None, Some("6"), None))
+        |> expect.to_equal(JsonNumber(Some(6), None, None))
         Nil
       }),
       it("test 11", fn() {
         simplejson.apply_pointer(basic_json, "/ ")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(7), None, Some("7"), None))
+        |> expect.to_equal(JsonNumber(Some(7), None, None))
         Nil
       }),
       it("test 12", fn() {
         simplejson.apply_pointer(basic_json, "/m~0n")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(8), None, Some("8"), None))
+        |> expect.to_equal(JsonNumber(Some(8), None, None))
         Nil
       }),
       it("escape ordering", fn() {
         simplejson.apply_pointer(basic_json, "/o~01p")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(9), None, Some("9"), None))
+        |> expect.to_equal(JsonNumber(Some(9), None, None))
         Nil
       }),
     ]),
@@ -142,55 +142,55 @@ pub fn pointer_tests() {
       it("test 4", fn() {
         simplejson.apply_pointer(basic_json, "#/")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(0), None, Some("0"), None))
+        |> expect.to_equal(JsonNumber(Some(0), None, None))
         Nil
       }),
       it("test 5", fn() {
         simplejson.apply_pointer(basic_json, "#/a~1b")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(1), None, Some("1"), None))
+        |> expect.to_equal(JsonNumber(Some(1), None, None))
         Nil
       }),
       it("test 6", fn() {
         simplejson.apply_pointer(basic_json, "#/c%25d")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(2), None, Some("2"), None))
+        |> expect.to_equal(JsonNumber(Some(2), None, None))
         Nil
       }),
       it("test 7", fn() {
         simplejson.apply_pointer(basic_json, "#/e%5Ef")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(3), None, Some("3"), None))
+        |> expect.to_equal(JsonNumber(Some(3), None, None))
         Nil
       }),
       it("test 8", fn() {
         simplejson.apply_pointer(basic_json, "#/g%7Ch")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(4), None, Some("4"), None))
+        |> expect.to_equal(JsonNumber(Some(4), None, None))
         Nil
       }),
       it("test 9", fn() {
         simplejson.apply_pointer(basic_json, "#/i%5Cj")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(5), None, Some("5"), None))
+        |> expect.to_equal(JsonNumber(Some(5), None, None))
         Nil
       }),
       it("test 10", fn() {
         simplejson.apply_pointer(basic_json, "#/k%22l")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(6), None, Some("6"), None))
+        |> expect.to_equal(JsonNumber(Some(6), None, None))
         Nil
       }),
       it("test 11", fn() {
         simplejson.apply_pointer(basic_json, "#/%20")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(7), None, Some("7"), None))
+        |> expect.to_equal(JsonNumber(Some(7), None, None))
         Nil
       }),
       it("test 12", fn() {
         simplejson.apply_pointer(basic_json, "#/m~0n")
         |> expect.to_be_ok
-        |> expect.to_equal(JsonNumber(Some(8), None, Some("8"), None))
+        |> expect.to_equal(JsonNumber(Some(8), None, None))
         Nil
       }),
     ]),

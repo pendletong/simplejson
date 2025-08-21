@@ -1495,7 +1495,8 @@ pub fn suite_tests() {
                                       |> expect.to_be_ok
                                       |> validator2.validate(to_test, _)
 
-                                    expect.to_equal(res.0, False)
+                                    expect.to_be_some(res.1)
+                                    expect.to_be_false(res.0)
                                   }
                                   _, _ -> Nil
                                 }
