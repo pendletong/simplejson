@@ -1,0 +1,92 @@
+{
+  "valid": [
+    { "type": "array", "minItems": 0 },
+    { "type": "array", "minItems": 99 },
+    { "type": "array", "maxItems": 0 },
+    { "type": "array", "maxItems": 99 },
+    { "type": "array", "uniqueItems": true },
+    { "type": "array", "uniqueItems": false },
+    { "type": "array", "contains": false },
+    { "type": "array", "contains": true },
+    { "type": "array", "contains": {} },
+    { "contains": { "type": "string" } },
+    { "contains": true, "minContains": 0 },
+    { "contains": true, "minContains": 5 },
+    { "contains": true, "maxContains": 0 },
+    { "contains": true, "maxContains": 5 },
+    { "contains": true, "minContains": 0, "maxContains": 0 },
+    { "contains": true, "minContains": 5, "maxContains": 5 }
+  ],
+  "invalid": [
+    { "type": "array", "minItems": -1 },
+    { "type": "array", "maxItems": -1 },
+    { "type": "array", "uniqueItems": 123 },
+    { "type": "array", "uniqueItems": [false] },
+    { "type": "array", "contains": 123 },
+    { "type": "array", "contains": null },
+    { "contains": true, "minContains": -1 },
+    { "contains": true, "maxContains": -1 }
+  ],
+  "tests_pass": [
+    { "schema": { "type": "array", "minItems": 1 }, "test": ["1234"] },
+    {
+      "schema": { "type": "array", "minItems": 10 },
+      "test": [1, 0, true, false, {}, [], "", 1.5, null, null]
+    },
+    { "schema": { "type": "array", "minItems": 0 }, "test": ["1234"] },
+    { "schema": { "type": "array", "minItems": 0 }, "test": [] },
+    { "schema": { "type": "array", "maxItems": 1 }, "test": ["1234"] },
+    { "schema": { "type": "array", "maxItems": 0 }, "test": [] },
+    {
+      "schema": { "type": "array", "maxItems": 5 },
+      "test": ["1234", 1, 2, null, false]
+    },
+    {
+      "schema": { "type": "array", "uniqueItems": true },
+      "test": [1, 2, 3, 4, 5, 6, {}, []]
+    },
+    {
+      "schema": { "type": "array", "uniqueItems": true },
+      "test": [
+        [1, null, true],
+        [1, null, false]
+      ]
+    },
+    {
+      "schema": { "type": "array", "uniqueItems": true },
+      "test": [[{ "a": 5 }], [{ "a": 5.1 }]]
+    }
+  ],
+  "tests_fail": [
+    { "schema": { "type": "array", "minItems": 1 }, "test": [] },
+    {
+      "schema": { "type": "array", "minItems": 10 },
+      "test": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    },
+    { "schema": { "type": "array", "maxItems": 0 }, "test": [1] },
+    {
+      "schema": { "type": "array", "maxItems": 3 },
+      "test": [1, null, false, true]
+    },
+    { "schema": { "type": "array", "uniqueItems": true }, "test": [1, 1] },
+    { "schema": { "type": "array", "uniqueItems": true }, "test": [[], []] },
+    {
+      "schema": { "type": "array", "uniqueItems": true },
+      "test": [
+        [1, null, true],
+        [1, null, true]
+      ]
+    },
+    {
+      "schema": { "type": "array", "uniqueItems": true },
+      "test": [
+        [1, null, true],
+        [1.0, null, true]
+      ]
+    },
+    {
+      "schema": { "type": "array", "uniqueItems": true },
+      "test": [[{ "a": 5 }], [{ "a": 5.0 }]]
+    }
+  ]
+}
