@@ -47,7 +47,7 @@ pub fn simple_stringify_tests() {
       stringify.to_string(JsonNumber(Some(120_000), None, None))
       |> expect.to_equal("120000")
       stringify.to_string(JsonNumber(None, Some(0.002), None))
-      |> expect.to_equal("2e-3")
+      |> expect.to_equal("0.002")
       stringify.to_string(JsonNumber(None, Some(0.000000002), None))
       |> expect.to_equal("2.0e-9")
     }),
