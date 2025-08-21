@@ -25,7 +25,9 @@ pub type Combination {
 
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
-  Validation(valid: fn(JsonValue) -> ValidationInfo)
+  Validation(
+    valid: fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  )
   MultipleValidation(
     tests: List(ValidationNode),
     combination: Combination,
@@ -40,9 +42,20 @@ pub type ValidationNode {
   )
   ObjectSubValidation(
     props: Option(Dict(String, ValidationNode)),
-    pattern_props: Option(Dict(Regexp, ValidationNode)),
+    pattern_props: Option(List(#(Regexp, ValidationNode))),
     additional_prop: Option(ValidationNode),
   )
+}
+
+pub type NodeAnnotation {
+  NoAnnotation
+  ArrayAnnotation(
+    items_index: Option(Int),
+    items_all: Option(Bool),
+    contains: Option(List(Int)),
+    contains_all: Option(Bool),
+  )
+  ObjectAnnotation(prop_matches: Dict(String, Nil))
 }
 
 pub type SchemaError {
@@ -62,9 +75,11 @@ pub type ValidationInfo {
   AlwaysFail
   IncorrectType(expect: ValueType, actual: JsonValue)
   InvalidComparison(expect: Value, cmp: String, actual: JsonValue)
+  InvalidMatch(match: String, actual: JsonValue)
   MultipleInfo(infos: List(ValidationInfo))
   AnyFail
   SchemaFailure
+  Todo
 }
 
 pub type ValueType {
@@ -94,15 +109,30 @@ pub type Property {
   Property(
     name: String,
     valuetype: ValueType,
-    validation: fn(Value, Property) -> Result(Bool, SchemaError),
+    value_check: fn(Value, Context, Property) -> Result(Bool, SchemaError),
+    validator_fn: Option(
+      fn(Value) ->
+        Result(
+          fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+          SchemaError,
+        ),
+    ),
   )
 }
 
-pub fn ok_fn(_, _) {
+pub type Context {
+  Context(current_node: JsonValue, root_node: JsonValue)
+}
+
+pub fn ok_fn(_, _, _) {
   Ok(True)
 }
 
-pub fn gtzero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
+pub fn gtzero_fn(
+  v: Value,
+  _c: Context,
+  _p: Property,
+) -> Result(Bool, SchemaError) {
   case v {
     NumberValue(_, Some(i), _) -> {
       case int.compare(i, 0) == Gt {
@@ -126,7 +156,11 @@ pub fn gtzero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
   }
 }
 
-pub fn gtezero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
+pub fn gtezero_fn(
+  v: Value,
+  _c: Context,
+  _p: Property,
+) -> Result(Bool, SchemaError) {
   case v {
     NumberValue(_, Some(i), _) -> {
       case int.compare(i, 0) != Lt {
@@ -150,7 +184,11 @@ pub fn gtezero_fn(v: Value, _p: Property) -> Result(Bool, SchemaError) {
   }
 }
 
-pub fn valid_type_fn(t: Value, p: Property) -> Result(Bool, SchemaError) {
+pub fn valid_type_fn(
+  t: Value,
+  c: Context,
+  p: Property,
+) -> Result(Bool, SchemaError) {
   case t {
     StringValue(_, v) -> {
       case v {
@@ -168,7 +206,7 @@ pub fn valid_type_fn(t: Value, p: Property) -> Result(Bool, SchemaError) {
       list.try_each(v, fn(v) {
         case v {
           jsonvalue.JsonString(v, _) -> {
-            valid_type_fn(StringValue("", v), p)
+            valid_type_fn(StringValue("", v), c, p)
           }
           _ -> Error(SchemaError)
         }
@@ -179,31 +217,9 @@ pub fn valid_type_fn(t: Value, p: Property) -> Result(Bool, SchemaError) {
   }
 }
 
-pub fn validate_types(
-  json: JsonValue,
-  props: List(Property),
-  errors: List(SchemaError),
-) -> Result(Option(Value), SchemaError) {
-  case props {
-    [prop, ..rest] -> {
-      case validate_type(json, prop) {
-        Error(err) -> {
-          validate_types(json, rest, [err, ..errors])
-        }
-        Ok(v) -> Ok(v)
-      }
-    }
-    [] -> {
-      case errors {
-        [] -> Ok(None)
-        _ -> Error(MultipleErrors(errors))
-      }
-    }
-  }
-}
-
 pub fn validate_type(
   json: JsonValue,
+  context: Context,
   prop: Property,
 ) -> Result(Option(Value), SchemaError) {
   use value <- result.try(case prop.valuetype {
@@ -214,7 +230,11 @@ pub fn validate_type(
             AnyType -> Ok(Nil)
             _ -> {
               list.try_each(dict.values(array), fn(i) {
-                validate_type(i, Property(prop.name, inner, ok_fn))
+                validate_type(
+                  i,
+                  context,
+                  Property(prop.name, inner, ok_fn, None),
+                )
               })
             }
           })
@@ -267,7 +287,11 @@ pub fn validate_type(
             AnyType -> Ok(Nil)
             _ -> {
               list.try_each(dict.values(obj), fn(i) {
-                validate_type(i, Property(prop.name, inner, ok_fn))
+                validate_type(
+                  i,
+                  context,
+                  Property(prop.name, inner, ok_fn, None),
+                )
               })
             }
           })
@@ -293,7 +317,7 @@ pub fn validate_type(
     Types(types) -> {
       case
         list.fold_until(types, None, fn(_, t) {
-          case validate_type(json, Property(prop.name, t, prop.validation)) {
+          case validate_type(json, context, Property(..prop, valuetype: t)) {
             Error(_) -> Continue(None)
             Ok(v) -> Stop(v)
           }
@@ -305,7 +329,7 @@ pub fn validate_type(
     }
   })
 
-  case prop.validation(value, prop) {
+  case prop.value_check(value, context, prop) {
     Error(_) -> Error(InvalidProperty(prop.name, json))
     Ok(False) -> Ok(None)
     Ok(True) -> Ok(Some(value))
