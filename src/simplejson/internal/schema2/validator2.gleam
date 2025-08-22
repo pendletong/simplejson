@@ -24,7 +24,7 @@ pub fn validate(
   }
 }
 
-fn do_validate(
+pub fn do_validate(
   json: JsonValue,
   validator: ValidationNode,
   annotation: NodeAnnotation,
@@ -38,10 +38,18 @@ fn do_validate(
         contains,
         ArrayAnnotation(None, None, None, None),
       )
-    types.IfThenValidation(when:, then:) -> {
-      case do_validate(json, when, annotation) {
-        #(Valid, ann) -> do_validate(json, then, ann)
-        v -> v
+    types.IfThenValidation(when:, then:, orelse:) -> {
+      case do_validate(json, when, NoAnnotation) {
+        #(Valid, _) ->
+          case then {
+            Some(then) -> do_validate(json, then, annotation)
+            None -> #(Valid, annotation)
+          }
+        _ ->
+          case orelse {
+            Some(orelse) -> do_validate(json, orelse, annotation)
+            None -> #(Valid, annotation)
+          }
       }
     }
     types.MultipleValidation(tests:, combination:, map_error:) -> {
@@ -107,13 +115,7 @@ fn do_extras_validation(
 ) {
   case extra {
     Some(validation) -> {
-      let assert ObjectAnnotation(matches) = annotation |> echo
-      let assert JsonObject(d, _) = json
-      list.filter(dict.to_list(d) |> echo, fn(e) {
-        let #(k, _) = e
-        !dict.has_key(matches, k)
-      })
-      |> echo
+      get_unused_properties(json, annotation)
       |> list.fold_until(#(Valid, annotation), fn(state, entry) {
         let #(k, v) = entry
         let assert ObjectAnnotation(matches) = state.1
@@ -126,6 +128,18 @@ fn do_extras_validation(
     }
     None -> #(Valid, annotation)
   }
+}
+
+pub fn get_unused_properties(
+  json: JsonValue,
+  annotation: NodeAnnotation,
+) -> List(#(String, JsonValue)) {
+  let assert ObjectAnnotation(matches) = annotation
+  let assert JsonObject(d, _) = json
+  list.filter(dict.to_list(d), fn(e) {
+    let #(k, _) = e
+    !dict.has_key(matches, k)
+  })
 }
 
 fn do_patterns_validation(
@@ -215,7 +229,7 @@ fn do_array_validation(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   let #(valid, annotation) =
-    do_prefix_items_validation(json, prefix, annotation) |> echo
+    do_prefix_items_validation(json, prefix, annotation)
 
   use <- bool.guard(when: valid != Valid, return: #(valid, annotation))
 

@@ -1,6 +1,6 @@
 import gleam/dict
 import gleam/int
-import gleam/list.{Continue, Stop}
+import gleam/list
 import gleam/option.{Some}
 import gleam/order.{Eq, Gt, Lt}
 import simplejson/internal/schema2/types.{
@@ -8,6 +8,7 @@ import simplejson/internal/schema2/types.{
   BooleanValue, InvalidComparison, NumberValue, Property, SchemaError,
   SchemaFailure, Valid,
 }
+import simplejson/internal/utils
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
 
 pub const array_properties = [
@@ -162,7 +163,7 @@ fn unique_items(
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case jsonvalue {
           JsonArray(l, _) -> {
-            case is_unique(dict.values(l)) {
+            case utils.is_unique(dict.values(l)) {
               True -> #(Valid, ann)
               False -> #(InvalidComparison(v, "uniqueItems", jsonvalue), ann)
             }
@@ -183,16 +184,4 @@ fn unique_items(
     }
     _ -> Error(SchemaError)
   }
-}
-
-fn is_unique(values: List(JsonValue)) -> Bool {
-  let #(unique, _) =
-    list.fold_until(values, #(True, dict.new()), fn(d, v) {
-      let #(_, d) = d
-      case dict.has_key(d, v) {
-        True -> Stop(#(False, d))
-        False -> Continue(#(True, dict.insert(d, v, Nil)))
-      }
-    })
-  unique
 }
