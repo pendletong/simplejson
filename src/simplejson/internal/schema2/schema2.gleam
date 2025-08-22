@@ -126,7 +126,7 @@ fn generate_root_validation(
       let assert JsonObject(d, _) = context.current_node
       dict.has_key(d, "$ref")
     },
-    return: fn() { panic as "No $ref" },
+    return: fn() { todo as "No $ref" },
   )
 
   let type_prop =
