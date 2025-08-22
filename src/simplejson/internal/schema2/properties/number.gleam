@@ -1,7 +1,9 @@
+import bigdecimal
+import bigdecimal/rounding
 import gleam/float
 import gleam/int
 import gleam/option.{None, Some}
-import gleam/order
+import gleam/order.{Eq}
 import gleam/result
 import simplejson/internal/schema2/types.{
   type NodeAnnotation, type Value, InvalidComparison, NumberValue, Property,
@@ -55,25 +57,35 @@ fn multiple_of(
   case v {
     NumberValue(_, value:, or_value:) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+        value |> echo
+        or_value |> echo
+        jsonvalue |> echo
         result.try(
           case value, or_value, jsonvalue {
             Some(i), _, JsonNumber(Some(i2), _, _) -> {
-              int.modulo(i2, i) |> result.map(int.to_float)
+              let assert Ok(mod) = int.modulo(i2, i)
+              Ok(mod == 0)
             }
             Some(i), _, JsonNumber(_, Some(f2), _) -> {
-              float.modulo(f2, int.to_float(i))
+              let assert Ok(v2) = bigdecimal.from_string(float.to_string(f2))
+              let assert Ok(v) = bigdecimal.from_string(int.to_string(i))
+              is_mult(v2, v)
             }
             _, Some(f), JsonNumber(Some(i2), _, _) -> {
-              float.modulo(int.to_float(i2), f)
+              let assert Ok(v2) = bigdecimal.from_string(int.to_string(i2))
+              let assert Ok(v) = bigdecimal.from_string(float.to_string(f))
+              is_mult(v2, v)
             }
             _, Some(f), JsonNumber(_, Some(f2), _) -> {
-              float.modulo(f2, f)
+              let assert Ok(v2) = bigdecimal.from_string(float.to_string(f2))
+              let assert Ok(v) = bigdecimal.from_string(float.to_string(f))
+              is_mult(v2, v)
             }
             _, _, _ -> Error(Nil)
           }
             |> result.replace_error(#(SchemaFailure, ann)),
-          fn(f_val) {
-            case f_val == 0.0 {
+          fn(is_mult) {
+            case is_mult {
               True -> Ok(#(Valid, ann))
               False -> {
                 let #(v1, v2) = case value, or_value, jsonvalue {
@@ -106,6 +118,25 @@ fn multiple_of(
   }
 }
 
+fn is_mult(
+  dividend: bigdecimal.BigDecimal,
+  by divisor: bigdecimal.BigDecimal,
+) -> Result(Bool, Nil) {
+  case bigdecimal.compare(divisor, bigdecimal.zero()) == Eq {
+    True -> Error(Nil)
+    False ->
+      {
+        bigdecimal.divide(dividend, divisor, rounding.Floor)
+        |> bigdecimal.rescale(0, rounding.Floor)
+        |> bigdecimal.multiply(divisor)
+        |> bigdecimal.subtract(dividend, _)
+        |> bigdecimal.compare(bigdecimal.zero())
+        == Eq
+      }
+      |> Ok
+  }
+}
+
 fn do_compare_numbers(value, or_value, jsonvalue) {
   case value, or_value, jsonvalue {
     Some(i), None, JsonNumber(Some(i2), _, _) -> Ok(int.compare(i, i2))
@@ -128,7 +159,7 @@ fn minimum(
     NumberValue(_, value:, or_value:) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
-          Ok(order.Eq) | Ok(order.Lt) -> #(Valid, ann)
+          Ok(Eq) | Ok(order.Lt) -> #(Valid, ann)
           Ok(_) -> #(InvalidComparison(v, "minimum", jsonvalue), ann)
           Error(err) -> #(err, ann)
         }
@@ -168,7 +199,7 @@ fn maximum(
     NumberValue(_, value:, or_value:) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
-          Ok(order.Eq) | Ok(order.Gt) -> #(Valid, ann)
+          Ok(Eq) | Ok(order.Gt) -> #(Valid, ann)
           Ok(_) -> #(InvalidComparison(v, "maximum", jsonvalue), ann)
           Error(err) -> #(err, ann)
         }

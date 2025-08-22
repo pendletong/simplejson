@@ -22,9 +22,16 @@ const files = [
   "contains.json",
   "items.json",
   "prefixItems.json",
+  "minimum.json",
+  "maximum.json",
+  "exclusiveMinimum.json",
+  "exclusiveMaximum.json",
+  "minContains.json",
+  "maxContains.json",
+  "multipleOf.json",
+  "properties.json",
   // "minProperties.json",
 // "maxProperties.json",
-// "items.json",
 ]
 
 pub fn main() {
