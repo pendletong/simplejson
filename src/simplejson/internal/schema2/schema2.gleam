@@ -18,7 +18,7 @@ import simplejson/internal/schema2/types.{
   ArraySubValidation, ArrayValue, BooleanValue, Context, IntValue, InvalidJson,
   InvalidType, MultipleValidation, NoType, NullValue, NumberValue, Object,
   ObjectValue, Property, Schema, SchemaError, SimpleValidation, StringValue,
-  TypeValidation, Validation,
+  TypeValidation, Validation, ValidatorProperties,
 }
 import simplejson/internal/stringify
 
@@ -129,14 +129,15 @@ fn generate_root_validation(
     return: fn() { todo as "No $ref" },
   )
 
-  let type_prop =
+  use instance_type <- result.try(get_property(
+    context,
     Property(
       "type",
       types.Types([types.String, types.Array(types.String)]),
       types.valid_type_fn,
       None,
-    )
-  use instance_type <- result.try(get_property(context, type_prop))
+    ),
+  ))
 
   use enum <- result.try(get_property(
     context,
@@ -175,18 +176,31 @@ fn generate_root_validation(
     instance_type,
   ))
 
-  case enum, const_val {
-    None, None -> type_validation
-    _, _ ->
-      [
-        Some(type_validation),
-        enum |> option.map(validate_enum),
-        const_val |> option.map(validate_const),
-      ]
-      |> option.values
-      |> MultipleValidation(types.All, function.identity)
+  use then <- result.try(get_validation_property(context, "then"))
+  use orelse <- result.try(get_validation_property(context, "else"))
+
+  use if_validation <- result.try(case then, orelse {
+    None, None -> Ok(None)
+    _, _ -> get_validation_property(context, "if")
+  })
+
+  let ifthen = case if_validation {
+    Some(ifthen) -> Some(types.IfThenValidation(ifthen, then, orelse))
+    None -> None
   }
-  |> Ok
+  case
+    [
+      Some(type_validation),
+      enum |> option.map(validate_enum),
+      const_val |> option.map(validate_const),
+      ifthen,
+    ]
+    |> option.values
+  {
+    [v] -> Ok(v)
+    [] -> Error(SchemaError)
+    v -> Ok(MultipleValidation(v, types.All, function.identity))
+  }
 }
 
 fn validate_enum(v: Value) {
@@ -342,9 +356,22 @@ fn get_validation_for_type(
       case get_property(context, prop) {
         Error(e) -> Error(e)
         Ok(Some(val)) -> {
-          let assert Some(validator_fn) = prop.validator_fn
-          use validation_fn <- result.try(validator_fn(val))
-          Ok([Some(Validation(validation_fn)), ..l])
+          use validation_fn <- result.try(case prop {
+            Property(_, _, _, Some(validator_fn)) -> {
+              use vfn <- result.try(validator_fn(val))
+              Ok(Some(Validation(vfn)))
+            }
+            ValidatorProperties(_, _, _, Some(validator_fn)) -> {
+              use vfn <- result.try(
+                validator_fn(val, fn(json) {
+                  generate_validator(Context(..context, current_node: json))
+                }),
+              )
+              Ok(Some(Validation(vfn)))
+            }
+            _ -> Ok(None)
+          })
+          Ok([validation_fn, ..l])
         }
         Ok(None) -> Ok(l)
       }
@@ -546,21 +573,10 @@ fn get_object_subvalidation(
     }),
   )
 
-  use additional_properties <- result.try(
-    get_property(
-      context,
-      Property(
-        "additionalProperties",
-        types.Types([types.Object(types.AnyType), types.Boolean]),
-        types.ok_fn,
-        None,
-      ),
-    )
-    |> result.try(fn(i) {
-      option.map(i, value_to_validation(_, context))
-      |> unwrap_option_result
-    }),
-  )
+  use additional_properties <- result.try(get_validation_property(
+    context,
+    "additionalProperties",
+  ))
   case
     option.is_some(properties)
     || option.is_some(additional_properties)
@@ -576,6 +592,22 @@ fn get_object_subvalidation(
       ])
     False -> Ok([None])
   }
+}
+
+fn get_validation_property(context: Context, prop_name: String) {
+  get_property(
+    context,
+    Property(
+      prop_name,
+      types.Types([types.Object(types.AnyType), types.Boolean]),
+      types.ok_fn,
+      None,
+    ),
+  )
+  |> result.try(fn(i) {
+    option.map(i, value_to_validation(_, context))
+    |> unwrap_option_result
+  })
 }
 
 fn dict_to_validations(
