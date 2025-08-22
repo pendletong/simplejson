@@ -22,7 +22,6 @@ pub fn suite_testzs() {
   simplifile.get_files("./JSON-Schema-Test-Suite/tests/draft2020-12")
   |> expect.to_be_ok
   |> list.filter_map(fn(filename) {
-    #(filename, string.contains(filename, "/optional/")) |> echo
     use <- bool.guard(
       when: string.contains(filename, "/optional/") && !run_optional,
       return: Error(Nil),

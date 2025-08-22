@@ -57,9 +57,6 @@ fn multiple_of(
   case v {
     NumberValue(_, value:, or_value:) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-        value |> echo
-        or_value |> echo
-        jsonvalue |> echo
         result.try(
           case value, or_value, jsonvalue {
             Some(i), _, JsonNumber(Some(i2), _, _) -> {

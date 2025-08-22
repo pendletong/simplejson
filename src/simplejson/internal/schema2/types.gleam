@@ -33,7 +33,11 @@ pub type ValidationNode {
     combination: Combination,
     map_error: fn(List(ValidationInfo)) -> List(ValidationInfo),
   )
-  IfThenValidation(when: ValidationNode, then: ValidationNode)
+  IfThenValidation(
+    when: ValidationNode,
+    then: Option(ValidationNode),
+    orelse: Option(ValidationNode),
+  )
   TypeValidation(t: ValueType)
   ArraySubValidation(
     prefix: Option(List(ValidationNode)),
@@ -73,6 +77,8 @@ pub type ValidationInfo {
   Valid
   ValidationError(desc: String)
   AlwaysFail
+  InvalidKey(prop: String)
+  MissingKey(prop: String)
   IncorrectType(expect: ValueType, actual: JsonValue)
   InvalidComparison(expect: Value, cmp: String, actual: JsonValue)
   InvalidMatch(match: String, actual: JsonValue)
@@ -112,6 +118,18 @@ pub type Property {
     value_check: fn(Value, Context, Property) -> Result(Bool, SchemaError),
     validator_fn: Option(
       fn(Value) ->
+        Result(
+          fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+          SchemaError,
+        ),
+    ),
+  )
+  ValidatorProperties(
+    name: String,
+    valuetype: ValueType,
+    value_check: fn(Value, Context, Property) -> Result(Bool, SchemaError),
+    validator_fn: Option(
+      fn(Value, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
         Result(
           fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
           SchemaError,
@@ -317,7 +335,7 @@ pub fn validate_type(
     Types(types) -> {
       case
         list.fold_until(types, None, fn(_, t) {
-          case validate_type(json, context, Property(..prop, valuetype: t)) {
+          case validate_type(json, context, swap_value_type(prop, t)) {
             Error(_) -> Continue(None)
             Ok(v) -> Stop(v)
           }
@@ -333,6 +351,13 @@ pub fn validate_type(
     Error(_) -> Error(InvalidProperty(prop.name, json))
     Ok(False) -> Ok(None)
     Ok(True) -> Ok(Some(value))
+  }
+}
+
+pub fn swap_value_type(prop: Property, t: ValueType) -> Property {
+  case prop {
+    ValidatorProperties(_, _, _, _) -> ValidatorProperties(..prop, valuetype: t)
+    Property(_, _, _, _) -> Property(..prop, valuetype: t)
   }
 }
 
