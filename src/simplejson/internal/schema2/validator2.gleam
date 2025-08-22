@@ -1,16 +1,17 @@
 import gleam/bool
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/float
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
+import gleam/regexp.{type Regexp}
 import gleam/result
 import simplejson/internal/schema2/types.{
   type NodeAnnotation, type Schema, type ValidationInfo, type ValidationNode,
   type ValueType, AlwaysFail, ArrayAnnotation, MultipleInfo, NoAnnotation,
-  Schema, Todo, Valid, ValidationError,
+  ObjectAnnotation, Schema, Valid,
 }
 import simplejson/internal/stringify
-import simplejson/jsonvalue.{type JsonValue, JsonArray}
+import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
 
 pub fn validate(
   json: JsonValue,
@@ -57,7 +58,14 @@ fn do_validate(
         #(v, ann) -> #(MultipleInfo(v), ann)
       }
     }
-    types.ObjectSubValidation(_, _, _) -> todo
+    types.ObjectSubValidation(props:, pattern_props:, additional_prop:) ->
+      do_object_validation(
+        json,
+        props,
+        pattern_props,
+        additional_prop,
+        ObjectAnnotation(dict.new()),
+      )
     types.SimpleValidation(valid:) -> {
       case valid {
         True -> #(Valid, annotation)
@@ -71,6 +79,131 @@ fn do_validate(
       }
     }
     types.Validation(valid:) -> valid(json, annotation)
+  }
+}
+
+fn do_object_validation(
+  json: JsonValue,
+  props: Option(Dict(String, ValidationNode)),
+  patterns: Option(List(#(Regexp, ValidationNode))),
+  extra: Option(ValidationNode),
+  annotation: NodeAnnotation,
+) -> #(ValidationInfo, NodeAnnotation) {
+  let #(valid, annotation) = do_properties_validation(json, props, annotation)
+
+  use <- bool.guard(when: valid != Valid, return: #(valid, annotation))
+
+  let #(valid, annotation) = do_patterns_validation(json, patterns, annotation)
+
+  use <- bool.guard(when: valid != Valid, return: #(valid, annotation))
+
+  do_extras_validation(json, extra, annotation)
+}
+
+fn do_extras_validation(
+  json: JsonValue,
+  extra: Option(ValidationNode),
+  annotation: NodeAnnotation,
+) {
+  case extra {
+    Some(validation) -> {
+      let assert ObjectAnnotation(matches) = annotation |> echo
+      let assert JsonObject(d, _) = json
+      list.filter(dict.to_list(d) |> echo, fn(e) {
+        let #(k, _) = e
+        !dict.has_key(matches, k)
+      })
+      |> echo
+      |> list.fold_until(#(Valid, annotation), fn(state, entry) {
+        let #(k, v) = entry
+        let assert ObjectAnnotation(matches) = state.1
+        case do_validate(v, validation, NoAnnotation) {
+          #(Valid, _) ->
+            Continue(#(Valid, ObjectAnnotation(dict.insert(matches, k, Nil))))
+          #(err, _) -> Stop(#(err, annotation))
+        }
+      })
+    }
+    None -> #(Valid, annotation)
+  }
+}
+
+fn do_patterns_validation(
+  json: JsonValue,
+  patterns: Option(List(#(Regexp, ValidationNode))),
+  annotation: NodeAnnotation,
+) {
+  let assert JsonObject(d, _) = json
+  case patterns {
+    Some(patterns) -> {
+      dict.to_list(d)
+      |> list.try_fold(#(Valid, annotation), fn(state, entry) {
+        let assert ObjectAnnotation(matches) = state.1
+        let #(key, value) = entry
+        let validators = get_matching_properties(key, patterns)
+        case validators {
+          [] -> Ok(#(Valid, state.1))
+          _ -> {
+            let valid =
+              list.fold_until(validators, Valid, fn(state, validation) {
+                case do_validate(value, validation, NoAnnotation) {
+                  #(Valid, _) -> Continue(state)
+                  #(err, _) -> Stop(err)
+                }
+              })
+            case valid {
+              Valid ->
+                Ok(#(valid, ObjectAnnotation(dict.insert(matches, key, Nil))))
+              _ -> Error(#(valid, state.1))
+            }
+          }
+        }
+      })
+      |> result.unwrap_both
+    }
+    None -> #(Valid, annotation)
+  }
+}
+
+fn get_matching_properties(
+  key: String,
+  patterns: List(#(Regexp, ValidationNode)),
+) -> List(ValidationNode) {
+  list.filter_map(patterns, fn(p) {
+    let #(r, validation) = p
+    case regexp.check(r, key) {
+      True -> Ok(validation)
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn do_properties_validation(
+  json: JsonValue,
+  props: Option(Dict(String, ValidationNode)),
+  annotation: NodeAnnotation,
+) {
+  let assert JsonObject(d, _) = json
+  case props {
+    Some(props) -> {
+      dict.to_list(d)
+      |> list.try_fold(#(Valid, annotation), fn(state, entry) {
+        let assert ObjectAnnotation(matches) = state.1
+        let #(key, value) = entry
+        case dict.get(props, key) {
+          Ok(validation) -> {
+            case do_validate(value, validation, NoAnnotation) {
+              #(Valid, _) ->
+                Ok(#(Valid, ObjectAnnotation(dict.insert(matches, key, Nil))))
+              #(err, _) -> Error(#(err, state.1))
+            }
+          }
+          Error(_) -> Ok(state)
+        }
+      })
+      |> result.unwrap_both
+    }
+    None -> #(Valid, annotation)
   }
 }
 
