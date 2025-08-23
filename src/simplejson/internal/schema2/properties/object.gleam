@@ -41,7 +41,7 @@ pub const object_properties = [
   ),
   ValidatorProperties(
     "unevaluatedProperties",
-    types.Object(types.AnyType),
+    types.Types([types.Object(types.AnyType), types.Boolean]),
     types.ok_fn,
     Some(unevaluated_properties),
   ),
@@ -204,7 +204,11 @@ fn unevaluated_properties(
           )
         }
         False -> fn(json, ann) {
+          "unecaluated" |> echo
           let assert jsonvalue.JsonObject(d, _) = json
+          let assert ObjectAnnotation(matches) = ann
+          let d =
+            dict.fold(matches, d, fn(d, k, _) { dict.delete(d, k) }) |> echo
           case dict.is_empty(d) {
             True -> #(Valid, ann)
             False -> #(AlwaysFail, ann)
@@ -227,7 +231,7 @@ fn unevaluated_properties(
                 |> list.fold_until(#(Valid, ann), fn(state, entry) {
                   let assert ObjectAnnotation(matches) = state.1
                   let #(k, v) = entry
-                  case validator2.do_validate(v, validator, NoAnnotation) {
+                  case validator2.do_validate(v, validator, state.1) {
                     #(Valid, _) ->
                       Continue(#(
                         Valid,
