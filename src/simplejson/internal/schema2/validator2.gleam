@@ -52,7 +52,12 @@ pub fn do_validate(
           }
       }
     }
-    types.MultipleValidation(tests:, combination:, map_error:) -> {
+    types.MultipleValidation(
+      tests:,
+      combination:,
+      map_error:,
+      update_annotation:,
+    ) -> {
       case
         {
           case do_multiple_validation(json, tests, combination, annotation) {
@@ -62,31 +67,62 @@ pub fn do_validate(
           }
         }
       {
-        #([v], ann) -> #(v, ann)
-        #(v, ann) -> #(MultipleInfo(v), ann)
+        #([v], ann) -> #(v, case update_annotation {
+          True -> ann
+          False -> annotation
+        })
+        #(v, ann) -> #(MultipleInfo(v), case update_annotation {
+          True -> ann
+          False -> annotation
+        })
       }
     }
-    types.ObjectSubValidation(props:, pattern_props:, additional_prop:) ->
+    types.ObjectSubValidation(props:, pattern_props:, additional_prop:) -> {
       do_object_validation(
         json,
         props,
         pattern_props,
         additional_prop,
-        ObjectAnnotation(dict.new()),
+        annotation,
       )
+    }
     types.SimpleValidation(valid:) -> {
       case valid {
-        True -> #(Valid, annotation)
+        True -> {
+          let annotation = case json, annotation {
+            JsonObject(d, _), ObjectAnnotation(matches) -> {
+              ObjectAnnotation(
+                dict.keys(d)
+                |> list.fold(matches, fn(m, k) { dict.insert(m, k, Nil) }),
+              )
+            }
+            _, _ -> annotation
+          }
+          #(Valid, annotation)
+        }
         False -> #(AlwaysFail, annotation)
       }
     }
     types.TypeValidation(t:) -> {
       case validate_type(t, json) {
-        True -> #(Valid, annotation)
+        True -> {
+          let annotation = case t {
+            types.Array(_) -> ArrayAnnotation(None, None, None, None)
+            types.Object(_) -> ObjectAnnotation(dict.new())
+            _ -> annotation
+          }
+          #(Valid, annotation)
+        }
         False -> #(types.IncorrectType(t, json), annotation)
       }
     }
     types.Validation(valid:) -> valid(json, annotation)
+    types.NotValidation(validation:) -> {
+      case do_validate(json, validation, annotation) {
+        #(Valid, _) -> #(types.NotBeValid, annotation)
+        #(_, _) -> #(Valid, annotation)
+      }
+    }
   }
 }
 
@@ -357,6 +393,7 @@ fn do_multiple_validation(
   let comp = case combination {
     types.All -> validate_all
     types.Any -> validate_any
+    types.One -> validate_one
   }
   case comp(json, validators, annotation) {
     #([Valid], ann) -> #(True, [Valid], ann)
@@ -364,6 +401,23 @@ fn do_multiple_validation(
       #(False, list.unique(errors), ann)
     }
   }
+}
+
+fn validate_one(
+  json: JsonValue,
+  validators: List(ValidationNode),
+  annotation: NodeAnnotation,
+) -> #(List(ValidationInfo), NodeAnnotation) {
+  let #(v, _, _) =
+    list.fold_until(validators, #([], annotation, 0), fn(infos, v) {
+      let #(validity, annotations, i) = infos
+      case do_validate(json, v, annotations), i {
+        #(Valid, ann), 0 -> Continue(#([Valid], ann, 1))
+        #(Valid, _), 1 -> Stop(#([types.MatchOnlyOne], annotation, 2))
+        #(_, ann), _ -> Continue(#(validity, ann, i))
+      }
+    })
+  #(v, annotation)
 }
 
 fn validate_all(
@@ -385,11 +439,13 @@ fn validate_any(
   validators: List(ValidationNode),
   annotation: NodeAnnotation,
 ) -> #(List(ValidationInfo), NodeAnnotation) {
-  list.fold_until(validators, #([], annotation), fn(infos, v) {
+  "doing any" |> echo
+  list.fold(validators, #([], annotation), fn(infos, v) {
     let #(validity, annotations) = infos
-    case do_validate(json, v, annotations) {
-      #(Valid, ann) -> Stop(#([Valid], ann))
-      #(v, ann) -> Continue(#([v, ..validity], ann))
+    case do_validate(json, v, annotations), validity {
+      #(Valid, ann), _ -> #([Valid], ann)
+      #(_, ann), [Valid] -> #([Valid], ann)
+      #(v, ann), _ -> #([v, ..validity], ann)
     }
   })
 }

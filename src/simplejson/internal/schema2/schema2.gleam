@@ -199,7 +199,7 @@ fn generate_root_validation(
   {
     [v] -> Ok(v)
     [] -> Error(SchemaError)
-    v -> Ok(MultipleValidation(v, types.All, function.identity))
+    v -> Ok(MultipleValidation(v, types.All, function.identity, True))
   }
 }
 
@@ -212,6 +212,7 @@ fn validate_enum(v: Value) {
         }),
         types.Any,
         function.identity,
+        True,
       )
     }
     _ -> panic as "Enum parse error"
@@ -311,13 +312,15 @@ fn construct_type_validation(
       use validations <- result.try(
         list.try_map(types, fn(t) { get_validation_for_type(context, t) }),
       )
-      Ok(MultipleValidation(validations, types.Any, function.identity))
+      Ok(MultipleValidation(validations, types.Any, function.identity, True))
     }
     _ -> todo
   }
 }
 
-fn generate_multi_type_validation(context: Context) {
+fn generate_multi_type_validation(
+  context: Context,
+) -> Result(ValidationNode, SchemaError) {
   use l <- result.try(
     list.filter_map(type_checks, fn(tc) {
       let #(type_name, _, _) = tc
@@ -333,15 +336,21 @@ fn generate_multi_type_validation(context: Context) {
   case
     list.find(l, fn(validation) {
       case validation {
-        MultipleValidation([TypeValidation(_), ..], _, _) -> {
+        MultipleValidation([TypeValidation(_), ..], _, _, _) -> {
           True
         }
         _ -> False
       }
     })
   {
-    Ok(_) ->
-      Ok(MultipleValidation(l, types.Any, filter_validation_to_non_type_errors))
+    Ok(_) -> {
+      Ok(MultipleValidation(
+        l,
+        types.Any,
+        filter_validation_to_non_type_errors,
+        True,
+      ))
+    }
     Error(_) -> Ok(SimpleValidation(True))
   }
 }
@@ -392,15 +401,67 @@ fn get_validation_for_type(
     _ -> Ok([None])
   })
 
+  use subschema <- result.try(get_subschemas(context))
+
   case
-    [[main_validation |> Some], sub_validations, validations]
+    [[main_validation |> Some], subschema, sub_validations, validations]
     |> list.flatten
     |> option.values
   {
     [v] -> v
-    v -> types.MultipleValidation(v, types.All, function.identity)
+    v -> types.MultipleValidation(v, types.All, function.identity, True)
   }
   |> Ok
+}
+
+fn get_subschemas(
+  context: Context,
+) -> Result(List(Option(ValidationNode)), SchemaError) {
+  use all_of <- result.try(get_validator_list(context, "allOf"))
+  let all_of =
+    option.map(all_of, MultipleValidation(
+      _,
+      types.All,
+      function.identity,
+      False,
+    ))
+
+  use any_of <- result.try(get_validator_list(context, "anyOf"))
+  let any_of =
+    option.map(any_of, MultipleValidation(
+      _,
+      types.Any,
+      function.identity,
+      False,
+    ))
+
+  use one_of <- result.try(get_validator_list(context, "oneOf"))
+  let one_of =
+    option.map(one_of, MultipleValidation(
+      _,
+      types.One,
+      function.identity,
+      False,
+    ))
+
+  use not <- result.try(
+    get_property(
+      context,
+      Property(
+        "not",
+        types.Types([types.Object(types.AnyType), types.Boolean]),
+        types.ok_fn,
+        None,
+      ),
+    )
+    |> result.try(fn(i) {
+      option.map(i, value_to_validation(_, context))
+      |> unwrap_option_result
+    }),
+  )
+  let not = option.map(not, types.NotValidation)
+
+  Ok([all_of, any_of, one_of, not])
 }
 
 fn filter_validation_to_non_type_errors(
@@ -417,37 +478,7 @@ fn filter_validation_to_non_type_errors(
 fn get_array_subvalidation(
   context: Context,
 ) -> Result(List(Option(types.ValidationNode)), SchemaError) {
-  use prefix_items <- result.try(
-    get_property(
-      context,
-      Property(
-        "prefixItems",
-        Array(types.Types([types.Object(types.AnyType), types.Boolean])),
-        fn(v, _c, p) {
-          case v {
-            ArrayValue(_, []) ->
-              Error(types.InvalidProperty(p.name, context.current_node))
-            ArrayValue(_, _) -> Ok(True)
-            _ -> Error(types.InvalidProperty(p.name, context.current_node))
-          }
-        },
-        None,
-      ),
-    )
-    |> result.try(fn(v) {
-      option.map(v, fn(pi) {
-        case pi {
-          ArrayValue(_, items) -> {
-            list.try_map(items, fn(i) {
-              generate_validator(Context(..context, current_node: i))
-            })
-          }
-          _ -> Error(SchemaError)
-        }
-      })
-      |> unwrap_option_result
-    }),
-  )
+  use prefix_items <- result.try(get_validator_list(context, "prefixItems"))
   use items <- result.try(
     get_property(
       context,
@@ -509,6 +540,38 @@ fn get_array_subvalidation(
       Ok([Some(ArraySubValidation(prefix_items, items, contains)), min_contains])
     False -> Ok([None])
   }
+}
+
+fn get_validator_list(context: Context, prop_name: String) {
+  get_property(
+    context,
+    Property(
+      prop_name,
+      Array(types.Types([types.Object(types.AnyType), types.Boolean])),
+      fn(v, _c, p) {
+        case v {
+          ArrayValue(_, []) ->
+            Error(types.InvalidProperty(p.name, context.current_node))
+          ArrayValue(_, _) -> Ok(True)
+          _ -> Error(types.InvalidProperty(p.name, context.current_node))
+        }
+      },
+      None,
+    ),
+  )
+  |> result.try(fn(v) {
+    option.map(v, fn(pi) {
+      case pi {
+        ArrayValue(_, items) -> {
+          list.try_map(items, fn(i) {
+            generate_validator(Context(..context, current_node: i))
+          })
+        }
+        _ -> Error(SchemaError)
+      }
+    })
+    |> unwrap_option_result
+  })
 }
 
 fn value_to_validation(

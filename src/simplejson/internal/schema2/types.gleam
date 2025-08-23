@@ -21,6 +21,7 @@ pub type Schema {
 pub type Combination {
   All
   Any
+  One
 }
 
 pub type ValidationNode {
@@ -32,6 +33,7 @@ pub type ValidationNode {
     tests: List(ValidationNode),
     combination: Combination,
     map_error: fn(List(ValidationInfo)) -> List(ValidationInfo),
+    update_annotation: Bool,
   )
   IfThenValidation(
     when: ValidationNode,
@@ -49,6 +51,7 @@ pub type ValidationNode {
     pattern_props: Option(List(#(Regexp, ValidationNode))),
     additional_prop: Option(ValidationNode),
   )
+  NotValidation(validation: ValidationNode)
 }
 
 pub type NodeAnnotation {
@@ -86,6 +89,8 @@ pub type ValidationInfo {
   AnyFail
   SchemaFailure
   Todo
+  NotBeValid
+  MatchOnlyOne
 }
 
 pub type ValueType {
