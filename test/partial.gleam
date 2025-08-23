@@ -44,6 +44,7 @@ const files = [
   // "unevaluatedItems.json",
   // "unevaluatedProperties.json",
   "uniqueItems.json",
+  "not.json",
 ]
 
 pub fn main() {
