@@ -42,7 +42,7 @@ const files = [
   "required.json",
   "type.json",
   // "unevaluatedItems.json",
-  // "unevaluatedProperties.json",
+  "unevaluatedProperties.json",
   "uniqueItems.json",
   "not.json",
 ]
