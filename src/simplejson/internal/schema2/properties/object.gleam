@@ -40,17 +40,17 @@ pub const object_properties = [
     Some(property_names),
   ),
   ValidatorProperties(
-    "unevaluatedProperties",
-    types.Types([types.Object(types.AnyType), types.Boolean]),
-    types.ok_fn,
-    Some(unevaluated_properties),
-  ),
-  ValidatorProperties(
     "dependentSchemas",
     types.Types([types.Object(types.AnyType), types.Boolean]),
     types.ok_fn,
     Some(dependent_schemas),
   ),
+  // ValidatorProperties(
+//   "unevaluatedProperties",
+//   types.Types([types.Object(types.AnyType), types.Boolean]),
+//   types.ok_fn,
+//   Some(unevaluated_properties),
+// ),
 ]
 
 fn min_properties(
@@ -119,32 +119,25 @@ fn dependent_schemas(
           Ok(#(key, validator))
         }),
       )
-      Ok(fn(json: JsonValue, ann: NodeAnnotation) {
+      Ok(fn(json: JsonValue, annotation: NodeAnnotation) {
         case json {
           jsonvalue.JsonObject(d, _) -> {
-            let valid =
-              list.fold_until(validators, Valid, fn(_, e) {
-                let #(key, validator) = e
+            list.fold_until(validators, #(Valid, annotation), fn(state, e) {
+              let #(key, validator) = e
+              let #(_, ann) = state
 
-                case dict.has_key(d, key) {
-                  True -> {
-                    case
-                      validator2.do_validate(
-                        json,
-                        validator,
-                        ObjectAnnotation(dict.new()),
-                      )
-                    {
-                      #(Valid, _) -> Continue(Valid)
-                      #(err, _) -> Stop(err)
-                    }
+              case dict.has_key(d, key) {
+                True -> {
+                  case validator2.do_validate(json, validator, ann) {
+                    #(Valid, ann) -> Continue(#(Valid, ann))
+                    #(err, _) -> Stop(#(err, annotation))
                   }
-                  False -> Continue(Valid)
                 }
-              })
-            #(valid, ann)
+                False -> Continue(#(Valid, ann))
+              }
+            })
           }
-          _ -> #(IncorrectType(types.Object(types.AnyType), json), ann)
+          _ -> #(IncorrectType(types.Object(types.AnyType), json), annotation)
         }
       })
     }
@@ -182,7 +175,7 @@ fn required_properties(
   }
 }
 
-fn unevaluated_properties(
+pub fn unevaluated_properties(
   v: Value,
   get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
 ) -> Result(
@@ -204,8 +197,8 @@ fn unevaluated_properties(
           )
         }
         False -> fn(json, ann) {
-          "unecaluated" |> echo
-          let assert jsonvalue.JsonObject(d, _) = json
+          ann |> echo as "unecaluated"
+          let assert jsonvalue.JsonObject(d, _) = json |> echo
           let assert ObjectAnnotation(matches) = ann
           let d =
             dict.fold(matches, d, fn(d, k, _) { dict.delete(d, k) }) |> echo
@@ -219,6 +212,7 @@ fn unevaluated_properties(
     }
     types.ObjectValue(_, d) -> {
       let json = jsonvalue.JsonObject(d, None)
+
       case get_validator(json) {
         Error(_) -> Error(types.InvalidProperty("unevaluatedProperties", json))
         Ok(validator) -> {
@@ -226,8 +220,10 @@ fn unevaluated_properties(
             let assert ObjectAnnotation(matches) = ann
             case json {
               jsonvalue.JsonObject(d, _) -> {
-                dict.filter(d, fn(k, _) { dict.has_key(matches, k) })
+                matches |> echo as "uneval"
+                dict.filter(d, fn(k, _) { !dict.has_key(matches, k) })
                 |> dict.to_list
+                |> echo
                 |> list.fold_until(#(Valid, ann), fn(state, entry) {
                   let assert ObjectAnnotation(matches) = state.1
                   let #(k, v) = entry
