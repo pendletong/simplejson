@@ -176,30 +176,17 @@ fn generate_root_validation(
     instance_type,
   ))
 
-  use then <- result.try(get_validation_property(context, "then"))
-  use orelse <- result.try(get_validation_property(context, "else"))
-
-  use if_validation <- result.try(case then, orelse {
-    None, None -> Ok(None)
-    _, _ -> get_validation_property(context, "if")
-  })
-
-  let ifthen = case if_validation {
-    Some(ifthen) -> Some(types.IfThenValidation(ifthen, then, orelse))
-    None -> None
-  }
   case
     [
-      Some(type_validation),
       enum |> option.map(validate_enum),
       const_val |> option.map(validate_const),
-      ifthen,
+      Some(type_validation),
     ]
     |> option.values
   {
     [v] -> Ok(v)
     [] -> Error(SchemaError)
-    v -> Ok(MultipleValidation(v, types.All, function.identity, True))
+    v -> Ok(MultipleValidation(v, types.All, function.identity, False))
   }
 }
 
@@ -212,7 +199,7 @@ fn validate_enum(v: Value) {
         }),
         types.Any,
         function.identity,
-        True,
+        False,
       )
     }
     _ -> panic as "Enum parse error"
@@ -403,15 +390,72 @@ fn get_validation_for_type(
 
   use subschema <- result.try(get_subschemas(context))
 
+  use then <- result.try(get_validation_property(context, "then"))
+  use orelse <- result.try(get_validation_property(context, "else"))
+
+  use if_validation <- result.try(get_validation_property(context, "if"))
+
+  let ifthen = [
+    case if_validation {
+      Some(ifprop) -> Some(types.IfThenValidation(ifprop, then, orelse))
+      None -> None
+    },
+  ]
+
+  use unevaluated <- result.try(case type_check {
+    Array(_) -> {
+      Ok([])
+    }
+    Object(_) -> {
+      get_unevaluated_properties(context)
+    }
+    _ -> Ok([None])
+  })
+
   case
-    [[main_validation |> Some], subschema, sub_validations, validations]
+    [
+      [main_validation |> Some],
+      sub_validations,
+      validations,
+      subschema,
+      ifthen,
+      unevaluated,
+    ]
     |> list.flatten
     |> option.values
   {
     [v] -> v
-    v -> types.MultipleValidation(v, types.All, function.identity, True)
+    v -> types.MultipleValidation(v, types.All, function.identity, False)
   }
   |> Ok
+}
+
+fn get_unevaluated_properties(context: Context) {
+  case
+    get_property(
+      context,
+      ValidatorProperties(
+        "unevaluatedProperties",
+        types.Types([types.Object(types.AnyType), types.Boolean]),
+        types.ok_fn,
+        Some(object.unevaluated_properties),
+      ),
+    )
+  {
+    Error(e) -> Error(e)
+    Ok(Some(val)) -> {
+      use validation_fn <- result.try({
+        use vfn <- result.try(
+          object.unevaluated_properties(val, fn(json) {
+            generate_validator(Context(..context, current_node: json))
+          }),
+        )
+        Ok(Some(Validation(vfn)))
+      })
+      Ok([validation_fn])
+    }
+    Ok(None) -> Ok([])
+  }
 }
 
 fn get_subschemas(
@@ -419,30 +463,15 @@ fn get_subschemas(
 ) -> Result(List(Option(ValidationNode)), SchemaError) {
   use all_of <- result.try(get_validator_list(context, "allOf"))
   let all_of =
-    option.map(all_of, MultipleValidation(
-      _,
-      types.All,
-      function.identity,
-      False,
-    ))
+    option.map(all_of, MultipleValidation(_, types.All, function.identity, True))
 
   use any_of <- result.try(get_validator_list(context, "anyOf"))
   let any_of =
-    option.map(any_of, MultipleValidation(
-      _,
-      types.Any,
-      function.identity,
-      False,
-    ))
+    option.map(any_of, MultipleValidation(_, types.Any, function.identity, True))
 
   use one_of <- result.try(get_validator_list(context, "oneOf"))
   let one_of =
-    option.map(one_of, MultipleValidation(
-      _,
-      types.One,
-      function.identity,
-      False,
-    ))
+    option.map(one_of, MultipleValidation(_, types.One, function.identity, True))
 
   use not <- result.try(
     get_property(

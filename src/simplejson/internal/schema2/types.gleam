@@ -33,7 +33,7 @@ pub type ValidationNode {
     tests: List(ValidationNode),
     combination: Combination,
     map_error: fn(List(ValidationInfo)) -> List(ValidationInfo),
-    update_annotation: Bool,
+    merge_annotation: Bool,
   )
   IfThenValidation(
     when: ValidationNode,

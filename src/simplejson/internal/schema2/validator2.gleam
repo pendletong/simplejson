@@ -39,13 +39,14 @@ pub fn do_validate(
         ArrayAnnotation(None, None, None, None),
       )
     types.IfThenValidation(when:, then:, orelse:) -> {
-      case do_validate(json, when, NoAnnotation) {
-        #(Valid, _) ->
+      annotation |> echo as "ifthenelse"
+      case do_validate(json, when, annotation) {
+        #(Valid, annotation) ->
           case then {
             Some(then) -> do_validate(json, then, annotation)
             None -> #(Valid, annotation)
           }
-        _ ->
+        #(_, annotation) ->
           case orelse {
             Some(orelse) -> do_validate(json, orelse, annotation)
             None -> #(Valid, annotation)
@@ -56,25 +57,27 @@ pub fn do_validate(
       tests:,
       combination:,
       map_error:,
-      update_annotation:,
+      merge_annotation:,
     ) -> {
       case
         {
-          case do_multiple_validation(json, tests, combination, annotation) {
+          case
+            do_multiple_validation(
+              json,
+              tests,
+              combination,
+              annotation,
+              merge_annotation,
+            )
+          {
             #(True, _, ann) -> #([Valid], ann)
             #(False, [vi], ann) -> #(map_error([vi]), ann)
             #(False, vis, ann) -> #(map_error(vis), ann)
           }
         }
       {
-        #([v], ann) -> #(v, case update_annotation {
-          True -> ann
-          False -> annotation
-        })
-        #(v, ann) -> #(MultipleInfo(v), case update_annotation {
-          True -> ann
-          False -> annotation
-        })
+        #([v], ann) -> #(v, ann)
+        #(v, ann) -> #(MultipleInfo(v), ann)
       }
     }
     types.ObjectSubValidation(props:, pattern_props:, additional_prop:) -> {
@@ -89,15 +92,15 @@ pub fn do_validate(
     types.SimpleValidation(valid:) -> {
       case valid {
         True -> {
-          let annotation = case json, annotation {
-            JsonObject(d, _), ObjectAnnotation(matches) -> {
-              ObjectAnnotation(
-                dict.keys(d)
-                |> list.fold(matches, fn(m, k) { dict.insert(m, k, Nil) }),
-              )
-            }
-            _, _ -> annotation
-          }
+          // let annotation = case json, annotation {
+          //   JsonObject(d, _), ObjectAnnotation(matches) -> {
+          //     ObjectAnnotation(
+          //       dict.keys(d)
+          //       |> list.fold(matches, fn(m, k) { dict.insert(m, k, Nil) }),
+          //     )
+          //   }
+          //   _, _ -> annotation
+          // }
           #(Valid, annotation)
         }
         False -> #(AlwaysFail, annotation)
@@ -134,7 +137,6 @@ fn do_object_validation(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   let #(valid, annotation) = do_properties_validation(json, props, annotation)
-
   use <- bool.guard(when: valid != Valid, return: #(valid, annotation))
 
   let #(valid, annotation) = do_patterns_validation(json, patterns, annotation)
@@ -389,16 +391,17 @@ fn do_multiple_validation(
   validators: List(ValidationNode),
   combination: types.Combination,
   annotation: NodeAnnotation,
+  merge_annotation: Bool,
 ) -> #(Bool, List(ValidationInfo), NodeAnnotation) {
   let comp = case combination {
     types.All -> validate_all
     types.Any -> validate_any
     types.One -> validate_one
   }
-  case comp(json, validators, annotation) {
+  case comp(json, validators, annotation, merge_annotation) {
     #([Valid], ann) -> #(True, [Valid], ann)
-    #(errors, ann) -> {
-      #(False, list.unique(errors), ann)
+    #(errors, _) -> {
+      #(False, list.unique(errors), annotation)
     }
   }
 }
@@ -407,14 +410,15 @@ fn validate_one(
   json: JsonValue,
   validators: List(ValidationNode),
   annotation: NodeAnnotation,
+  _merge_annotations: Bool,
 ) -> #(List(ValidationInfo), NodeAnnotation) {
-  let #(v, _, _) =
+  let #(v, annotation, _) =
     list.fold_until(validators, #([], annotation, 0), fn(infos, v) {
-      let #(validity, annotations, i) = infos
-      case do_validate(json, v, annotations), i {
+      let #(validity, return_annotation, i) = infos
+      case do_validate(json, v, annotation), i {
         #(Valid, ann), 0 -> Continue(#([Valid], ann, 1))
-        #(Valid, _), 1 -> Stop(#([types.MatchOnlyOne], annotation, 2))
-        #(_, ann), _ -> Continue(#(validity, ann, i))
+        #(Valid, _), 1 -> Stop(#([types.MatchOnlyOne], return_annotation, 2))
+        #(_, _), _ -> Continue(#(validity, return_annotation, i))
       }
     })
   #(v, annotation)
@@ -424,28 +428,86 @@ fn validate_all(
   json: JsonValue,
   validators: List(ValidationNode),
   annotation: NodeAnnotation,
+  merge_annotations: Bool,
 ) -> #(List(ValidationInfo), NodeAnnotation) {
-  list.fold_until(validators, #([], annotation), fn(infos, v) {
-    let #(_, annotations) = infos
-    case do_validate(json, v, annotations) {
-      #(Valid, ann) -> Continue(#([Valid], ann))
-      #(v, ann) -> Stop(#([v], ann))
+  let #(v, a) =
+    list.fold_until(validators, #([], [annotation]), fn(infos, v) {
+      let #(_, annotations) = infos
+      case
+        do_validate(json, v, case merge_annotations {
+          True -> annotation
+          False -> {
+            let assert Ok(a) = list.first(annotations)
+            a
+          }
+        })
+      {
+        #(Valid, ann) ->
+          Continue(
+            #([Valid], case merge_annotations {
+              True -> [ann, ..annotations]
+              False -> [ann]
+            }),
+          )
+        #(v, _) -> Stop(#([v], annotations))
+      }
+    })
+  #(v, case merge_annotations {
+    True -> do_merge_annotations(a)
+    False -> {
+      let assert Ok(l) = list.first(a)
+      l
     }
   })
+}
+
+fn do_merge_annotations(annotations: List(NodeAnnotation)) -> NodeAnnotation {
+  case list.first(annotations) {
+    Ok(ObjectAnnotation(_)) -> {
+      annotations
+      |> list.filter(fn(a) { a != NoAnnotation })
+      |> list.fold(ObjectAnnotation(dict.new()), fn(ann, i) {
+        let assert ObjectAnnotation(annd) = ann
+        let assert ObjectAnnotation(d) = i
+        ObjectAnnotation(dict.merge(annd, d))
+      })
+    }
+    _ -> NoAnnotation
+  }
 }
 
 fn validate_any(
   json: JsonValue,
   validators: List(ValidationNode),
   annotation: NodeAnnotation,
+  merge_annotations: Bool,
 ) -> #(List(ValidationInfo), NodeAnnotation) {
-  "doing any" |> echo
-  list.fold(validators, #([], annotation), fn(infos, v) {
-    let #(validity, annotations) = infos
-    case do_validate(json, v, annotations), validity {
-      #(Valid, ann), _ -> #([Valid], ann)
-      #(_, ann), [Valid] -> #([Valid], ann)
-      #(v, ann), _ -> #([v, ..validity], ann)
+  let #(v, a) =
+    list.fold(validators, #([], [annotation]), fn(infos, v) {
+      let #(validity, annotations) = infos
+      case
+        do_validate(json, v, case merge_annotations {
+          True -> annotation
+          False -> {
+            let assert Ok(a) = list.first(annotations)
+            a
+          }
+        }),
+        validity
+      {
+        #(Valid, ann), _ -> #([Valid], case merge_annotations {
+          True -> [ann, ..annotations]
+          False -> [ann]
+        })
+        #(_, _), [Valid] -> #([Valid], annotations)
+        #(v, _), _ -> #([v, ..validity], annotations)
+      }
+    })
+  #(v, case merge_annotations {
+    True -> do_merge_annotations(a)
+    False -> {
+      let assert Ok(l) = list.first(a)
+      l
     }
   })
 }
