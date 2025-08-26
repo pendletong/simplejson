@@ -281,10 +281,13 @@ fn construct_type_validation(
     }
     Some(StringValue(_, t)) -> {
       use validation <- result.try(get_validation_for_type(context, t))
-      Ok(validation)
+      Ok(TypeValidation(dict.from_list([validation])))
     }
     Some(ArrayValue(_, value:)) -> {
-      use <- bool.guard(when: value == [], return: Ok(TypeValidation(NoType)))
+      use <- bool.guard(
+        when: value == [],
+        return: Ok(TypeValidation(dict.new())),
+      )
       let types =
         list.map(value, fn(t) {
           let assert JsonString(t, _) = t
@@ -299,7 +302,7 @@ fn construct_type_validation(
       use validations <- result.try(
         list.try_map(types, fn(t) { get_validation_for_type(context, t) }),
       )
-      Ok(MultipleValidation(validations, types.Any, function.identity, True))
+      Ok(TypeValidation(dict.from_list(validations)))
     }
     _ -> todo
   }
@@ -320,32 +323,13 @@ fn generate_multi_type_validation(
     })
     |> list.try_map(fn(t) { get_validation_for_type(context, t) }),
   )
-  case
-    list.find(l, fn(validation) {
-      case validation {
-        MultipleValidation([TypeValidation(_), ..], _, _, _) -> {
-          True
-        }
-        _ -> False
-      }
-    })
-  {
-    Ok(_) -> {
-      Ok(MultipleValidation(
-        l,
-        types.Any,
-        filter_validation_to_non_type_errors,
-        True,
-      ))
-    }
-    Error(_) -> Ok(SimpleValidation(True))
-  }
+  Ok(TypeValidation(dict.from_list(l)))
 }
 
 fn get_validation_for_type(
   context: Context,
   t: String,
-) -> Result(types.ValidationNode, SchemaError) {
+) -> Result(#(types.ValueType, types.ValidationNode), SchemaError) {
   use #(type_check, checks) <- result.try(get_checks(t))
   use validations <- result.try(
     list.try_fold(checks, [], fn(l, prop) {
@@ -373,8 +357,6 @@ fn get_validation_for_type(
       }
     }),
   )
-
-  let main_validation = TypeValidation(type_check)
 
   use sub_validations <- result.try(case type_check {
     Array(_) -> {
@@ -404,38 +386,54 @@ fn get_validation_for_type(
 
   use unevaluated <- result.try(case type_check {
     Array(_) -> {
-      Ok([])
+      get_unevaluated(context, "unevaluatedItems", array.unevaluated_items)
     }
     Object(_) -> {
-      get_unevaluated_properties(context)
+      get_unevaluated(
+        context,
+        "unevaluatedProperties",
+        object.unevaluated_properties,
+      )
     }
     _ -> Ok([None])
   })
 
-  case
-    [
-      [main_validation |> Some],
-      sub_validations,
-      validations,
-      subschema,
-      ifthen,
-      unevaluated,
-    ]
-    |> list.flatten
-    |> option.values
-  {
-    [v] -> v
-    v -> types.MultipleValidation(v, types.All, function.identity, False)
-  }
+  #(
+    type_check,
+    case
+      [
+        sub_validations,
+        validations,
+        subschema,
+        ifthen,
+        unevaluated,
+      ]
+      |> list.flatten
+      |> option.values
+    {
+      [] -> SimpleValidation(True)
+      [v] -> v
+      v -> types.MultipleValidation(v, types.All, function.identity, False)
+    },
+  )
   |> Ok
 }
 
-fn get_unevaluated_properties(context: Context) {
+fn get_unevaluated(
+  context: Context,
+  prop: String,
+  uneval_fn: fn(Value, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
+    Result(
+      fn(JsonValue, types.NodeAnnotation) ->
+        #(ValidationInfo, types.NodeAnnotation),
+      SchemaError,
+    ),
+) -> Result(List(Option(ValidationNode)), SchemaError) {
   case
     get_property(
       context,
       ValidatorProperties(
-        "unevaluatedProperties",
+        prop,
         types.Types([types.Object(types.AnyType), types.Boolean]),
         types.ok_fn,
         Some(object.unevaluated_properties),
@@ -446,7 +444,7 @@ fn get_unevaluated_properties(context: Context) {
     Ok(Some(val)) -> {
       use validation_fn <- result.try({
         use vfn <- result.try(
-          object.unevaluated_properties(val, fn(json) {
+          uneval_fn(val, fn(json) {
             generate_validator(Context(..context, current_node: json))
           }),
         )
