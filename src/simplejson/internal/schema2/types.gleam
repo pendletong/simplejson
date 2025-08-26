@@ -92,6 +92,7 @@ pub type ValidationInfo {
   Todo
   NotBeValid
   MatchOnlyOne
+  MissingDependent(has: String, needs: String, json: JsonValue)
 }
 
 pub type ValueType {

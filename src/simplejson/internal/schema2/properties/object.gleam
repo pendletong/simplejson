@@ -5,12 +5,13 @@ import gleam/option.{None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import simplejson/internal/schema2/types.{
-  type NodeAnnotation, type SchemaError, type ValidationInfo, type Value,
-  AlwaysFail, BooleanValue, IncorrectType, InvalidComparison, MissingKey,
-  NoAnnotation, ObjectAnnotation, Property, SchemaError, SchemaFailure, Valid,
-  ValidatorProperties,
+  type Context, type NodeAnnotation, type Property, type SchemaError,
+  type ValidationInfo, type Value, AlwaysFail, BooleanValue, IncorrectType,
+  InvalidComparison, MissingKey, NoAnnotation, ObjectAnnotation, Property,
+  SchemaError, SchemaFailure, Valid, ValidatorProperties,
 }
 import simplejson/internal/schema2/validator2
+import simplejson/internal/stringify
 import simplejson/internal/utils
 import simplejson/jsonvalue.{type JsonValue, JsonObject, JsonString}
 
@@ -39,6 +40,12 @@ pub const object_properties = [
     types.ok_fn,
     Some(property_names),
   ),
+  Property(
+    "dependentRequired",
+    types.Object(types.Array(types.String)),
+    check_unique_dependents,
+    Some(dependent_required),
+  ),
   ValidatorProperties(
     "dependentSchemas",
     types.Object(types.AnyType),
@@ -46,6 +53,72 @@ pub const object_properties = [
     Some(dependent_schemas),
   ),
 ]
+
+fn check_unique_dependents(
+  v: Value,
+  _context: Context,
+  prop: Property,
+) -> Result(Bool, SchemaError) {
+  let assert types.ObjectValue(_, d) = v
+  dict.values(d)
+  |> list.try_each(fn(l) {
+    case l {
+      jsonvalue.JsonArray(a, _) -> {
+        case utils.is_unique(stringify.dict_to_ordered_list(a)) {
+          True -> Ok(Nil)
+          False -> Error(types.InvalidProperty(prop.name, l))
+        }
+      }
+      _ -> Error(SchemaError)
+    }
+  })
+  |> result.replace(True)
+}
+
+fn dependent_required(
+  v: Value,
+) -> Result(
+  fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  SchemaError,
+) {
+  case v {
+    types.ObjectValue(_, dependents) -> {
+      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+        case jsonvalue {
+          JsonObject(l, _) -> {
+            case
+              dict.fold(dependents, [], fn(infos, key, dependents) {
+                case dict.has_key(l, key) {
+                  True -> {
+                    let assert jsonvalue.JsonArray(dependents, _) = dependents
+
+                    dict.values(dependents)
+                    |> list.fold(infos, fn(infos, dep) {
+                      let assert JsonString(dep, _) = dep
+                      case dict.has_key(l, dep) {
+                        True -> infos
+                        False -> [
+                          types.MissingDependent(key, dep, jsonvalue),
+                          ..infos
+                        ]
+                      }
+                    })
+                  }
+                  False -> infos
+                }
+              })
+            {
+              [] -> #(Valid, ann)
+              infos -> #(types.MultipleInfo(infos), ann)
+            }
+          }
+          _ -> #(SchemaFailure, ann)
+        }
+      })
+    }
+    _ -> Error(SchemaError)
+  }
+}
 
 fn min_properties(
   v: Value,
