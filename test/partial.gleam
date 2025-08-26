@@ -21,7 +21,7 @@ const files = [
   "boolean_schema.json",
   "const.json",
   "contains.json",
-  // "dependentRequired.json",
+  "dependentRequired.json",
   "dependentSchemas.json",
   "enum.json",
   "exclusiveMinimum.json",
