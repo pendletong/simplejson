@@ -16,9 +16,12 @@ const run_optional = False
 
 const files = [
   "additionalProperties.json",
+  "allOf.json",
+  "anyOf.json",
   "boolean_schema.json",
   "const.json",
   "contains.json",
+  // "dependentRequired.json",
   "dependentSchemas.json",
   "enum.json",
   "exclusiveMinimum.json",
@@ -34,6 +37,8 @@ const files = [
   "minLength.json",
   "minProperties.json",
   "multipleOf.json",
+  "not.json",
+  "oneOf.json",
   "pattern.json",
   "patternProperties.json",
   "prefixItems.json",
@@ -41,10 +46,9 @@ const files = [
   "propertyNames.json",
   "required.json",
   "type.json",
-  // "unevaluatedItems.json",
+  "unevaluatedItems.json",
   "unevaluatedProperties.json",
   "uniqueItems.json",
-  "not.json",
 ]
 
 pub fn main() {
@@ -111,7 +115,7 @@ pub fn suite_tests() {
                                     Nil
                                   }
                                   False -> {
-                                    expect.to_be_some(validated.1)
+                                    expect.to_be_false(validated.0)
                                     Nil
                                   }
                                 }

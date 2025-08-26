@@ -33,14 +33,14 @@ pub type ValidationNode {
     tests: List(ValidationNode),
     combination: Combination,
     map_error: fn(List(ValidationInfo)) -> List(ValidationInfo),
-    merge_annotation: Bool,
+    isolate_annotation: Bool,
   )
   IfThenValidation(
     when: ValidationNode,
     then: Option(ValidationNode),
     orelse: Option(ValidationNode),
   )
-  TypeValidation(t: ValueType)
+  TypeValidation(types: dict.Dict(ValueType, ValidationNode))
   ArraySubValidation(
     prefix: Option(List(ValidationNode)),
     items: Option(ValidationNode),
@@ -82,6 +82,7 @@ pub type ValidationInfo {
   AlwaysFail
   InvalidKey(prop: String)
   MissingKey(prop: String)
+  NoTypeYet
   IncorrectType(expect: ValueType, actual: JsonValue)
   InvalidComparison(expect: Value, cmp: String, actual: JsonValue)
   InvalidMatch(match: String, actual: JsonValue)
@@ -379,5 +380,51 @@ pub fn map_json_to_value(name: String, json: JsonValue) -> Value {
     _ -> {
       panic as "Invalid number construction!?!"
     }
+  }
+}
+
+pub fn do_merge_annotations(annotations: List(NodeAnnotation)) -> NodeAnnotation {
+  let annotations = list.filter(annotations, fn(a) { a != NoAnnotation })
+  case list.first(annotations) {
+    Ok(ObjectAnnotation(_)) -> {
+      annotations
+      |> list.fold(ObjectAnnotation(dict.new()), fn(ann, i) {
+        let assert ObjectAnnotation(annd) = ann
+        let assert ObjectAnnotation(d) = i
+        ObjectAnnotation(dict.merge(annd, d))
+      })
+    }
+    Ok(ArrayAnnotation(_, _, _, _)) -> {
+      annotations
+      |> list.fold(ArrayAnnotation(None, None, None, None), fn(ann, i) {
+        let assert ArrayAnnotation(v1, v2, v3, v4) = ann
+        let assert ArrayAnnotation(i1, i2, i3, i4) = i
+        let r1 = case v1, i1 {
+          Some(v), Some(i) -> Some(int.max(v, i))
+          None, Some(i) -> Some(i)
+          Some(v), None -> Some(v)
+          None, None -> None
+        }
+        let r2 = case v2, i2 {
+          Some(True), _ | _, Some(True) -> Some(True)
+          None, None -> None
+          _, _ -> Some(False)
+        }
+        let r3 = case v3, i3 {
+          Some(v), Some(i) -> Some(list.flatten([v, i]) |> list.unique)
+          None, Some(i) -> Some(i)
+          Some(v), None -> Some(v)
+          None, None -> None
+        }
+        let r4 = case v4, i4 {
+          Some(True), _ | _, Some(True) -> Some(True)
+          None, None -> None
+          _, _ -> Some(False)
+        }
+        ArrayAnnotation(r1, r2, r3, r4)
+      })
+    }
+    Ok(a) -> a
+    _ -> NoAnnotation
   }
 }
