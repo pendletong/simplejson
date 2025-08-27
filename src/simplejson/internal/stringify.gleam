@@ -53,35 +53,21 @@ fn encode_float(n: Float) -> String {
 }
 
 fn encode_object(o: Dict(String, JsonValue)) -> String {
-  encode_object_elements(dict.keys(o), o, "")
-}
-
-fn encode_object_elements(
-  keys: List(String),
-  o: Dict(String, JsonValue),
-  acc: String,
-) -> String {
-  case keys {
-    [key, ..rest] -> {
-      let assert Ok(value) = dict.get(o, key)
-      encode_object_elements(
-        rest,
-        o,
-        acc
-          <> {
-          case acc {
-            "" -> ""
-            _ -> ","
-          }
-        }
-          <> "\""
-          <> encode_string(key, "")
-          <> "\":"
-          <> create_string(value, ""),
-      )
+  dict.to_list(o)
+  |> list.fold("", fn(acc, entry) {
+    let #(key, value) = entry
+    acc
+    <> {
+      case acc {
+        "" -> ""
+        _ -> ","
+      }
     }
-    [] -> acc
-  }
+    <> "\""
+    <> encode_string(key, "")
+    <> "\":"
+    <> create_string(value, "")
+  })
 }
 
 fn encode_string(str: String, acc: String) -> String {
