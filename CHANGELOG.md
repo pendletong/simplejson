@@ -17,3 +17,9 @@
 ## v1.1.0
 
 - Added full jsonpath querying (RFC9535)
+
+## v1.2.0
+
+- Removed usage of panic
+- Added tests for simple jsonpath querying
+- Doc tweak

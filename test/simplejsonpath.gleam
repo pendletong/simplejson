@@ -1,13 +1,6 @@
-import gleam/dict
-import gleam/int
-import gleam/list
 import gleam/option.{None, Some}
-import gleam/string
 import simplejson
-import simplejson/internal/stringify
-import simplejson/jsonvalue.{
-  JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject, JsonString,
-}
+import simplejson/jsonvalue.{JsonNumber}
 import startest.{describe, it}
 import startest/expect
 
