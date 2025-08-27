@@ -62,8 +62,8 @@ pub fn jsonpointer(
   use current_json, path_segment <- list.try_fold(split, json)
   let path_segment =
     path_segment
-    |> string.replace("~0", "~")
     |> string.replace("~1", "/")
+    |> string.replace("~0", "~")
     |> string.replace("\\\\", "\\")
     |> string.replace("\\\"", "\"")
   // decode %

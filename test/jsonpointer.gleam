@@ -22,7 +22,8 @@ pub fn pointer_tests() {
         \"i\\\\j\": 5,
         \"k\\\"l\": 6,
         \" \": 7,
-        \"m~n\": 8
+        \"m~n\": 8,
+        \"o~1p\": 9
      }",
     )
 
@@ -105,6 +106,12 @@ pub fn pointer_tests() {
         simplejson.apply_pointer(basic_json, "/m~0n")
         |> expect.to_be_ok
         |> expect.to_equal(JsonNumber(Some(8), None, Some("8")))
+        Nil
+      }),
+      it("escape ordering", fn() {
+        simplejson.apply_pointer(basic_json, "/o~01p")
+        |> expect.to_be_ok
+        |> expect.to_equal(JsonNumber(Some(9), None, Some("9")))
         Nil
       }),
     ]),
