@@ -69,7 +69,7 @@ pub fn to_string(json: JsonValue) -> String {
 /// ```Gleam
 /// let assert Ok(json) = simplejson.parse("{\"a\":[1,2,{\"b\":123}]}")
 /// simplejson.jsonpath(json, "a.#2.b")
-/// // -> JsonNumber(Some(123), None, Some("123"))
+/// // -> Ok(JsonNumber(Some(123), None, Some("123")))
 /// ```
 pub fn jsonpath(
   json: JsonValue,
