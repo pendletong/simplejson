@@ -286,7 +286,9 @@ fn construct_type_validation(
     Some(ArrayValue(_, value:)) -> {
       use <- bool.guard(
         when: value == [],
-        return: Ok(TypeValidation(dict.new())),
+        return: Ok(
+          TypeValidation(dict.from_list([#(NoType, SimpleValidation(False))])),
+        ),
       )
       let types =
         list.map(value, fn(t) {
