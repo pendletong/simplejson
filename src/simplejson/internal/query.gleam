@@ -4,6 +4,7 @@ import gleam/dict
 import gleam/int
 import gleam/list.{Continue, Stop}
 import gleam/regexp.{type Regexp}
+import gleam/result
 import gleam/string
 import simplejson/internal/stringify
 
@@ -24,31 +25,40 @@ import simplejson/jsonvalue.{
 }
 
 pub fn query(json: JsonValue, path: JsonPath, absroot: JsonValue) -> JsonValue {
-  query_to_list(json, path, absroot)
-  |> parser.list_to_indexed_dict
-  |> JsonArray
+  case query_to_list(json, path, absroot) {
+    Error(_) -> JsonArray(dict.new())
+    Ok(l) ->
+      l
+      |> parser.list_to_indexed_dict
+      |> JsonArray
+  }
 }
 
 fn query_to_list(
   json: JsonValue,
   path: JsonPath,
   absroot: JsonValue,
-) -> List(JsonValue) {
-  list.fold(path, [json], fn(acc, segment) { do_query(acc, segment, absroot) })
+) -> Result(List(JsonValue), Nil) {
+  list.try_fold(path, [json], fn(acc, segment) {
+    do_query(acc, segment, absroot)
+  })
 }
 
 fn do_query(
   json: List(JsonValue),
   segment: Segment,
   absroot: JsonValue,
-) -> List(JsonValue) {
-  list.fold(json, [], fn(acc, j) {
-    let results = case segment {
+) -> Result(List(JsonValue), Nil) {
+  list.try_fold(json, [], fn(acc, j) {
+    let processed = case segment {
       Child(selectors) -> process_selectors(selectors, [j], absroot)
       Descendant(selectors) ->
         process_selectors(selectors, get_descendants([j], j), absroot)
     }
-    list.append(acc, results)
+    case processed {
+      Ok(results) -> Ok(list.append(acc, results))
+      Error(_) -> Error(Nil)
+    }
   })
 }
 
@@ -56,11 +66,12 @@ fn process_selectors(
   selectors: List(Selector),
   nodes: List(JsonValue),
   absroot: JsonValue,
-) -> List(JsonValue) {
-  list.fold(nodes, [], fn(arr, node) {
-    let found = do_checks(node, selectors, absroot)
-
-    list.append(arr, found)
+) -> Result(List(JsonValue), Nil) {
+  list.try_fold(nodes, [], fn(arr, node) {
+    case do_checks(node, selectors, absroot) {
+      Ok(found) -> Ok(list.append(arr, found))
+      Error(_) -> Error(Nil)
+    }
   })
 }
 
@@ -82,11 +93,12 @@ fn do_checks(
   json: JsonValue,
   selectors: List(Selector),
   absroot: JsonValue,
-) -> List(JsonValue) {
-  list.fold(selectors, [], fn(list, selector) {
-    let found = do_selector(json, selector, absroot)
-
-    list.append(list, found)
+) -> Result(List(JsonValue), Nil) {
+  list.try_fold(selectors, [], fn(list, selector) {
+    case do_selector(json, selector, absroot) {
+      Ok(found) -> Ok(list.append(list, found))
+      Error(_) -> Error(Nil)
+    }
   })
 }
 
@@ -94,15 +106,13 @@ fn do_selector(
   json: JsonValue,
   selector: Selector,
   absroot: JsonValue,
-) -> List(JsonValue) {
+) -> Result(List(JsonValue), Nil) {
   case selector {
     Filter(expr:) -> do_filter(json, expr, absroot)
-    Index(i:) -> do_index(json, i)
-    Name(name:) -> do_name(json, name)
-    Slice(start:, end:, step:) -> {
-      do_slice(json, start, end, step)
-    }
-    jsonpath.Wildcard -> do_wildcard(json)
+    Index(i:) -> Ok(do_index(json, i))
+    Name(name:) -> Ok(do_name(json, name))
+    Slice(start:, end:, step:) -> Ok(do_slice(json, start, end, step))
+    jsonpath.Wildcard -> Ok(do_wildcard(json))
   }
 }
 
@@ -110,7 +120,7 @@ fn do_filter(
   json: JsonValue,
   expr: LogicalExpression,
   absroot: JsonValue,
-) -> List(JsonValue) {
+) -> Result(List(JsonValue), Nil) {
   let l = case json {
     JsonArray(d) -> {
       stringify.dict_to_ordered_list(d)
@@ -118,40 +128,50 @@ fn do_filter(
     JsonObject(d) -> dict.values(d)
     _ -> []
   }
-  use <- bool.guard(when: l == [], return: [])
-  list.fold(l, [], fn(res, json) {
+  use <- bool.guard(when: l == [], return: Ok([]))
+  list.try_fold(l, [], fn(res, json) {
     case do_logical_expr(json, expr, absroot) {
-      True -> [json, ..res]
-      False -> res
+      Ok(True) -> Ok([json, ..res])
+      Ok(False) -> Ok(res)
+      Error(_) -> Error(Nil)
     }
   })
-  |> list.reverse
+  |> result.map(list.reverse)
 }
 
 fn do_logical_expr(
   json: JsonValue,
   expr: LogicalExpression,
   absroot: JsonValue,
-) -> Bool {
-  list.fold_until(expr.or.ands, False, fn(_, and_expr) {
+) -> Result(Bool, Nil) {
+  list.fold_until(expr.or.ands, Ok(False), fn(_, and_expr) {
     case
-      list.fold_until(and_expr.and, True, fn(_, expr) {
+      list.fold_until(and_expr.and, Ok(True), fn(_, expr) {
         case expr {
           jsonpath.Comparison(cmp1:, cmp2:, cmpop:) -> {
             case do_comparison(json, cmp1, cmp2, cmpop, absroot) {
-              True -> Continue(True)
-              False -> Stop(False)
+              Ok(True) -> Continue(Ok(True))
+              Ok(False) -> Stop(Ok(False))
+              Error(_) -> Stop(Error(Nil))
             }
           }
           jsonpath.Paren(expr:, not:) -> {
-            let cmp = do_logical_expr(json, expr, absroot)
-            let cmp = case not {
-              False -> cmp
-              True -> !cmp
-            }
-            case cmp {
-              True -> Continue(True)
-              False -> Stop(False)
+            case do_logical_expr(json, expr, absroot) {
+              Error(_) -> Stop(Error(Nil))
+              Ok(True) ->
+                Continue(
+                  Ok(case not {
+                    True -> False
+                    False -> True
+                  }),
+                )
+              Ok(False) ->
+                Stop(
+                  Ok(case not {
+                    True -> True
+                    False -> False
+                  }),
+                )
             }
           }
           jsonpath.Test(expr:, not:) -> {
@@ -161,27 +181,31 @@ fn do_logical_expr(
                   jsonpath.Relative(path:) -> #(json, path)
                   jsonpath.Root(path:) -> #(absroot, path)
                 }
-                case list.is_empty(query_to_list(root, path, absroot)), not {
-                  True, False -> Stop(False)
-                  False, False -> Continue(True)
-                  False, True -> Stop(False)
-                  True, True -> Continue(True)
+                case query_to_list(root, path, absroot) {
+                  Ok(l) -> {
+                    case list.is_empty(l), not {
+                      True, False -> Stop(Ok(False))
+                      False, False -> Continue(Ok(True))
+                      False, True -> Stop(Ok(False))
+                      True, True -> Continue(Ok(True))
+                    }
+                  }
+                  Error(_) -> Stop(Error(Nil))
                 }
               }
               jsonpath.FunctionExpr(fe) -> {
                 case run_function(json, fe, absroot) {
-                  ValueType(_) -> panic
-                  LogicalType(cmp) -> {
+                  Ok(LogicalType(cmp)) -> {
                     let cmp = case not {
                       False -> cmp
                       True -> !cmp
                     }
                     case cmp {
-                      True -> Continue(True)
-                      False -> Stop(False)
+                      True -> Continue(Ok(True))
+                      False -> Stop(Ok(False))
                     }
                   }
-                  NodesType(_) -> panic
+                  _ -> Stop(Error(Nil))
                 }
               }
             }
@@ -189,8 +213,9 @@ fn do_logical_expr(
         }
       })
     {
-      True -> Stop(True)
-      False -> Continue(False)
+      Error(_) -> Stop(Error(Nil))
+      Ok(True) -> Stop(Ok(True))
+      Ok(False) -> Continue(Ok(False))
     }
   })
 }
@@ -201,10 +226,10 @@ fn do_comparison(
   cmp2: Comparable,
   op: CompareOp,
   absroot: JsonValue,
-) -> Bool {
-  let cmp1 = get_comparable(root, cmp1, absroot)
-  let cmp2 = get_comparable(root, cmp2, absroot)
-  compare_types(cmp1, cmp2, op)
+) -> Result(Bool, Nil) {
+  use cmp1 <- result.try(get_comparable(root, cmp1, absroot))
+  use cmp2 <- result.try(get_comparable(root, cmp2, absroot))
+  Ok(compare_types(cmp1, cmp2, op))
 }
 
 fn compare_types(tv1: TypeValue, tv2: TypeValue, op: CompareOp) -> Bool {
@@ -253,22 +278,32 @@ fn compare_items(order: Order, op: CompareOp) -> Bool {
   }
 }
 
-fn run_function(root: JsonValue, f: Function, absroot: JsonValue) -> TypeValue {
+fn run_function(
+  root: JsonValue,
+  f: Function,
+  absroot: JsonValue,
+) -> Result(TypeValue, Nil) {
   let Function(deffn, args) = f
-  let args =
-    list.map(args, fn(a) {
+  use args <- result.try(
+    list.try_map(args, fn(a) {
       case a {
         jsonpath.FunctionArg(fa) -> run_function(root, fa, absroot)
-        jsonpath.LiteralArg(l) -> ValueType(l)
-        jsonpath.LogicalArg(la) ->
-          LogicalType(do_logical_expr(root, la, absroot))
+        jsonpath.LiteralArg(l) -> Ok(ValueType(l))
+        jsonpath.LogicalArg(la) -> {
+          case do_logical_expr(root, la, absroot) {
+            Ok(lt) -> Ok(LogicalType(lt))
+            Error(_) -> Error(Nil)
+          }
+        }
         jsonpath.QueryArg(qa) -> {
           let #(root, qa) = case qa {
             jsonpath.Root(sq) -> #(absroot, sq)
             jsonpath.Relative(sq) -> #(root, sq)
           }
-          query_to_list(root, qa, absroot)
-          |> NodesType
+          case query_to_list(root, qa, absroot) {
+            Ok(l) -> Ok(NodesType(l))
+            Error(_) -> Error(Nil)
+          }
         }
         jsonpath.QuerySingularArg(qa) -> {
           let #(root, qa) = case qa {
@@ -276,54 +311,53 @@ fn run_function(root: JsonValue, f: Function, absroot: JsonValue) -> TypeValue {
             jsonpath.Relative(sq) -> #(root, sq)
           }
           case query_to_list(root, qa, absroot) {
-            [v] -> NodesType([v])
-            _ -> ValueType(Nothing)
+            Ok([v]) -> Ok(NodesType([v]))
+            Ok(_) -> Ok(ValueType(Nothing))
+            Error(_) -> Error(Nil)
           }
         }
       }
-    })
+    }),
+  )
   case deffn {
     jsonpath.Count -> {
       case args {
-        [arg] -> do_fn_count(arg)
-        _ -> panic as "Invalid Length arguments"
+        [arg] -> Ok(do_fn_count(arg))
+        _ -> Error(Nil)
       }
     }
     jsonpath.Length -> {
       case args {
-        [arg] -> do_fn_length(arg)
-        _ -> panic as "Invalid Length arguments"
+        [arg] -> Ok(do_fn_length(arg))
+        _ -> Error(Nil)
       }
     }
     jsonpath.Match -> {
       case args {
         [a1, a2] -> do_fn_match(a1, a2)
-        _ -> panic as "Invalid Match arguments"
+        _ -> Error(Nil)
       }
     }
     jsonpath.Search -> {
       case args {
         [a1, a2] -> do_fn_search(a1, a2)
-        _ -> panic as "Invalid Search arguments"
+        _ -> Error(Nil)
       }
     }
-    jsonpath.Unknown(_) -> ValueType(Nothing)
+    jsonpath.Unknown(_) -> Ok(ValueType(Nothing))
     jsonpath.ValueOf -> {
       case args {
-        [arg] -> do_fn_value(arg)
-        _ -> panic as "Invalid Length arguments"
+        [arg] -> Ok(do_fn_value(arg))
+        _ -> Error(Nil)
       }
     }
   }
 }
 
-fn fix_regexp(str: String) -> Regexp {
+fn fix_regexp(str: String) -> Result(Regexp, Nil) {
   // This needs to follow I-Regexp (rfc9485) but for the time being use standard
   // regexp
-  case regexp.from_string(do_fix_regexp(str, "", False)) {
-    Error(_) -> panic as "Invalid Regexp"
-    Ok(r) -> r
-  }
+  regexp.from_string(do_fix_regexp(str, "", False)) |> result.replace_error(Nil)
 }
 
 fn do_fix_regexp(str: String, new_regexp: String, in_class: Bool) -> String {
@@ -350,11 +384,12 @@ fn do_fix_regexp(str: String, new_regexp: String, in_class: Bool) -> String {
   }
 }
 
-fn do_fn_match(arg1: TypeValue, arg2: TypeValue) -> TypeValue {
+fn do_fn_match(arg1: TypeValue, arg2: TypeValue) -> Result(TypeValue, Nil) {
   case arg1, arg2 {
     ValueType(String(s)), ValueType(String(s2)) -> {
+      use regex <- result.try(fix_regexp("^" <> s2 <> "$"))
       // Regexp...
-      LogicalType(regexp.check(fix_regexp("^" <> s2 <> "$"), s))
+      LogicalType(regexp.check(regex, s)) |> Ok
     }
     NodesType([v1]), NodesType([v2]) -> {
       do_fn_match(
@@ -368,15 +403,16 @@ fn do_fn_match(arg1: TypeValue, arg2: TypeValue) -> TypeValue {
     _, NodesType([v]) -> {
       do_fn_match(arg1, ValueType(jsonvalue_to_literal(v)))
     }
-    _, _ -> LogicalType(False)
+    _, _ -> LogicalType(False) |> Ok
   }
 }
 
-fn do_fn_search(arg1: TypeValue, arg2: TypeValue) -> TypeValue {
+fn do_fn_search(arg1: TypeValue, arg2: TypeValue) -> Result(TypeValue, Nil) {
   case arg1, arg2 {
     ValueType(String(s)), ValueType(String(s2)) -> {
+      use regex <- result.try(fix_regexp(s2))
       // Regexp...
-      LogicalType(regexp.check(fix_regexp(s2), s))
+      LogicalType(regexp.check(regex, s)) |> Ok
     }
     NodesType([v1]), NodesType([v2]) -> {
       do_fn_search(
@@ -390,7 +426,7 @@ fn do_fn_search(arg1: TypeValue, arg2: TypeValue) -> TypeValue {
     _, NodesType([v]) -> {
       do_fn_search(arg1, ValueType(jsonvalue_to_literal(v)))
     }
-    _, _ -> LogicalType(False)
+    _, _ -> LogicalType(False) |> Ok
   }
 }
 
@@ -457,10 +493,10 @@ fn get_comparable(
   root: JsonValue,
   cmp: Comparable,
   absroot: JsonValue,
-) -> TypeValue {
+) -> Result(TypeValue, Nil) {
   case cmp {
     jsonpath.FunctionExprCmp(f) -> run_function(root, f, absroot)
-    jsonpath.Literal(l) -> ValueType(l)
+    jsonpath.Literal(l) -> Ok(ValueType(l))
     jsonpath.QueryCmp(sq) -> {
       let #(root, sq) = case sq {
         jsonpath.AbsQuery(sq) -> #(absroot, sq)
@@ -468,13 +504,13 @@ fn get_comparable(
       }
       let jp = map_singular_query_to_query(sq)
       case query_to_list(root, jp, absroot) {
-        [v] -> {
-          ValueType(jsonvalue_to_literal(v))
+        Ok([v]) -> {
+          Ok(ValueType(jsonvalue_to_literal(v)))
         }
-        [] -> {
-          ValueType(Nothing)
+        Ok([]) -> {
+          Ok(ValueType(Nothing))
         }
-        _ -> panic
+        _ -> Error(Nil)
       }
     }
   }
@@ -499,7 +535,13 @@ fn jsonvalue_to_literal(jv: JsonValue) -> Literal {
     }
 
     JsonString(str:) -> String(str)
-    JsonNumber(int: None, float: None, original: None) -> panic
+    JsonNumber(int: None, float: None, original: None) -> {
+      // This branch should never happen.
+      // Originally we panicked here but I think it is probably more
+      // useful to just return zero (maybe the JsonValue should have
+      // a separate JsonInteger/JsonFloat but that is a much bigger change)
+      Number(bigdecimal.zero())
+    }
   }
 }
 
@@ -554,7 +596,7 @@ fn do_slice(
                 False -> yielder.Done
               }
             }
-            Eq -> panic
+            Eq -> yielder.Done
           }
         })
 

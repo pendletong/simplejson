@@ -29,6 +29,8 @@ pub type ParseError {
   InvalidHex(hex: String, context: String, pos: Int)
   InvalidNumber(num: String, context: String, pos: Int)
   NestingDepth(num_levels: Int)
+  InvalidInt(int: String)
+  InvalidFloat(float: String)
 }
 
 pub type JsonPathError {

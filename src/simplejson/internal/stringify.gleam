@@ -30,21 +30,18 @@ fn create_string(json: JsonValue, acc: String) -> String {
     JsonNumber(_, _, Some(s)) -> acc <> s
     JsonNumber(Some(i), _, _) -> acc <> encode_int(i)
     JsonNumber(_, Some(f), _) -> acc <> encode_float(f)
-    JsonNumber(None, None, _) -> panic
+    JsonNumber(None, None, _) -> {
+      // Should never happen but output 0 if it does
+      acc <> "0"
+    }
     JsonObject(o) -> acc <> "{" <> encode_object(o) <> "}"
   }
 }
 
 pub fn dict_to_ordered_list(d: dict.Dict(Int, JsonValue)) -> List(JsonValue) {
-  case dict.size(d) {
-    0 -> []
-    n ->
-      list.range(0, n - 1)
-      |> list.map(fn(i) {
-        let assert Ok(v) = dict.get(d, i)
-        v
-      })
-  }
+  dict.to_list(d)
+  |> list.sort(fn(e1, e2) { int.compare(e1.0, e2.0) })
+  |> list.map(fn(e) { e.1 })
 }
 
 fn encode_int(n: Int) -> String {

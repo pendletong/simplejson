@@ -303,9 +303,16 @@ fn do_parse_string_literal(
       }
     }
     Ok(#(char, rest)) -> {
-      let assert [codepoint] = string.to_utf_codepoints(char)
-      let cpi = string.utf_codepoint_to_int(codepoint)
-      case valid_literal_char(cpi) {
+      case
+        string.to_utf_codepoints(char)
+        |> list.fold_until(True, fn(_, codepoint) {
+          let cpi = string.utf_codepoint_to_int(codepoint)
+          case valid_literal_char(cpi) {
+            True -> Continue(True)
+            False -> Stop(False)
+          }
+        })
+      {
         True -> do_parse_string_literal(rest, quote, literal <> char)
         False -> Error(ParseError("do_parse_string_literal 5"))
       }
@@ -346,15 +353,17 @@ fn do_parse_member_name(
 fn is_name_first(char: String) -> Bool {
   use <- bool.guard(when: char == "_", return: True)
 
-  let assert [codepoint] = string.to_utf_codepoints(char)
-  let cpi = string.utf_codepoint_to_int(codepoint)
-  case cpi {
-    _ if cpi >= 0x41 && cpi <= 0x5A -> True
-    _ if cpi >= 0x61 && cpi <= 0x7A -> True
-    _ if cpi >= 0x80 && cpi <= 0xD7FF -> True
-    _ if cpi >= 0xE0000 && cpi <= 0x10FFFF -> True
-    _ -> False
-  }
+  string.to_utf_codepoints(char)
+  |> list.fold_until(True, fn(_, codepoint) {
+    let cpi = string.utf_codepoint_to_int(codepoint)
+    case cpi {
+      _ if cpi >= 0x41 && cpi <= 0x5A -> Continue(True)
+      _ if cpi >= 0x61 && cpi <= 0x7A -> Continue(True)
+      _ if cpi >= 0x80 && cpi <= 0xD7FF -> Continue(True)
+      _ if cpi >= 0xE0000 && cpi <= 0x10FFFF -> Continue(True)
+      _ -> Stop(False)
+    }
+  })
 }
 
 fn is_name_char(char: String) -> Bool {
@@ -375,62 +384,69 @@ fn valid_literal_char(cpi: Int) -> Bool {
 }
 
 fn do_parse_hexchar(str: String) -> Result(#(String, String), JsonPathError) {
-  case string.pop_grapheme(str) {
-    Error(_) -> Error(ParseError("do_parse_hexchar 1"))
-    Ok(#(char, rest)) -> {
-      case string.lowercase(char) {
-        "0"
-        | "1"
-        | "2"
-        | "3"
-        | "4"
-        | "5"
-        | "6"
-        | "7"
-        | "8"
-        | "9"
-        | "a"
-        | "b"
-        | "c"
-        | "e"
-        | "f" -> {
-          use #(hex, rest) <- result.try(parse_hex_digit(rest, 3))
-          use ns <- result.try(decode_non_surrogate(char <> hex))
+  case str {
+    "" -> Error(ParseError("do_parse_hexchar 1"))
+    "0" as char <> rest
+    | "1" as char <> rest
+    | "2" as char <> rest
+    | "3" as char <> rest
+    | "4" as char <> rest
+    | "5" as char <> rest
+    | "6" as char <> rest
+    | "7" as char <> rest
+    | "8" as char <> rest
+    | "9" as char <> rest
+    | "a" as char <> rest
+    | "b" as char <> rest
+    | "c" as char <> rest
+    | "e" as char <> rest
+    | "f" as char <> rest
+    | "A" as char <> rest
+    | "B" as char <> rest
+    | "C" as char <> rest
+    | "E" as char <> rest
+    | "F" as char <> rest -> {
+      use #(hex, rest) <- result.try(parse_hex_digit(rest, 3))
+      use ns <- result.try(decode_non_surrogate(char <> hex))
+      Ok(#(ns, rest))
+    }
+    "d" as char <> rest | "D" as char <> rest -> {
+      case rest {
+        "" -> Error(ParseError("do_parse_hexchar 2"))
+        "0" as char2 <> rest
+        | "1" as char2 <> rest
+        | "2" as char2 <> rest
+        | "3" as char2 <> rest
+        | "4" as char2 <> rest
+        | "5" as char2 <> rest
+        | "6" as char2 <> rest
+        | "7" as char2 <> rest -> {
+          use #(hex, rest) <- result.try(parse_hex_digit(rest, 2))
+          use ns <- result.try(decode_non_surrogate(char <> char2 <> hex))
           Ok(#(ns, rest))
         }
-        "d" -> {
-          case string.pop_grapheme(rest) {
-            Error(_) -> Error(ParseError("do_parse_hexchar 2"))
-            Ok(#(char2, rest)) -> {
-              case string.lowercase(char2) {
-                "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" -> {
-                  use #(hex, rest) <- result.try(parse_hex_digit(rest, 2))
-                  use ns <- result.try(decode_non_surrogate(
-                    char <> char2 <> hex,
-                  ))
-                  Ok(#(ns, rest))
-                }
-                "8" | "9" | "a" | "b" -> {
-                  use #(hex, rest) <- result.try(parse_hex_digit(rest, 2))
-                  use #(low, rest) <- result.try(parse_low_surrogate(rest))
-                  use codepoint <- result.try(convert_surrogate(
-                    char <> char2 <> hex,
-                    low,
-                  ))
-                  use codepoint <- result.try(
-                    string.utf_codepoint(codepoint)
-                    |> result.replace_error(ParseError("do_parse_hexchar 3")),
-                  )
-                  Ok(#(string.from_utf_codepoints([codepoint]), rest))
-                }
-                _ -> Error(ParseError("do_parse_hexchar 4"))
-              }
-            }
-          }
+        "8" as char2 <> rest
+        | "9" as char2 <> rest
+        | "a" as char2 <> rest
+        | "b" as char2 <> rest
+        | "A" as char2 <> rest
+        | "B" as char2 <> rest -> {
+          use #(hex, rest) <- result.try(parse_hex_digit(rest, 2))
+          use #(low, rest) <- result.try(parse_low_surrogate(rest))
+          use codepoint <- result.try(convert_surrogate(
+            char <> char2 <> hex,
+            low,
+          ))
+          use codepoint <- result.try(
+            string.utf_codepoint(codepoint)
+            |> result.replace_error(ParseError("do_parse_hexchar 3")),
+          )
+          Ok(#(string.from_utf_codepoints([codepoint]), rest))
         }
-        _ -> Error(ParseError("do_parse_hexchar 5"))
+        _ -> Error(ParseError("do_parse_hexchar 4"))
       }
     }
+    _ -> Error(ParseError("do_parse_hexchar 5"))
   }
 }
 
@@ -469,29 +485,31 @@ fn parse_hex_digit(
   list.repeat(0, num)
   |> list.try_fold(#("", str), fn(acc, _) {
     let #(hex, str2) = acc
-    case string.pop_grapheme(str2) {
-      Error(_) -> Error(ParseError("parse_hex_digit 1"))
-      Ok(#(char, rest)) -> {
-        case string.lowercase(char) {
-          "0"
-          | "1"
-          | "2"
-          | "3"
-          | "4"
-          | "5"
-          | "6"
-          | "7"
-          | "8"
-          | "9"
-          | "a"
-          | "b"
-          | "c"
-          | "d"
-          | "e"
-          | "f" -> Ok(#(hex <> char, rest))
-          _ -> Error(ParseError("parse_hex_digit 2"))
-        }
-      }
+    case str2 {
+      "" -> Error(ParseError("parse_hex_digit 1"))
+      "0" as char <> rest
+      | "1" as char <> rest
+      | "2" as char <> rest
+      | "3" as char <> rest
+      | "4" as char <> rest
+      | "5" as char <> rest
+      | "6" as char <> rest
+      | "7" as char <> rest
+      | "8" as char <> rest
+      | "9" as char <> rest
+      | "a" as char <> rest
+      | "b" as char <> rest
+      | "c" as char <> rest
+      | "d" as char <> rest
+      | "e" as char <> rest
+      | "f" as char <> rest
+      | "A" as char <> rest
+      | "B" as char <> rest
+      | "C" as char <> rest
+      | "D" as char <> rest
+      | "E" as char <> rest
+      | "F" as char <> rest -> Ok(#(hex <> char, rest))
+      _ -> Error(ParseError("parse_hex_digit 2"))
     }
   })
 }

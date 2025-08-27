@@ -9,9 +9,9 @@ import gleam/result
 import gleam/string
 import simplejson/jsonvalue.{
   type JsonValue, type ParseError, InvalidCharacter, InvalidEscapeCharacter,
-  InvalidHex, InvalidNumber, JsonArray, JsonBool, JsonNull, JsonNumber,
-  JsonObject, JsonString, NestingDepth, UnexpectedCharacter, UnexpectedEnd,
-  Unknown,
+  InvalidFloat, InvalidHex, InvalidInt, InvalidNumber, JsonArray, JsonBool,
+  JsonNull, JsonNumber, JsonObject, JsonString, NestingDepth,
+  UnexpectedCharacter, UnexpectedEnd, Unknown,
 }
 
 const max_depth = 512
@@ -388,8 +388,10 @@ fn do_parse_number(
     }
 
   use ret <- result.try(case fraction, exp {
-    "", "" -> Ok(JsonNumber(Some(decode_int(num, "", 0)), None, Some(original)))
-
+    "", "" -> {
+      use i <- result.try(decode_int(num, "", 0))
+      Ok(JsonNumber(Some(i), None, Some(original)))
+    }
     "", "-" <> exp -> {
       use exp <- result.try(
         int.parse(exp)
@@ -398,14 +400,14 @@ fn do_parse_number(
       // Optimisation here for negative exponent where if the string ends with enough
       // zeroes we can just create an int rather than a float
       case string.ends_with(num, string.repeat("0", exp)) {
-        True ->
-          Ok(JsonNumber(Some(decode_int(num, "", -exp)), None, Some(original)))
-        False ->
-          Ok(JsonNumber(
-            None,
-            Some(decode_float(num, fraction, -exp)),
-            Some(original),
-          ))
+        True -> {
+          use i <- result.try(decode_int(num, "", -exp))
+          Ok(JsonNumber(Some(i), None, Some(original)))
+        }
+        False -> {
+          use f <- result.try(decode_float(num, fraction, -exp))
+          Ok(JsonNumber(None, Some(f), Some(original)))
+        }
       }
     }
     "", "+" <> exp | "", exp -> {
@@ -417,20 +419,20 @@ fn do_parse_number(
         when: exp > 1_000_000,
         return: Error(InvalidNumber(original, original_json, -1)),
       )
-      Ok(JsonNumber(Some(decode_int(num, "", exp)), None, Some(original)))
+      use i <- result.try(decode_int(num, "", exp))
+      Ok(JsonNumber(Some(i), None, Some(original)))
     }
-    _, "" ->
-      Ok(JsonNumber(None, Some(decode_float(num, fraction, 0)), Some(original)))
+    _, "" -> {
+      use f <- result.try(decode_float(num, fraction, 0))
+      Ok(JsonNumber(None, Some(f), Some(original)))
+    }
     _, "-" <> exp -> {
       use exp <- result.try(
         int.parse(exp)
-        |> result.map_error(fn(_) { InvalidNumber(original, original_json, -1) }),
+        |> result.replace_error(InvalidNumber(original, original_json, -1)),
       )
-      Ok(JsonNumber(
-        None,
-        Some(decode_float(num, fraction, -exp)),
-        Some(original),
-      ))
+      use f <- result.try(decode_float(num, fraction, -exp))
+      Ok(JsonNumber(None, Some(f), Some(original)))
     }
     _, "+" <> exp | _, exp -> {
       use exp <- result.try(
@@ -443,18 +445,14 @@ fn do_parse_number(
       )
       let fraction_length = string.length(fraction)
       case exp >= fraction_length {
-        True ->
-          Ok(JsonNumber(
-            Some(decode_int(num, fraction, exp)),
-            None,
-            Some(original),
-          ))
-        False ->
-          Ok(JsonNumber(
-            None,
-            Some(decode_float(num, fraction, exp)),
-            Some(original),
-          ))
+        True -> {
+          use i <- result.try(decode_int(num, fraction, exp))
+          Ok(JsonNumber(Some(i), None, Some(original)))
+        }
+        False -> {
+          use f <- result.try(decode_float(num, fraction, exp))
+          Ok(JsonNumber(None, Some(f), Some(original)))
+        }
       }
     }
   })
@@ -462,17 +460,28 @@ fn do_parse_number(
   Ok(#(json, ret))
 }
 
-fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
-  let assert Ok(int_val) = int.parse(int_val)
-  let #(int_val, exp) = case fraction {
-    "" -> #(int_val, exp)
+fn decode_int(
+  int_val: String,
+  fraction: String,
+  exp: Int,
+) -> Result(Int, ParseError) {
+  use int_val <- result.try(
+    int.parse(int_val) |> result.replace_error(InvalidInt(int_val)),
+  )
+  use #(int_val, exp) <- result.try(case fraction {
+    "" -> Ok(#(int_val, exp))
     fraction -> {
       let fraction_length = string.length(fraction)
-      let assert Ok(fraction) = int.parse(fraction)
+      use fraction <- result.try(
+        int.parse(fraction) |> result.replace_error(InvalidInt(fraction)),
+      )
 
-      #(int_val * fast_exp(fraction_length) + fraction, exp - fraction_length)
+      Ok(#(
+        int_val * fast_exp(fraction_length) + fraction,
+        exp - fraction_length,
+      ))
     }
-  }
+  })
   case exp < 0 {
     True -> {
       int_val / fast_exp(-exp)
@@ -481,6 +490,7 @@ fn decode_int(int_val: String, fraction: String, exp: Int) -> Int {
       int_val * fast_exp(exp)
     }
   }
+  |> Ok
 }
 
 fn fast_exp(n: Int) -> Int {
@@ -500,21 +510,29 @@ fn exp2(y: Int, x: Int, n: Int) -> Int {
   }
 }
 
-fn decode_float(int_val: String, fraction: String, exp: Int) -> Float {
+fn decode_float(
+  int_val: String,
+  fraction: String,
+  exp: Int,
+) -> Result(Float, ParseError) {
   let float_val = case fraction {
     "" -> int_val <> ".0"
     _ -> int_val <> "." <> fraction
   }
-  let assert Ok(float_val) = float.parse(float_val)
+  use float_val <- result.try(
+    float.parse(float_val) |> result.replace_error(InvalidFloat(float_val)),
+  )
   case int.compare(exp, 0) {
-    Eq -> float_val
+    Eq -> Ok(float_val)
     Gt -> {
-      float_val *. int.to_float(fast_exp(exp))
+      Ok(float_val *. int.to_float(fast_exp(exp)))
     }
     Lt -> {
-      let assert Ok(mult) = int.power(10, int.to_float(exp))
+      use mult <- result.try(
+        int.power(10, int.to_float(exp)) |> result.replace_error(Unknown),
+      )
 
-      float_val *. mult
+      Ok(float_val *. mult)
     }
   }
 }
