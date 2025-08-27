@@ -4,6 +4,7 @@
 //// To be used for simple conversion from string to a basic JSON structure
 //// and to then output that as a string again.
 
+import gleam/result
 import simplejson/internal/jsonpath.{type JsonPath}
 import simplejson/internal/parser
 import simplejson/internal/pointer
@@ -106,4 +107,8 @@ pub fn to_path(str: String) -> Result(JsonPath, JsonPathError) {
 /// ```
 pub fn query(json: JsonValue, path: JsonPath) -> JsonValue {
   query.query(json, path, json)
+}
+
+pub fn apply_pointer(json: JsonValue, pointer: String) -> Result(JsonValue, Nil) {
+  pointer.jsonpointer(json, pointer) |> result.replace_error(Nil)
 }
