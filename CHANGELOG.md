@@ -23,3 +23,4 @@
 - Removed usage of panic
 - Added tests for simple jsonpath querying
 - Doc tweak
+- Added JSON Pointer functionality (RFC6901 (https://www.rfc-editor.org/rfc/rfc6901))
