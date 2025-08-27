@@ -146,7 +146,11 @@ pub type Property {
 }
 
 pub type Context {
-  Context(current_node: JsonValue, root_node: JsonValue)
+  Context(
+    current_node: JsonValue,
+    root_node: JsonValue,
+    schemas: dict.Dict(jsonvalue.JsonValue, Option(ValidationNode)),
+  )
 }
 
 pub fn ok_fn(_, _, _) {

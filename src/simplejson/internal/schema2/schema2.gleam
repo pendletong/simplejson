@@ -8,6 +8,7 @@ import gleam/regexp
 import gleam/result
 import gleam/string as corestring
 import simplejson
+import simplejson/internal/pointer
 import simplejson/internal/schema2/properties/array
 import simplejson/internal/schema2/properties/number
 import simplejson/internal/schema2/properties/object
@@ -71,7 +72,7 @@ pub fn get_validator_from_json(
     | JsonString(_, Some(_)) -> utils.strip_metadata(schema_json)
     _ -> schema_json
   }
-  let context = Context(schema_json, schema_json)
+  let context = Context(schema_json, schema_json, dict.new())
   use schema_uri <- result.try(get_property(
     context,
     Property("$schema", types.String, types.ok_fn, None),
@@ -114,20 +115,29 @@ fn generate_validator(
   }
 }
 
+fn find_ref(context: Context, ref: String) -> Result(Context, SchemaError) {
+  use current_node <- result.try(
+    case ref {
+      "#" <> _ -> pointer.jsonpointer(context.root_node, ref) |> echo
+      _ -> todo as { "No $ref (" <> ref <> ")" }
+    }
+    |> result.replace_error(SchemaError),
+  )
+  Ok(Context(..context, current_node:))
+}
+
 fn generate_root_validation(
   context: Context,
 ) -> Result(types.ValidationNode, SchemaError) {
-  use <- bool.guard(
-    when: !utils.is_object(context.current_node),
-    return: Error(SchemaError),
-  )
-  use <- bool.lazy_guard(
-    when: {
-      let assert JsonObject(d, _) = context.current_node
-      dict.has_key(d, "$ref")
-    },
-    return: fn() { todo as "No $ref" },
-  )
+  use d <- result.try(case context.current_node {
+    JsonObject(d, _) -> Ok(d)
+    _ -> Error(SchemaError)
+  })
+  use context <- result.try(case dict.get(d, "$ref") {
+    Ok(JsonString(ref, _)) -> find_ref(context, ref)
+    Ok(j) -> Error(types.InvalidProperty("$ref", j))
+    Error(_) -> Ok(context)
+  })
 
   use instance_type <- result.try(get_property(
     context,
