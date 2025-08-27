@@ -493,17 +493,6 @@ fn get_subschemas(
   Ok([all_of, any_of, one_of, not])
 }
 
-fn filter_validation_to_non_type_errors(
-  v: List(ValidationInfo),
-) -> List(ValidationInfo) {
-  list.filter(v, fn(vi) {
-    case vi {
-      types.IncorrectType(_, _) -> False
-      _ -> True
-    }
-  })
-}
-
 fn get_array_subvalidation(
   context: Context,
 ) -> Result(List(Option(types.ValidationNode)), SchemaError) {
