@@ -1,10 +1,8 @@
 import gleam/dict
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
-import simplejson/internal/parser
 import simplejson/internal/schema2/types.{
-  type Context, type Property, type SchemaError, type Value, ArrayValue,
-  InvalidProperty,
+  type Context, type Property, type SchemaError, InvalidProperty,
 }
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
@@ -54,17 +52,13 @@ pub fn is_unique(values: List(JsonValue)) -> Bool {
 }
 
 pub fn unique_strings_fn(
-  v: Value,
+  v: JsonValue,
   _c: Context,
   p: Property,
 ) -> Result(Bool, SchemaError) {
-  let assert ArrayValue(_, l) = v
-  case is_unique(l) {
+  let assert JsonArray(l, _) = v
+  case is_unique(dict.values(l)) {
     True -> Ok(True)
-    False ->
-      Error(InvalidProperty(
-        p.name,
-        JsonArray(parser.list_to_indexed_dict(l), None),
-      ))
+    False -> Error(InvalidProperty(p.name, v))
   }
 }

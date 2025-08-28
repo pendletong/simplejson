@@ -8,7 +8,7 @@ import gleam/result
 import simplejson/internal/schema2/types.{
   type NodeAnnotation, type Schema, type ValidationInfo, type ValidationNode,
   type ValueType, AlwaysFail, ArrayAnnotation, MultipleInfo, NoAnnotation,
-  NoTypeYet, ObjectAnnotation, Schema, SchemaFailure, Valid,
+  NoTypeYet, ObjectAnnotation, Schema, Valid,
 }
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}

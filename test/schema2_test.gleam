@@ -6,8 +6,7 @@ import gleam/result
 import simplejson
 import simplejson/internal/schema2/schema2
 import simplejson/internal/schema2/types.{
-  AlwaysFail, ArrayValue, BooleanValue, IncorrectType, IntValue,
-  InvalidComparison, MultipleInfo, NumberValue, StringValue, ValidationError,
+  AlwaysFail, IncorrectType, InvalidComparison, MultipleInfo, ValidationError,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/stringify
@@ -550,7 +549,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("minimum", Some(1), None),
+            JsonNumber(Some(1), None, None),
             "minimum",
             JsonNumber(Some(0), None, None),
           )),
@@ -563,7 +562,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("minimum", Some(-1), None),
+            JsonNumber(Some(-1), None, None),
             "minimum",
             JsonNumber(None, Some(-1.1), None),
           )),
@@ -576,7 +575,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("minimum", Some(5), None),
+            JsonNumber(Some(5), None, None),
             "minimum",
             JsonNumber(Some(3), None, None),
           )),
@@ -627,7 +626,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("exclusiveMinimum", Some(0), None),
+            JsonNumber(Some(0), None, None),
             "exclusiveMinimum",
             JsonNumber(Some(0), None, None),
           )),
@@ -642,7 +641,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("exclusiveMinimum", None, Some(-1.1)),
+            JsonNumber(None, Some(-1.1), None),
             "exclusiveMinimum",
             JsonNumber(None, Some(-1.1), None),
           )),
@@ -655,7 +654,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("exclusiveMinimum", Some(5), None),
+            JsonNumber(Some(5), None, None),
             "exclusiveMinimum",
             JsonNumber(Some(3), None, None),
           )),
@@ -704,7 +703,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("maximum", Some(1), None),
+            JsonNumber(Some(1), None, None),
             "maximum",
             JsonNumber(Some(2), None, None),
           )),
@@ -717,7 +716,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("maximum", Some(-1), None),
+            JsonNumber(Some(-1), None, None),
             "maximum",
             JsonNumber(None, Some(-0.9), None),
           )),
@@ -730,7 +729,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("maximum", Some(3), None),
+            JsonNumber(Some(3), None, None),
             "maximum",
             JsonNumber(Some(5), None, None),
           )),
@@ -781,7 +780,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("exclusiveMaximum", Some(0), None),
+            JsonNumber(Some(0), None, None),
             "exclusiveMaximum",
             JsonNumber(Some(0), None, None),
           )),
@@ -796,7 +795,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("exclusiveMaximum", None, Some(-1.1)),
+            JsonNumber(None, Some(-1.1), None),
             "exclusiveMaximum",
             JsonNumber(None, Some(-1.1), None),
           )),
@@ -809,7 +808,7 @@ pub fn schema_number_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("exclusiveMaximum", Some(3), None),
+            JsonNumber(Some(3), None, None),
             "exclusiveMaximum",
             JsonNumber(Some(5), None, None),
           )),
@@ -958,7 +957,7 @@ pub fn schema_string_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("minLength", Some(1), None),
+            JsonNumber(Some(1), None, None),
             "minLength",
             JsonString("", None),
           )),
@@ -971,7 +970,7 @@ pub fn schema_string_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("minLength", Some(5555), None),
+            JsonNumber(Some(5555), None, None),
             "minLength",
             JsonString("", None),
           )),
@@ -1005,7 +1004,7 @@ pub fn schema_string_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("maxLength", Some(1), None),
+            JsonNumber(Some(1), None, None),
             "maxLength",
             JsonString("1234", None),
           )),
@@ -1018,7 +1017,7 @@ pub fn schema_string_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            NumberValue("maxLength", Some(0), None),
+            JsonNumber(Some(0), None, None),
             "maxLength",
             JsonString("1", None),
           )),
@@ -1052,7 +1051,7 @@ pub fn schema_string_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            StringValue("pattern", "a"),
+            JsonString("a", None),
             "pattern",
             JsonString("1234", None),
           )),
@@ -1065,7 +1064,7 @@ pub fn schema_string_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            StringValue("pattern", "^1234$"),
+            JsonString("^1234$", None),
             "pattern",
             JsonString("123", None),
           )),
@@ -1166,7 +1165,7 @@ pub fn schema_const_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            IntValue("const", 123),
+            JsonNumber(Some(123), None, None),
             "equal",
             JsonNumber(Some(124), None, None),
           )),
@@ -1179,7 +1178,7 @@ pub fn schema_const_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            types.NullValue("const"),
+            JsonNull(None),
             "equal",
             JsonNumber(Some(124), None, None),
           )),
@@ -1192,7 +1191,7 @@ pub fn schema_const_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            BooleanValue("const", True),
+            JsonBool(True, None),
             "equal",
             JsonBool(False, None),
           )),
@@ -1205,11 +1204,14 @@ pub fn schema_const_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            ArrayValue("const", [
-              JsonNumber(Some(1), None, None),
-              JsonNumber(Some(2), None, None),
-              JsonNumber(Some(3), None, None),
-            ]),
+            JsonArray(
+              dict.from_list([
+                #(0, JsonNumber(Some(1), None, None)),
+                #(1, JsonNumber(Some(2), None, None)),
+                #(2, JsonNumber(Some(3), None, None)),
+              ]),
+              None,
+            ),
             "equal",
             JsonArray(
               dict.from_list([
@@ -1302,7 +1304,7 @@ pub fn schema_enum_tests() {
         |> expect.to_equal(#(
           False,
           Some(InvalidComparison(
-            IntValue("enum", 123),
+            JsonNumber(Some(123), None, None),
             "equal",
             JsonNumber(Some(124), None, None),
           )),
@@ -1317,12 +1319,12 @@ pub fn schema_enum_tests() {
           Some(
             MultipleInfo([
               InvalidComparison(
-                BooleanValue("enum", False),
+                JsonBool(False, None),
                 "equal",
                 JsonBool(True, None),
               ),
               InvalidComparison(
-                IntValue("enum", 123),
+                JsonNumber(Some(123), None, None),
                 "equal",
                 JsonBool(True, None),
               ),
@@ -1339,20 +1341,26 @@ pub fn schema_enum_tests() {
           Some(
             MultipleInfo([
               InvalidComparison(
-                ArrayValue("enum", [
-                  JsonArray(
-                    dict.from_list([
-                      #(
-                        0,
-                        JsonArray(
-                          dict.from_list([#(0, JsonBool(False, None))]),
-                          None,
-                        ),
+                JsonArray(
+                  dict.from_list([
+                    #(
+                      0,
+                      JsonArray(
+                        dict.from_list([
+                          #(
+                            0,
+                            JsonArray(
+                              dict.from_list([#(0, JsonBool(False, None))]),
+                              None,
+                            ),
+                          ),
+                        ]),
+                        None,
                       ),
-                    ]),
-                    None,
-                  ),
-                ]),
+                    ),
+                  ]),
+                  None,
+                ),
                 "equal",
                 JsonArray(
                   dict.from_list([
@@ -1368,7 +1376,7 @@ pub fn schema_enum_tests() {
                 ),
               ),
               InvalidComparison(
-                IntValue("enum", 123),
+                JsonNumber(Some(123), None, None),
                 "equal",
                 JsonArray(
                   dict.from_list([

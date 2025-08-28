@@ -3,15 +3,15 @@ import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/order.{Eq, Gt, Lt}
+import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
-  type SchemaError, type ValidationInfo, type ValidationNode, type Value,
-  ArrayAnnotation, BooleanValue, InvalidComparison, NoAnnotation, NumberValue,
-  Property, SchemaError, SchemaFailure, Valid,
+  type SchemaError, type ValidationInfo, type ValidationNode, ArrayAnnotation,
+  InvalidComparison, NoAnnotation, Property, SchemaError, SchemaFailure, Valid,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/utils
-import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
+import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonObject}
 
 pub const array_properties = [
   Property("maxItems", types.Integer, types.gtezero_fn, Some(max_items)),
@@ -32,7 +32,7 @@ pub const array_properties = [
 ]
 
 fn gtezero_with_contains_fn(
-  v: Value,
+  v: JsonValue,
   c: Context,
   p: Property,
 ) -> Result(Bool, SchemaError) {
@@ -48,7 +48,7 @@ fn gtezero_with_contains_fn(
 }
 
 fn min_contains(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
@@ -57,111 +57,106 @@ fn min_contains(
 }
 
 pub fn get_min_contains(
-  v: Value,
+  v: JsonValue,
   name: String,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
-  case v {
-    NumberValue(_, Some(len), _) -> {
-      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-        case ann {
-          ArrayAnnotation(_, _, Some(l), _) -> {
-            case int.compare(list.length(l), len) {
-              Eq | Gt -> #(Valid, ann)
-              Lt -> #(InvalidComparison(v, name, jsonvalue), ann)
-            }
-          }
-          _ -> #(Valid, ann)
+  use min_val <- result.try(
+    jsonvalue.get_int_from_number(v) |> result.replace_error(SchemaError),
+  )
+  Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+    case ann {
+      ArrayAnnotation(_, _, Some(l), _) -> {
+        case int.compare(list.length(l), min_val) {
+          Eq | Gt -> #(Valid, ann)
+          Lt -> #(InvalidComparison(v, name, jsonvalue), ann)
         }
-      })
+      }
+      _ -> #(Valid, ann)
     }
-    _ -> Error(SchemaError)
-  }
+  })
 }
 
 fn max_contains(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
-  case v {
-    NumberValue(_, Some(len), _) -> {
-      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-        case ann {
-          ArrayAnnotation(_, _, Some(l), _) -> {
-            case int.compare(list.length(l), len) {
-              Eq | Lt -> #(Valid, ann)
-              Gt -> #(InvalidComparison(v, "minContains", jsonvalue), ann)
-            }
-          }
+  use max_val <- result.try(
+    jsonvalue.get_int_from_number(v) |> result.replace_error(SchemaError),
+  )
 
-          _ -> #(Valid, ann)
+  Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+    case ann {
+      ArrayAnnotation(_, _, Some(l), _) -> {
+        case int.compare(list.length(l), max_val) {
+          Eq | Lt -> #(Valid, ann)
+          Gt -> #(InvalidComparison(v, "minContains", jsonvalue), ann)
         }
-      })
+      }
+
+      _ -> #(Valid, ann)
     }
-    _ -> Error(SchemaError)
-  }
+  })
 }
 
 fn max_items(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
-  case v {
-    NumberValue(_, Some(len), _) -> {
-      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-        case jsonvalue {
-          JsonArray(l, _) -> {
-            case int.compare(dict.size(l), len) {
-              Eq | Lt -> #(Valid, ann)
-              Gt -> #(InvalidComparison(v, "maxItems", jsonvalue), ann)
-            }
-          }
-          _ -> #(SchemaFailure, ann)
+  use max_val <- result.try(
+    jsonvalue.get_int_from_number(v) |> result.replace_error(SchemaError),
+  )
+
+  Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+    case jsonvalue {
+      JsonArray(l, _) -> {
+        case int.compare(dict.size(l), max_val) {
+          Eq | Lt -> #(Valid, ann)
+          Gt -> #(InvalidComparison(v, "maxItems", jsonvalue), ann)
         }
-      })
+      }
+      _ -> #(SchemaFailure, ann)
     }
-    _ -> Error(SchemaError)
-  }
+  })
 }
 
 fn min_items(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
-  case v {
-    NumberValue(_, Some(len), _) -> {
-      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-        case jsonvalue {
-          JsonArray(l, _) -> {
-            case int.compare(dict.size(l), len) {
-              Eq | Gt -> #(Valid, ann)
-              Lt -> #(InvalidComparison(v, "minItems", jsonvalue), ann)
-            }
-          }
-          _ -> #(SchemaFailure, ann)
+  use min_val <- result.try(
+    jsonvalue.get_int_from_number(v) |> result.replace_error(SchemaError),
+  )
+
+  Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+    case jsonvalue {
+      JsonArray(l, _) -> {
+        case int.compare(dict.size(l), min_val) {
+          Eq | Gt -> #(Valid, ann)
+          Lt -> #(InvalidComparison(v, "minItems", jsonvalue), ann)
         }
-      })
+      }
+      _ -> #(SchemaFailure, ann)
     }
-    _ -> Error(SchemaError)
-  }
+  })
 }
 
 fn unique_items(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
-    BooleanValue(_, True) -> {
+    JsonBool(True, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case jsonvalue {
           JsonArray(l, _) -> {
@@ -174,7 +169,7 @@ fn unique_items(
         }
       })
     }
-    BooleanValue(_, False) -> {
+    JsonBool(False, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case jsonvalue {
           JsonArray(_, _) -> {
@@ -189,14 +184,14 @@ fn unique_items(
 }
 
 pub fn unevaluated_items(
-  v: Value,
+  v: JsonValue,
   get_validator: fn(JsonValue) -> Result(ValidationNode, SchemaError),
 ) -> Result(
   fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
-    BooleanValue(_, b) -> {
+    JsonBool(b, _) -> {
       case b {
         True -> fn(_, _, ann) {
           let assert ArrayAnnotation(_, _, _, _) = ann
@@ -220,13 +215,11 @@ pub fn unevaluated_items(
                 Some(c) -> c
                 _ -> []
               }
-              let assert jsonvalue.JsonArray(d, _) = json |> echo as "before"
-              contains |> echo as "contains"
+              let assert jsonvalue.JsonArray(d, _) = json
               case
                 dict.filter(d, fn(k, _) {
                   !{ k <= index || list.contains(contains, k) }
                 })
-                |> echo as "after"
                 |> dict.is_empty
               {
                 True -> #(Valid, ann)
@@ -238,7 +231,7 @@ pub fn unevaluated_items(
       }
       |> Ok
     }
-    types.ObjectValue(_, d) -> {
+    JsonObject(d, _) -> {
       let json = jsonvalue.JsonObject(d, None)
 
       case get_validator(json) {

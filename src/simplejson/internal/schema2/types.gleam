@@ -6,8 +6,9 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{Gt, Lt}
 import gleam/regexp.{type Regexp}
 import gleam/result
-import simplejson/internal/stringify
-import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
+import simplejson/jsonvalue.{
+  type JsonValue, JsonArray, JsonNull, JsonNumber, JsonObject, JsonString,
+}
 
 pub type Schema {
   Schema(
@@ -87,7 +88,7 @@ pub type ValidationInfo {
   MissingKey(prop: String)
   NoTypeYet
   IncorrectType(expect: ValueType, actual: JsonValue)
-  InvalidComparison(expect: Value, cmp: String, actual: JsonValue)
+  InvalidComparison(expect: JsonValue, cmp: String, actual: JsonValue)
   InvalidMatch(match: String, actual: JsonValue)
   MultipleInfo(infos: List(ValidationInfo))
   AnyFail
@@ -111,23 +112,13 @@ pub type ValueType {
   NoType
 }
 
-pub type Value {
-  BooleanValue(name: String, value: Bool)
-  StringValue(name: String, value: String)
-  IntValue(name: String, value: Int)
-  NumberValue(name: String, value: Option(Int), or_value: Option(Float))
-  ObjectValue(name: String, value: Dict(String, JsonValue))
-  ArrayValue(name: String, value: List(JsonValue))
-  NullValue(name: String)
-}
-
 pub type Property {
   Property(
     name: String,
     valuetype: ValueType,
-    value_check: fn(Value, Context, Property) -> Result(Bool, SchemaError),
+    value_check: fn(JsonValue, Context, Property) -> Result(Bool, SchemaError),
     validator_fn: Option(
-      fn(Value) ->
+      fn(JsonValue) ->
         Result(
           fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
           SchemaError,
@@ -137,9 +128,9 @@ pub type Property {
   ValidatorProperties(
     name: String,
     valuetype: ValueType,
-    value_check: fn(Value, Context, Property) -> Result(Bool, SchemaError),
+    value_check: fn(JsonValue, Context, Property) -> Result(Bool, SchemaError),
     validator_fn: Option(
-      fn(Value, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
+      fn(JsonValue, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
         Result(
           fn(JsonValue, Schema, NodeAnnotation) ->
             #(ValidationInfo, NodeAnnotation),
@@ -162,25 +153,19 @@ pub fn ok_fn(_, _, _) {
 }
 
 pub fn gtzero_fn(
-  v: Value,
+  v: JsonValue,
   _c: Context,
   _p: Property,
 ) -> Result(Bool, SchemaError) {
   case v {
-    NumberValue(_, Some(i), _) -> {
+    JsonNumber(Some(i), _, _) -> {
       case int.compare(i, 0) == Gt {
         True -> Ok(True)
         False -> Error(SchemaError)
       }
     }
-    NumberValue(_, _, Some(f)) -> {
+    JsonNumber(_, Some(f), _) -> {
       case float.compare(f, 0.0) == Gt {
-        True -> Ok(True)
-        False -> Error(SchemaError)
-      }
-    }
-    IntValue(_, i) -> {
-      case int.compare(i, 0) == Gt {
         True -> Ok(True)
         False -> Error(SchemaError)
       }
@@ -190,25 +175,19 @@ pub fn gtzero_fn(
 }
 
 pub fn gtezero_fn(
-  v: Value,
+  v: JsonValue,
   _c: Context,
   _p: Property,
 ) -> Result(Bool, SchemaError) {
   case v {
-    NumberValue(_, Some(i), _) -> {
+    JsonNumber(Some(i), _, _) -> {
       case int.compare(i, 0) != Lt {
         True -> Ok(True)
         False -> Error(SchemaError)
       }
     }
-    NumberValue(_, _, Some(f)) -> {
+    JsonNumber(_, Some(f), _) -> {
       case float.compare(f, 0.0) != Lt {
-        True -> Ok(True)
-        False -> Error(SchemaError)
-      }
-    }
-    IntValue(_, i) -> {
-      case int.compare(i, 0) != Lt {
         True -> Ok(True)
         False -> Error(SchemaError)
       }
@@ -218,12 +197,12 @@ pub fn gtezero_fn(
 }
 
 pub fn valid_type_fn(
-  t: Value,
+  t: JsonValue,
   c: Context,
   p: Property,
 ) -> Result(Bool, SchemaError) {
   case t {
-    StringValue(_, v) -> {
+    JsonString(v, _) -> {
       case v {
         "null"
         | "boolean"
@@ -235,11 +214,11 @@ pub fn valid_type_fn(
         _ -> Error(UnknownType(v))
       }
     }
-    ArrayValue(_, v) -> {
-      list.try_each(v, fn(v) {
+    JsonArray(v, _) -> {
+      list.try_each(dict.values(v), fn(v) {
         case v {
-          jsonvalue.JsonString(v, _) -> {
-            valid_type_fn(StringValue("", v), c, p)
+          JsonString(_, _) -> {
+            valid_type_fn(v, c, p)
           }
           _ -> Error(SchemaError)
         }
@@ -254,7 +233,7 @@ pub fn validate_type(
   json: JsonValue,
   context: Context,
   prop: Property,
-) -> Result(Option(Value), SchemaError) {
+) -> Result(Option(JsonValue), SchemaError) {
   use value <- result.try(case prop.valuetype {
     Array(inner) -> {
       case json {
@@ -271,43 +250,39 @@ pub fn validate_type(
               })
             }
           })
-
-          ArrayValue(prop.name, stringify.dict_to_ordered_list(array))
-          |> Ok
+          Ok(json)
         }
         _ -> Error(InvalidType(json, prop))
       }
     }
     Boolean -> {
       case json {
-        jsonvalue.JsonBool(b, _) -> {
-          BooleanValue(prop.name, b)
-          |> Ok
+        jsonvalue.JsonBool(_, _) -> {
+          Ok(json)
         }
         _ -> Error(InvalidType(json, prop))
       }
     }
     Number -> {
       case json {
-        jsonvalue.JsonNumber(i, f, _) -> {
-          NumberValue(prop.name, i, f)
-          |> Ok
+        jsonvalue.JsonNumber(_, _, _) -> {
+          Ok(json)
         }
         _ -> Error(InvalidType(json, prop))
       }
     }
     Integer -> {
       case json {
-        jsonvalue.JsonNumber(i, f, _) -> {
+        jsonvalue.JsonNumber(_, f, _) -> {
           case f {
             Some(f) -> {
               let i = float.truncate(f)
               case int.to_float(i) == f {
-                True -> NumberValue(prop.name, Some(i), None) |> Ok
+                True -> Ok(json)
                 False -> Error(InvalidType(json, prop))
               }
             }
-            None -> NumberValue(prop.name, i, None) |> Ok
+            None -> Ok(json)
           }
         }
         _ -> Error(InvalidType(json, prop))
@@ -329,23 +304,25 @@ pub fn validate_type(
             }
           })
 
-          ObjectValue(prop.name, obj)
-          |> Ok
+          Ok(json)
         }
         _ -> Error(InvalidType(json, prop))
       }
     }
     String -> {
       case json {
-        jsonvalue.JsonString(s, _) -> {
-          StringValue(prop.name, s)
-          |> Ok
+        JsonString(_, _) -> {
+          Ok(json)
         }
         _ -> Error(InvalidType(json, prop))
       }
     }
-    Null -> todo
-    AnyType -> Ok(map_json_to_value(prop.name, json))
+    Null ->
+      case json {
+        JsonNull(_) -> Ok(json)
+        _ -> Error(InvalidType(json, prop))
+      }
+    AnyType -> Ok(json)
     NoType -> todo
     Types(types) -> {
       case
@@ -373,22 +350,6 @@ pub fn swap_value_type(prop: Property, t: ValueType) -> Property {
   case prop {
     ValidatorProperties(_, _, _, _) -> ValidatorProperties(..prop, valuetype: t)
     Property(_, _, _, _) -> Property(..prop, valuetype: t)
-  }
-}
-
-pub fn map_json_to_value(name: String, json: JsonValue) -> Value {
-  case json {
-    JsonArray(array, _) ->
-      ArrayValue(name, stringify.dict_to_ordered_list(array))
-    JsonObject(object, _) -> ObjectValue(name, object)
-    jsonvalue.JsonBool(bool, _) -> BooleanValue(name, bool)
-    jsonvalue.JsonNull(_) -> NullValue(name)
-    jsonvalue.JsonNumber(Some(i), _, _) -> IntValue(name, i)
-    jsonvalue.JsonNumber(_, Some(f), _) -> NumberValue(name, None, Some(f))
-    jsonvalue.JsonString(str, _) -> StringValue(name, str)
-    _ -> {
-      panic as "Invalid number construction!?!"
-    }
   }
 }
 

@@ -6,14 +6,16 @@ import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
-  type SchemaError, type ValidationInfo, type Value, AlwaysFail, BooleanValue,
-  IncorrectType, InvalidComparison, MissingKey, NoAnnotation, ObjectAnnotation,
-  Property, SchemaError, SchemaFailure, Valid, ValidatorProperties,
+  type SchemaError, type ValidationInfo, AlwaysFail, IncorrectType,
+  InvalidComparison, MissingKey, NoAnnotation, ObjectAnnotation, Property,
+  SchemaError, SchemaFailure, Valid, ValidatorProperties,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/stringify
 import simplejson/internal/utils
-import simplejson/jsonvalue.{type JsonValue, JsonObject, JsonString}
+import simplejson/jsonvalue.{
+  type JsonValue, JsonArray, JsonBool, JsonObject, JsonString,
+}
 
 pub const object_properties = [
   Property(
@@ -55,11 +57,11 @@ pub const object_properties = [
 ]
 
 fn check_unique_dependents(
-  v: Value,
+  v: JsonValue,
   _context: Context,
   prop: Property,
 ) -> Result(Bool, SchemaError) {
-  let assert types.ObjectValue(_, d) = v
+  let assert JsonObject(d, _) = v
   dict.values(d)
   |> list.try_each(fn(l) {
     case l {
@@ -76,13 +78,13 @@ fn check_unique_dependents(
 }
 
 fn dependent_required(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
-    types.ObjectValue(_, dependents) -> {
+    JsonObject(dependents, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case jsonvalue {
           JsonObject(l, _) -> {
@@ -121,62 +123,59 @@ fn dependent_required(
 }
 
 fn min_properties(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
-  case v {
-    types.NumberValue(_, Some(len), _) -> {
-      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-        case jsonvalue {
-          JsonObject(l, _) -> {
-            case int.compare(dict.size(l), len) {
-              Eq | Gt -> #(Valid, ann)
-              Lt -> #(InvalidComparison(v, "minProperties", jsonvalue), ann)
-            }
-          }
-          _ -> #(SchemaFailure, ann)
+  use min_val <- result.try(
+    jsonvalue.get_int_from_number(v) |> result.replace_error(SchemaError),
+  )
+
+  Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+    case jsonvalue {
+      JsonObject(l, _) -> {
+        case int.compare(dict.size(l), min_val) {
+          Eq | Gt -> #(Valid, ann)
+          Lt -> #(InvalidComparison(v, "minProperties", jsonvalue), ann)
         }
-      })
+      }
+      _ -> #(SchemaFailure, ann)
     }
-    _ -> Error(SchemaError)
-  }
+  })
 }
 
 fn max_properties(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
-  case v {
-    types.NumberValue(_, Some(len), _) -> {
-      Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-        case jsonvalue {
-          JsonObject(l, _) -> {
-            case int.compare(dict.size(l), len) {
-              Eq | Lt -> #(Valid, ann)
-              Gt -> #(InvalidComparison(v, "maxProperties", jsonvalue), ann)
-            }
-          }
-          _ -> #(SchemaFailure, ann)
+  use max_val <- result.try(
+    jsonvalue.get_int_from_number(v) |> result.replace_error(SchemaError),
+  )
+  Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
+    case jsonvalue {
+      JsonObject(l, _) -> {
+        case int.compare(dict.size(l), max_val) {
+          Eq | Lt -> #(Valid, ann)
+          Gt -> #(InvalidComparison(v, "maxProperties", jsonvalue), ann)
         }
-      })
+      }
+      _ -> #(SchemaFailure, ann)
     }
-    _ -> Error(SchemaError)
-  }
+  })
 }
 
 fn dependent_schemas(
-  v: Value,
+  v: JsonValue,
   get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
 ) -> Result(
   fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
-    types.ObjectValue(_, d) -> {
+    JsonObject(d, _) -> {
       use validators <- result.try(
         dict.to_list(d)
         |> list.try_map(fn(e) {
@@ -223,15 +222,15 @@ fn dependent_schemas(
 }
 
 fn required_properties(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
-    types.ArrayValue(_, l) -> {
+    JsonArray(l, _) -> {
       let keys =
-        list.map(l, fn(j) {
+        list.map(dict.values(l), fn(j) {
           let assert JsonString(s, _) = j
           s
         })
@@ -253,14 +252,14 @@ fn required_properties(
 }
 
 pub fn unevaluated_properties(
-  v: Value,
+  v: JsonValue,
   get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
 ) -> Result(
   fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
-    BooleanValue(_, b) -> {
+    JsonBool(b, _) -> {
       case b {
         True -> fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
@@ -286,7 +285,7 @@ pub fn unevaluated_properties(
       }
       |> Ok
     }
-    types.ObjectValue(_, d) -> {
+    JsonObject(d, _) -> {
       let json = jsonvalue.JsonObject(d, None)
 
       case get_validator(json) {
@@ -322,14 +321,14 @@ pub fn unevaluated_properties(
 }
 
 fn property_names(
-  v: Value,
+  v: JsonValue,
   get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
 ) -> Result(
   fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
-    BooleanValue(_, b) -> {
+    JsonBool(b, _) -> {
       case b {
         True -> fn(_, _, ann) { #(Valid, ann) }
         False -> fn(json, _, ann) {
@@ -342,7 +341,7 @@ fn property_names(
       }
       |> Ok
     }
-    types.ObjectValue(_, d) -> {
+    JsonObject(d, _) -> {
       {
         let json = jsonvalue.JsonObject(d, None)
         case get_validator(json) {

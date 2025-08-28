@@ -1,5 +1,7 @@
 import gleam/dict.{type Dict}
-import gleam/option.{type Option}
+import gleam/float
+import gleam/int
+import gleam/option.{type Option, Some}
 
 pub type JsonMetaData {
   JsonMetaData(start_position: Int, end_position: Int)
@@ -51,4 +53,18 @@ pub type JsonPathError {
   ComparisonError
   InvalidJsonPath
   PathNotFound
+}
+
+pub fn get_int_from_number(json: JsonValue) -> Result(Int, Nil) {
+  case json {
+    JsonNumber(Some(i), _, _) -> Ok(i)
+    JsonNumber(_, Some(f), _) -> {
+      let truncated = float.truncate(f)
+      case int.to_float(truncated) == f {
+        True -> Ok(truncated)
+        False -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
 }

@@ -6,8 +6,8 @@ import gleam/option.{None, Some}
 import gleam/order.{Eq}
 import gleam/result
 import simplejson/internal/schema2/types.{
-  type NodeAnnotation, type Value, InvalidComparison, NumberValue, Property,
-  SchemaError, SchemaFailure, Valid, ValidationError, ok_fn,
+  type NodeAnnotation, InvalidComparison, Property, SchemaError, SchemaFailure,
+  Valid, ValidationError, ok_fn,
 }
 import simplejson/jsonvalue.{type JsonValue, JsonNumber}
 
@@ -49,13 +49,13 @@ pub const num_properties = [
 ]
 
 fn multiple_of(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
   types.SchemaError,
 ) {
   case v {
-    NumberValue(_, value:, or_value:) -> {
+    JsonNumber(value, or_value, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         result.try(
           case value, or_value, jsonvalue {
@@ -147,13 +147,13 @@ fn do_compare_numbers(value, or_value, jsonvalue) {
 }
 
 fn minimum(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
   types.SchemaError,
 ) {
   case v {
-    NumberValue(_, value:, or_value:) -> {
+    JsonNumber(value, or_value, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
           Ok(Eq) | Ok(order.Lt) -> #(Valid, ann)
@@ -167,13 +167,13 @@ fn minimum(
 }
 
 fn exclusive_minimum(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
   types.SchemaError,
 ) {
   case v {
-    NumberValue(_, value:, or_value:) -> {
+    JsonNumber(value, or_value, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
           Ok(order.Lt) -> #(Valid, ann)
@@ -187,13 +187,13 @@ fn exclusive_minimum(
 }
 
 fn maximum(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
   types.SchemaError,
 ) {
   case v {
-    NumberValue(_, value:, or_value:) -> {
+    JsonNumber(value, or_value, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
           Ok(Eq) | Ok(order.Gt) -> #(Valid, ann)
@@ -207,13 +207,13 @@ fn maximum(
 }
 
 fn exclusive_maximum(
-  v: Value,
+  v: JsonValue,
 ) -> Result(
   fn(JsonValue, NodeAnnotation) -> #(types.ValidationInfo, NodeAnnotation),
   types.SchemaError,
 ) {
   case v {
-    NumberValue(_, value:, or_value:) -> {
+    JsonNumber(value, or_value, _) -> {
       Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
         case do_compare_numbers(value, or_value, jsonvalue) {
           Ok(order.Gt) -> #(Valid, ann)

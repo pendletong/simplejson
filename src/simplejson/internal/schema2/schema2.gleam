@@ -2,11 +2,10 @@ import gleam/bool
 import gleam/dict
 import gleam/function
 import gleam/int
-import gleam/list.{Continue, Stop}
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
 import gleam/result
-import gleam/string as corestring
 import simplejson
 import simplejson/internal/pointer
 import simplejson/internal/schema2/properties/array
@@ -15,10 +14,9 @@ import simplejson/internal/schema2/properties/object
 import simplejson/internal/schema2/properties/string
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
-  type SchemaError, type ValidationInfo, type ValidationNode, type Value, Array,
-  ArraySubValidation, ArrayValue, BooleanValue, Context, IntValue, InvalidJson,
-  InvalidType, MultipleValidation, NoType, NullValue, NumberValue, Object,
-  ObjectValue, Property, Schema, SchemaError, SimpleValidation, StringValue,
+  type SchemaError, type ValidationInfo, type ValidationNode, Array,
+  ArraySubValidation, Context, InvalidJson, InvalidType, MultipleValidation,
+  NoType, Object, Property, Schema, SchemaError, SimpleValidation,
   TypeValidation, Validation, ValidatorProperties,
 }
 import simplejson/internal/stringify
@@ -84,7 +82,7 @@ pub fn get_validator_from_json(
         schema_uri
           |> option.map(fn(v) {
             case v {
-              types.StringValue(_, value) -> value
+              JsonString(value, _) -> value
               _ -> ""
             }
           }),
@@ -158,12 +156,12 @@ fn generate_root_validation(
       Array(types.AnyType),
       fn(v, _c, p) {
         case v {
-          ArrayValue(_, value:) -> {
-            case value {
-              [] -> Error(InvalidType(context.current_node, p))
-              _ -> {
+          JsonArray(d, _) -> {
+            case dict.is_empty(d) {
+              True -> Error(InvalidType(context.current_node, p))
+              False -> {
                 case
-                  { list.unique(value) |> list.length } == list.length(value)
+                  { list.unique(dict.values(d)) |> list.length } == dict.size(d)
                 {
                   True -> Ok(True)
                   False -> Error(InvalidType(context.current_node, p))
@@ -202,13 +200,11 @@ fn generate_root_validation(
   }
 }
 
-fn validate_enum(v: Value) {
+fn validate_enum(v: JsonValue) {
   case v {
-    ArrayValue(_, array) -> {
+    JsonArray(array, _) -> {
       MultipleValidation(
-        list.map(array, fn(v) {
-          validate_const(types.map_json_to_value("enum", v))
-        }),
+        list.map(dict.values(array), validate_const),
         types.Any,
         function.identity,
         False,
@@ -218,92 +214,48 @@ fn validate_enum(v: Value) {
   }
 }
 
-fn validate_const(v: Value) {
+fn validate_const(v: JsonValue) {
   Validation(fn(jsonvalue, _, ann) {
-    case compare_value_and_json(v, jsonvalue) {
+    case compare_jsons(v, jsonvalue) {
       True -> #(types.Valid, ann)
       False -> #(types.InvalidComparison(v, "equal", jsonvalue), ann)
     }
   })
 }
 
-fn compare_value_and_json(v: Value, json: JsonValue) -> Bool {
+fn compare_jsons(v: JsonValue, json: JsonValue) -> Bool {
   case v, json {
-    NumberValue(_, Some(i), _), JsonNumber(Some(i2), _, _) -> i == i2
-    NumberValue(_, _, Some(f)), JsonNumber(_, Some(f2), _) -> f == f2
-    NumberValue(_, Some(i), _), JsonNumber(_, Some(f2), _) ->
+    JsonNumber(Some(i), _, _), JsonNumber(Some(i2), _, _) -> i == i2
+    JsonNumber(_, Some(f), _), JsonNumber(_, Some(f2), _) -> f == f2
+    JsonNumber(Some(i), _, _), JsonNumber(_, Some(f2), _) ->
       int.to_float(i) == f2
-    NumberValue(_, _, Some(f)), JsonNumber(Some(i2), _, _) ->
+    JsonNumber(_, Some(f), _), JsonNumber(Some(i2), _, _) ->
       f == int.to_float(i2)
-    IntValue(_, i), JsonNumber(Some(i2), _, _) -> i == i2
-    IntValue(_, i), JsonNumber(_, Some(f2), _) -> int.to_float(i) == f2
-    StringValue(_, s), JsonString(s2, _) -> s == s2
-    BooleanValue(_, b), JsonBool(b2, _) -> b == b2
-    NullValue(_), JsonNull(_) -> True
-    ArrayValue(_, l), JsonArray(l2, _) ->
-      match_array_elements(l, stringify.dict_to_ordered_list(l2))
-    ObjectValue(_, o), JsonObject(o2, _) -> match_dict_elements(o, o2)
-
-    _, _ -> False
+    _, _ -> v == json
   }
-}
-
-fn match_array_elements(l1, l2) {
-  case l1, l2 {
-    [], [] -> True
-    [a, ..r1], [a2, ..r2] ->
-      match_json_values(a, a2) && match_array_elements(r1, r2)
-    _, _ -> False
-  }
-}
-
-fn match_json_values(j1, j2) {
-  case j1, j2 {
-    JsonNumber(Some(i), _, _), JsonNumber(_, Some(f), _) -> int.to_float(i) == f
-    JsonNumber(_, Some(f), _), JsonNumber(Some(i), _, _) -> int.to_float(i) == f
-    _, _ -> j1 == j2
-  }
-}
-
-fn match_dict_elements(d1, d2) {
-  let k = dict.keys(d1)
-
-  list.sort(k, corestring.compare)
-  == list.sort(dict.keys(d2), corestring.compare)
-  && list.fold_until(k, True, fn(_, k) {
-    case dict.get(d1, k), dict.get(d2, k) {
-      Ok(v1), Ok(v2) -> {
-        case match_json_values(v1, v2) {
-          True -> Continue(True)
-          False -> Stop(False)
-        }
-      }
-      _, _ -> Stop(False)
-    }
-  })
 }
 
 fn construct_type_validation(
   context: Context,
-  instance_type: Option(Value),
+  instance_type: Option(JsonValue),
 ) -> Result(ValidationNode, SchemaError) {
   case instance_type {
     None -> {
       generate_multi_type_validation(context)
     }
-    Some(StringValue(_, t)) -> {
+    Some(JsonString(t, _)) -> {
       use validation <- result.try(get_validation_for_type(context, t))
       Ok(TypeValidation(dict.from_list([validation])))
     }
-    Some(ArrayValue(_, value:)) -> {
+    Some(JsonArray(d, _)) -> {
       use <- bool.guard(
-        when: value == [],
+        when: dict.is_empty(d),
         return: Ok(
           TypeValidation(dict.from_list([#(NoType, SimpleValidation(False))])),
         ),
       )
       let types =
-        list.map(value, fn(t) {
+        list.map(dict.values(d), fn(t) {
           let assert JsonString(t, _) = t
           t
         })
@@ -440,7 +392,7 @@ fn get_validation_for_type(
 fn get_unevaluated(
   context: Context,
   prop: String,
-  uneval_fn: fn(Value, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
+  uneval_fn: fn(JsonValue, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
     Result(
       fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
       SchemaError,
@@ -499,7 +451,7 @@ fn get_subschemas(
       ),
     )
     |> result.try(fn(i) {
-      option.map(i, value_to_validation(_, context))
+      option.map(i, value_to_validation("not", _, context))
       |> unwrap_option_result
     }),
   )
@@ -523,7 +475,7 @@ fn get_array_subvalidation(
       ),
     )
     |> result.try(fn(i) {
-      option.map(i, value_to_validation(_, context))
+      option.map(i, value_to_validation("items", _, context))
       |> unwrap_option_result
     }),
   )
@@ -538,7 +490,7 @@ fn get_array_subvalidation(
       ),
     )
     |> result.try(fn(v) {
-      option.map(v, value_to_validation(_, context))
+      option.map(v, value_to_validation("contains", _, context))
       |> unwrap_option_result
     }),
   )
@@ -552,7 +504,7 @@ fn get_array_subvalidation(
             True -> Ok(None)
             False -> {
               use min_fn <- result.try(array.get_min_contains(
-                NumberValue("", Some(1), None),
+                JsonNumber(Some(1), None, None),
                 "contains",
               ))
               Ok(
@@ -589,9 +541,11 @@ fn get_validator_list(context: Context, prop_name: String) {
       Array(types.Types([types.Object(types.AnyType), types.Boolean])),
       fn(v, _c, p) {
         case v {
-          ArrayValue(_, []) ->
-            Error(types.InvalidProperty(p.name, context.current_node))
-          ArrayValue(_, _) -> Ok(True)
+          JsonArray(d, _) ->
+            case dict.is_empty(d) {
+              True -> Error(types.InvalidProperty(p.name, context.current_node))
+              False -> Ok(True)
+            }
           _ -> Error(types.InvalidProperty(p.name, context.current_node))
         }
       },
@@ -601,8 +555,8 @@ fn get_validator_list(context: Context, prop_name: String) {
   |> result.try(fn(v) {
     option.map(v, fn(pi) {
       case pi {
-        ArrayValue(_, items) -> {
-          list.try_map(items, fn(i) {
+        JsonArray(items, _) -> {
+          list.try_map(stringify.dict_to_ordered_list(items), fn(i) {
             generate_validator(Context(..context, current_node: i))
           })
         }
@@ -614,15 +568,16 @@ fn get_validator_list(context: Context, prop_name: String) {
 }
 
 fn value_to_validation(
-  v: Value,
+  prop_name: String,
+  v: JsonValue,
   context: Context,
 ) -> Result(types.ValidationNode, SchemaError) {
   case v {
-    ObjectValue(_, o) ->
+    JsonObject(o, _) ->
       generate_validator(Context(..context, current_node: JsonObject(o, None)))
-    BooleanValue(_, b) ->
+    JsonBool(b, _) ->
       generate_validator(Context(..context, current_node: JsonBool(b, None)))
-    _ -> Error(types.InvalidProperty(v.name, context.current_node))
+    _ -> Error(types.InvalidProperty(prop_name, context.current_node))
   }
 }
 
@@ -642,7 +597,7 @@ fn get_object_subvalidation(
     |> result.try(fn(v) {
       case v {
         None -> Ok(None)
-        Some(ObjectValue(_, d)) -> {
+        Some(JsonObject(d, _)) -> {
           dict_to_validations(d, context, Ok)
         }
         Some(_) -> Error(InvalidType(context.current_node, p))
@@ -663,7 +618,7 @@ fn get_object_subvalidation(
     |> result.try(fn(v) {
       case v {
         None -> Ok(None)
-        Some(ObjectValue(_, d)) -> {
+        Some(JsonObject(d, _)) -> {
           dict_to_validations(d, context, fn(k) {
             regexp.compile(k, regexp.Options(False, False))
             |> result.replace_error(InvalidType(context.current_node, p))
@@ -707,7 +662,7 @@ fn get_validation_property(context: Context, prop_name: String) {
     ),
   )
   |> result.try(fn(i) {
-    option.map(i, value_to_validation(_, context))
+    option.map(i, value_to_validation(prop_name, _, context))
     |> unwrap_option_result
   })
 }
@@ -735,7 +690,7 @@ fn dict_to_validations(
 fn get_property(
   context: Context,
   property: Property,
-) -> Result(Option(Value), SchemaError) {
+) -> Result(Option(JsonValue), SchemaError) {
   case context.current_node {
     JsonObject(d, _) -> {
       case dict.get(d, property.name) {
