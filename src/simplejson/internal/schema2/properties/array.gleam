@@ -4,10 +4,10 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import simplejson/internal/schema2/types.{
-  type Context, type NodeAnnotation, type Property, type SchemaError,
-  type ValidationInfo, type ValidationNode, type Value, ArrayAnnotation,
-  BooleanValue, InvalidComparison, NoAnnotation, NumberValue, Property,
-  SchemaError, SchemaFailure, Valid,
+  type Context, type NodeAnnotation, type Property, type Schema,
+  type SchemaError, type ValidationInfo, type ValidationNode, type Value,
+  ArrayAnnotation, BooleanValue, InvalidComparison, NoAnnotation, NumberValue,
+  Property, SchemaError, SchemaFailure, Valid,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/utils
@@ -192,17 +192,17 @@ pub fn unevaluated_items(
   v: Value,
   get_validator: fn(JsonValue) -> Result(ValidationNode, SchemaError),
 ) -> Result(
-  fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
     BooleanValue(_, b) -> {
       case b {
-        True -> fn(_, ann) {
+        True -> fn(_, _, ann) {
           let assert ArrayAnnotation(_, _, _, _) = ann
           #(Valid, ArrayAnnotation(..ann, items_all: Some(True)))
         }
-        False -> fn(json, ann) {
+        False -> fn(json, _, ann) {
           let assert ArrayAnnotation(
             items_index:,
             items_all:,
@@ -244,7 +244,7 @@ pub fn unevaluated_items(
       case get_validator(json) {
         Error(_) -> Error(types.InvalidProperty("unevaluatedItems", json))
         Ok(validator) -> {
-          Ok(fn(json: JsonValue, ann: NodeAnnotation) {
+          Ok(fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
             let assert ArrayAnnotation(
               items_index:,
               items_all:,
@@ -273,7 +273,14 @@ pub fn unevaluated_items(
                 |> dict.to_list
                 |> list.fold_until(#(Valid, ann), fn(_, entry) {
                   let #(_i, node) = entry
-                  case validator2.do_validate(node, validator, NoAnnotation) {
+                  case
+                    validator2.do_validate(
+                      node,
+                      validator,
+                      schema,
+                      NoAnnotation,
+                    )
+                  {
                     #(Valid, _) ->
                       list.Continue(#(
                         Valid,

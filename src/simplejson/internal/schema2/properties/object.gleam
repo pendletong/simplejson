@@ -5,10 +5,10 @@ import gleam/option.{None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import simplejson/internal/schema2/types.{
-  type Context, type NodeAnnotation, type Property, type SchemaError,
-  type ValidationInfo, type Value, AlwaysFail, BooleanValue, IncorrectType,
-  InvalidComparison, MissingKey, NoAnnotation, ObjectAnnotation, Property,
-  SchemaError, SchemaFailure, Valid, ValidatorProperties,
+  type Context, type NodeAnnotation, type Property, type Schema,
+  type SchemaError, type ValidationInfo, type Value, AlwaysFail, BooleanValue,
+  IncorrectType, InvalidComparison, MissingKey, NoAnnotation, ObjectAnnotation,
+  Property, SchemaError, SchemaFailure, Valid, ValidatorProperties,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/stringify
@@ -172,7 +172,7 @@ fn dependent_schemas(
   v: Value,
   get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
 ) -> Result(
-  fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
@@ -186,7 +186,7 @@ fn dependent_schemas(
           Ok(#(key, validator))
         }),
       )
-      Ok(fn(json: JsonValue, annotation: NodeAnnotation) {
+      Ok(fn(json: JsonValue, schema: Schema, annotation: NodeAnnotation) {
         let #(v, anns) = case json {
           jsonvalue.JsonObject(d, _) -> {
             list.fold_until(validators, #(Valid, []), fn(state, e) {
@@ -197,7 +197,12 @@ fn dependent_schemas(
               case dict.has_key(d, key) {
                 True -> {
                   case
-                    validator2.do_validate(json, validator, NoAnnotation)
+                    validator2.do_validate(
+                      json,
+                      validator,
+                      schema,
+                      NoAnnotation,
+                    )
                     |> echo
                   {
                     #(Valid, ann) -> Continue(#(Valid, [ann, ..annotations]))
@@ -251,13 +256,13 @@ pub fn unevaluated_properties(
   v: Value,
   get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
 ) -> Result(
-  fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
     BooleanValue(_, b) -> {
       case b {
-        True -> fn(json, ann) {
+        True -> fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
           let assert ObjectAnnotation(matched) = ann
           #(
@@ -268,7 +273,7 @@ pub fn unevaluated_properties(
             )),
           )
         }
-        False -> fn(json, ann) {
+        False -> fn(json, _, ann) {
           ann |> echo as "uneval"
           let assert jsonvalue.JsonObject(d, _) = json
           let assert ObjectAnnotation(matches) = ann
@@ -287,7 +292,7 @@ pub fn unevaluated_properties(
       case get_validator(json) {
         Error(_) -> Error(types.InvalidProperty("unevaluatedProperties", json))
         Ok(validator) -> {
-          Ok(fn(json: JsonValue, ann: NodeAnnotation) {
+          Ok(fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
             let assert ObjectAnnotation(matches) = ann
             case json {
               jsonvalue.JsonObject(d, _) -> {
@@ -296,7 +301,7 @@ pub fn unevaluated_properties(
                 |> list.fold_until(#(Valid, ann), fn(state, entry) {
                   let assert ObjectAnnotation(matches) = state.1
                   let #(k, v) = entry
-                  case validator2.do_validate(v, validator, state.1) {
+                  case validator2.do_validate(v, validator, schema, state.1) {
                     #(Valid, _) ->
                       Continue(#(
                         Valid,
@@ -320,14 +325,14 @@ fn property_names(
   v: Value,
   get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
 ) -> Result(
-  fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
   SchemaError,
 ) {
   case v {
     BooleanValue(_, b) -> {
       case b {
-        True -> fn(_, ann) { #(Valid, ann) }
-        False -> fn(json, ann) {
+        True -> fn(_, _, ann) { #(Valid, ann) }
+        False -> fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
           case dict.is_empty(d) {
             True -> #(Valid, ann)
@@ -343,7 +348,7 @@ fn property_names(
         case get_validator(json) {
           Error(_) -> Error(types.InvalidProperty("propertyNames", json))
           Ok(validator) -> {
-            Ok(fn(json: JsonValue, ann: NodeAnnotation) {
+            Ok(fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
               case json {
                 jsonvalue.JsonObject(d, _) -> {
                   dict.keys(d)
@@ -352,6 +357,7 @@ fn property_names(
                       validator2.do_validate(
                         JsonString(key, None),
                         validator,
+                        schema,
                         NoAnnotation,
                       )
                     {

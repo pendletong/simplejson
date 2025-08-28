@@ -14,8 +14,8 @@ import simplejson/internal/schema2/properties/number
 import simplejson/internal/schema2/properties/object
 import simplejson/internal/schema2/properties/string
 import simplejson/internal/schema2/types.{
-  type Context, type Property, type Schema, type SchemaError,
-  type ValidationInfo, type ValidationNode, type Value, Array,
+  type Context, type NodeAnnotation, type Property, type Schema,
+  type SchemaError, type ValidationInfo, type ValidationNode, type Value, Array,
   ArraySubValidation, ArrayValue, BooleanValue, Context, IntValue, InvalidJson,
   InvalidType, MultipleValidation, NoType, NullValue, NumberValue, Object,
   ObjectValue, Property, Schema, SchemaError, SimpleValidation, StringValue,
@@ -90,6 +90,7 @@ pub fn get_validator_from_json(
           }),
         None,
         schema_json,
+        dict.new(),
         validator,
       ))
     Error(err) -> Error(err)
@@ -116,6 +117,7 @@ fn generate_validator(
 }
 
 fn find_ref(context: Context, ref: String) -> Result(Context, SchemaError) {
+  todo as { "No $ref - " <> ref }
   use current_node <- result.try(
     case ref {
       "#" <> _ -> pointer.jsonpointer(context.root_node, ref) |> echo
@@ -217,7 +219,7 @@ fn validate_enum(v: Value) {
 }
 
 fn validate_const(v: Value) {
-  Validation(fn(jsonvalue, ann) {
+  Validation(fn(jsonvalue, _, ann) {
     case compare_value_and_json(v, jsonvalue) {
       True -> #(types.Valid, ann)
       False -> #(types.InvalidComparison(v, "equal", jsonvalue), ann)
@@ -351,7 +353,11 @@ fn get_validation_for_type(
           use validation_fn <- result.try(case prop {
             Property(_, _, _, Some(validator_fn)) -> {
               use vfn <- result.try(validator_fn(val))
-              Ok(Some(Validation(vfn)))
+              Ok(
+                Some(
+                  Validation(fn(json, _, annotation) { vfn(json, annotation) }),
+                ),
+              )
             }
             ValidatorProperties(_, _, _, Some(validator_fn)) -> {
               use vfn <- result.try(
@@ -436,8 +442,7 @@ fn get_unevaluated(
   prop: String,
   uneval_fn: fn(Value, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
     Result(
-      fn(JsonValue, types.NodeAnnotation) ->
-        #(ValidationInfo, types.NodeAnnotation),
+      fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
       SchemaError,
     ),
 ) -> Result(List(Option(ValidationNode)), SchemaError) {
@@ -550,7 +555,13 @@ fn get_array_subvalidation(
                 NumberValue("", Some(1), None),
                 "contains",
               ))
-              Ok(Some(Validation(min_fn)))
+              Ok(
+                Some(
+                  Validation(fn(json, _, annotation) {
+                    min_fn(json, annotation)
+                  }),
+                ),
+              )
             }
           }
         }

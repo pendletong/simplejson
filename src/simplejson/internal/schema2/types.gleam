@@ -14,6 +14,7 @@ pub type Schema {
     id: Option(String),
     schema_definition: Option(String),
     schema: JsonValue,
+    refs: dict.Dict(jsonvalue.JsonValue, Option(ValidationNode)),
     validation: ValidationNode,
   )
 }
@@ -26,8 +27,10 @@ pub type Combination {
 
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
+  RefValidation(jsonpointer: String)
   Validation(
-    valid: fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+    valid: fn(JsonValue, Schema, NodeAnnotation) ->
+      #(ValidationInfo, NodeAnnotation),
   )
   MultipleValidation(
     tests: List(ValidationNode),
@@ -138,7 +141,8 @@ pub type Property {
     validator_fn: Option(
       fn(Value, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
         Result(
-          fn(JsonValue, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+          fn(JsonValue, Schema, NodeAnnotation) ->
+            #(ValidationInfo, NodeAnnotation),
           SchemaError,
         ),
     ),
