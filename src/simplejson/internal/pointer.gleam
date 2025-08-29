@@ -2,8 +2,9 @@ import gleam/bool
 import gleam/result
 import gleam/uri
 import simplejson/jsonvalue.{
-  type JsonPathError, type JsonValue, InvalidJsonPath, JsonArray, JsonObject,
-  ParseError, PathNotFound,
+  type JsonPathError, type JsonPointerError, type JsonValue, InvalidJsonPath,
+  InvalidPointer, JsonArray, JsonObject, ParseError, PathNotFound,
+  PointerParseError, PointerPathNotFound,
 }
 
 import gleam/dict
@@ -52,12 +53,13 @@ pub fn jsonpath(
 pub fn jsonpointer(
   json: JsonValue,
   jsonpointer: String,
-) -> Result(JsonValue, JsonPathError) {
-  let #(split, fragment) = case string.split(jsonpointer, "/") {
-    [] | [""] | ["#"] -> #([], False)
-    ["#", ..rest] -> #(rest, True)
-    [_, ..rest] -> #(rest, False)
-  }
+) -> Result(JsonValue, JsonPointerError) {
+  use #(split, fragment) <- result.try(case string.split(jsonpointer, "/") {
+    [] | [""] | ["#"] -> Ok(#([], False))
+    ["#", ..rest] -> Ok(#(rest, True))
+    ["", ..rest] -> Ok(#(rest, False))
+    _ -> Error(InvalidPointer)
+  })
   use <- bool.guard(when: split == [], return: Ok(json))
   use current_json, path_segment <- list.try_fold(split, json)
   let path_segment =
@@ -70,25 +72,27 @@ pub fn jsonpointer(
   use path_segment <- result.try(case fragment {
     True ->
       uri.percent_decode(path_segment)
-      |> result.replace_error(ParseError("Invalid path " <> path_segment))
+      |> result.replace_error(PointerParseError("Invalid path " <> path_segment))
     False -> Ok(path_segment)
   })
   case current_json {
     JsonObject(found_dict, _) ->
       case dict.get(found_dict, path_segment) {
         Ok(json_found_at_path) -> Ok(json_found_at_path)
-        Error(_) -> Error(PathNotFound)
+        Error(_) -> Error(PointerPathNotFound)
       }
     JsonArray(found_dict, _) -> {
       use i <- result.try(
         int.parse(path_segment)
-        |> result.replace_error(ParseError(path_segment <> " is not a number")),
+        |> result.replace_error(PointerParseError(
+          path_segment <> " is not a number",
+        )),
       )
       case dict.get(found_dict, i) {
         Ok(json_found_at_path) -> Ok(json_found_at_path)
-        Error(_) -> Error(PathNotFound)
+        Error(_) -> Error(PointerPathNotFound)
       }
     }
-    _ -> Error(PathNotFound)
+    _ -> Error(PointerPathNotFound)
   }
 }

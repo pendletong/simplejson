@@ -42,6 +42,11 @@ pub type ValidationNode {
     valid: fn(JsonValue, Schema, NodeAnnotation) ->
       #(ValidationInfo, NodeAnnotation),
   )
+  PostValidation(
+    valid: fn(JsonValue, Schema, NodeAnnotation) ->
+      #(ValidationInfo, NodeAnnotation),
+  )
+  FinishLevel
   MultipleValidation(
     tests: List(ValidationNode),
     combination: Combination,

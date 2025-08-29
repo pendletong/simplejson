@@ -49,6 +49,7 @@ const files = [
   "unevaluatedItems.json",
   "unevaluatedProperties.json",
   "uniqueItems.json",
+  "infinite-loop-detection.json",
 ]
 
 pub fn main() {

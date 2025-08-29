@@ -309,7 +309,8 @@ pub fn unevaluated_properties(
         Ok(Context(_, Some(validator), _, _) as context) -> {
           Ok(
             #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
-              let assert ObjectAnnotation(matches) = ann
+              let assert ObjectAnnotation(matches) = ann |> echo as "UNEVAL"
+
               case json {
                 jsonvalue.JsonObject(d, _) -> {
                   dict.filter(d, fn(k, _) { !dict.has_key(matches, k) })

@@ -55,6 +55,12 @@ pub type JsonPathError {
   PathNotFound
 }
 
+pub type JsonPointerError {
+  InvalidPointer
+  PointerPathNotFound
+  PointerParseError(context: String)
+}
+
 pub fn get_int_from_number(json: JsonValue) -> Result(Int, Nil) {
   case json {
     JsonNumber(Some(i), _, _) -> Ok(i)

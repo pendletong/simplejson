@@ -34,6 +34,10 @@ pub fn do_validate(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   case validator {
+    types.FinishLevel -> {
+      #(Valid, annotation)
+      todo
+    }
     types.ArraySubValidation(prefix, items, contains) ->
       do_array_validation(json, prefix, items, contains, schema, annotation)
     types.IfThenValidation(when:, then:, orelse:) -> {
@@ -85,7 +89,6 @@ pub fn do_validate(
       }
     }
     types.ObjectSubValidation(props:, pattern_props:, additional_prop:) -> {
-      annotation |> echo
       do_object_validation(
         json,
         props,
@@ -116,6 +119,7 @@ pub fn do_validate(
       validate_type(types, json, schema, annotation)
     }
     types.Validation(valid:) -> valid(json, schema, annotation)
+    types.PostValidation(valid:) -> valid(json, schema, annotation)
     types.NotValidation(validation:) -> {
       case do_validate(json, validation, schema, annotation) {
         #(Valid, _) -> #(types.NotBeValid, annotation)
@@ -123,18 +127,13 @@ pub fn do_validate(
       }
     }
     types.RefValidation(jsonpointer:) -> {
-      case string.contains(jsonpointer, "$defs") {
-        True -> panic as "$defs"
-        False -> Nil
-      }
+      jsonpointer |> echo
       case pointer.jsonpointer(schema.schema, jsonpointer) {
         Error(_) -> todo
         Ok(schema_json) -> {
-          { "looking for " <> stringify.to_string(json) } |> echo
           case dict.get(schema.refs, schema_json) {
             Ok(Some(validation)) -> {
-              annotation |> echo
-              do_validate(json, validation, schema, annotation) |> echo
+              do_validate(json, validation |> echo as "REF", schema, annotation)
             }
             _ -> {
               panic
@@ -143,6 +142,16 @@ pub fn do_validate(
         }
       }
     }
+  }
+}
+
+fn merge_validators(vn1: ValidationNode, vn2: ValidationNode) -> ValidationNode {
+  case vn1, vn2 {
+    types.ObjectSubValidation(d1, d2, _), types.ObjectSubValidation(d1b, d2b, _)
+    -> {
+      todo
+    }
+    _, _ -> vn1
   }
 }
 
@@ -155,7 +164,7 @@ fn do_object_validation(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   let #(valid, annotation) =
-    do_properties_validation(json, props, schema, annotation |> echo)
+    do_properties_validation(json, props, schema, annotation)
   use <- bool.guard(when: valid != Valid, return: #(valid, annotation))
 
   let #(valid, annotation) =
@@ -259,24 +268,23 @@ fn do_properties_validation(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   let assert JsonObject(d, _) = json
-  case props {
+  case props |> echo {
     Some(props) -> {
       dict.to_list(d)
       |> list.try_fold(#(Valid, annotation), fn(state, entry) {
         let #(key, value) = entry
+        let #(_, annotation) = state
         case dict.get(props, key) {
           Ok(validation) -> {
-            case do_validate(value, validation, schema, annotation) {
+            case do_validate(value, validation, schema, annotation |> echo) {
               #(Valid, ObjectAnnotation(matches)) ->
-                Ok(#(
-                  Valid,
-                  ObjectAnnotation(dict.insert(matches, key, Nil)) |> echo,
-                ))
+                Ok(#(Valid, ObjectAnnotation(dict.insert(matches, key, Nil))))
               #(err, _) -> Error(#(err, state.1))
             }
           }
           Error(_) -> Ok(state)
         }
+        |> echo
       })
       |> result.unwrap_both
     }
