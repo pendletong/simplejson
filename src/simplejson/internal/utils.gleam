@@ -1,12 +1,60 @@
 import gleam/dict
+import gleam/function
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/schema2/types.{
-  type Context, type Property, type SchemaError, InvalidProperty,
+  type Combination, type Context, type Property, type SchemaError, Context,
+  InvalidProperty, MultipleValidation,
 }
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
   JsonString,
+}
+
+pub fn merge_context(context1: Context, context2: Context) -> Context {
+  Context(
+    ..context1,
+    current_validator: None,
+    schemas: dict.merge(context2.schemas, context1.schemas),
+  )
+}
+
+pub fn construct_new_context(
+  context: Context,
+  contexts: List(Option(List(Context))),
+) -> Context {
+  list.fold(
+    contexts
+      |> option.values
+      |> list.flatten,
+    context,
+    fn(context, new_context) { merge_context(context, new_context) },
+  )
+}
+
+pub fn revert_current_node(
+  context: Result(Context, x),
+  original_json: JsonValue,
+) -> Result(Context, x) {
+  case context {
+    Ok(context) -> Ok(Context(..context, current_node: original_json))
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn unwrap_context_list(contexts: List(Context)) {
+  list.map(contexts, fn(context) { context.current_validator })
+  |> option.values
+}
+
+pub fn unwrap_to_multiple(
+  contexts: Option(List(Context)),
+  combination: Combination,
+) -> Option(types.ValidationNode) {
+  option.map(contexts, fn(contexts) {
+    unwrap_context_list(contexts)
+    |> MultipleValidation(combination, function.identity, True)
+  })
 }
 
 pub fn unwrap_option_result(

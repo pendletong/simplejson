@@ -6,9 +6,10 @@ import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
-  type SchemaError, type ValidationInfo, AlwaysFail, IncorrectType,
-  InvalidComparison, MissingKey, NoAnnotation, ObjectAnnotation, Property,
-  SchemaError, SchemaFailure, Valid, ValidatorProperties,
+  type SchemaError, type ValidationInfo, type ValidationNode, AlwaysFail,
+  Context, IncorrectType, InvalidComparison, MissingKey, NoAnnotation,
+  ObjectAnnotation, Property, SchemaError, SchemaFailure, Valid,
+  ValidatorProperties,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/stringify
@@ -168,54 +169,70 @@ fn max_properties(
 }
 
 fn dependent_schemas(
-  v: JsonValue,
-  get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
+  context: Context,
+  get_validator: fn(Context) -> Result(Context, SchemaError),
 ) -> Result(
-  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  #(
+    Context,
+    fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  ),
   SchemaError,
 ) {
-  case v {
-    JsonObject(d, _) -> {
-      use validators <- result.try(
+  case context.current_node {
+    JsonObject(d, _) as json -> {
+      use #(context, validators) <- result.try(
         dict.to_list(d)
-        |> list.try_map(fn(e) {
+        |> list.try_fold(#(context, []), fn(acc, e) {
+          let #(context, l) = acc
           let #(key, value) = e
-          use validator <- result.try(get_validator(value))
-
-          Ok(#(key, validator))
+          use context <- result.try(
+            get_validator(Context(..context, current_node: value))
+            |> utils.revert_current_node(json),
+          )
+          case context {
+            Context(_, Some(validator), _, _) ->
+              Ok(#(context, [#(key, validator), ..l]))
+            _ -> Ok(#(context, l))
+          }
         }),
       )
-      Ok(fn(json: JsonValue, schema: Schema, annotation: NodeAnnotation) {
-        let #(v, anns) = case json {
-          jsonvalue.JsonObject(d, _) -> {
-            list.fold_until(validators, #(Valid, []), fn(state, e) {
-              let #(key, validator) = e
-              validator |> echo
-              let #(_, annotations) = state
 
-              case dict.has_key(d, key) {
-                True -> {
-                  case
-                    validator2.do_validate(
-                      json,
-                      validator,
-                      schema,
-                      NoAnnotation,
-                    )
-                    |> echo
-                  {
-                    #(Valid, ann) -> Continue(#(Valid, [ann, ..annotations]))
-                    #(err, _) -> Stop(#(err, [annotation]))
+      Ok(
+        #(
+          Context(..context, current_node: json),
+          fn(json: JsonValue, schema: Schema, annotation: NodeAnnotation) {
+            let #(v, anns) = case json {
+              jsonvalue.JsonObject(d, _) -> {
+                list.fold_until(validators, #(Valid, []), fn(state, e) {
+                  let #(key, validator) = e
+                  let #(_, annotations) = state
+                  case dict.has_key(d, key) {
+                    True -> {
+                      case
+                        validator2.do_validate(
+                          json,
+                          validator,
+                          schema,
+                          NoAnnotation,
+                        )
+                      {
+                        #(Valid, ann) ->
+                          Continue(#(Valid, [ann, ..annotations]))
+                        #(err, _) -> Stop(#(err, [annotation]))
+                      }
+                    }
+                    False -> Continue(#(Valid, annotations))
                   }
-                }
-                False -> Continue(#(Valid, annotations))
+                })
               }
-            })
-          }
-          _ -> #(IncorrectType(types.Object(types.AnyType), json), [annotation])
-        }
-        #(v, types.do_merge_annotations([annotation, ..anns]))
-      })
+              _ -> #(IncorrectType(types.Object(types.AnyType), json), [
+                annotation,
+              ])
+            }
+            #(v, types.do_merge_annotations([annotation, ..anns]))
+          },
+        ),
+      )
     }
     _ -> Error(SchemaError)
   }
@@ -252,16 +269,19 @@ fn required_properties(
 }
 
 pub fn unevaluated_properties(
-  v: JsonValue,
-  get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
+  context: Context,
+  get_validator: fn(Context) -> Result(Context, SchemaError),
 ) -> Result(
-  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  #(
+    Context,
+    fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  ),
   SchemaError,
 ) {
-  case v {
+  case context.current_node {
     JsonBool(b, _) -> {
       case b {
-        True -> fn(json, _, ann) {
+        True -> #(context, fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
           let assert ObjectAnnotation(matched) = ann
           #(
@@ -271,9 +291,8 @@ pub fn unevaluated_properties(
               dict.keys(d) |> list.map(fn(k) { #(k, Nil) }) |> dict.from_list,
             )),
           )
-        }
-        False -> fn(json, _, ann) {
-          ann |> echo as "uneval"
+        })
+        False -> #(context, fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
           let assert ObjectAnnotation(matches) = ann
           let d = dict.fold(matches, d, fn(d, k, _) { dict.delete(d, k) })
@@ -281,39 +300,43 @@ pub fn unevaluated_properties(
             True -> #(Valid, ann)
             False -> #(AlwaysFail, ann)
           }
-        }
+        })
       }
       |> Ok
     }
-    JsonObject(d, _) -> {
-      let json = jsonvalue.JsonObject(d, None)
-
-      case get_validator(json) {
-        Error(_) -> Error(types.InvalidProperty("unevaluatedProperties", json))
-        Ok(validator) -> {
-          Ok(fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
-            let assert ObjectAnnotation(matches) = ann
-            case json {
-              jsonvalue.JsonObject(d, _) -> {
-                dict.filter(d, fn(k, _) { !dict.has_key(matches, k) })
-                |> dict.to_list
-                |> list.fold_until(#(Valid, ann), fn(state, entry) {
-                  let assert ObjectAnnotation(matches) = state.1
-                  let #(k, v) = entry
-                  case validator2.do_validate(v, validator, schema, state.1) {
-                    #(Valid, _) ->
-                      Continue(#(
-                        Valid,
-                        ObjectAnnotation(dict.insert(matches, k, Nil)),
-                      ))
-                    #(err, _) -> Stop(#(err, ann))
-                  }
-                })
+    JsonObject(_, _) -> {
+      case get_validator(context) {
+        Ok(Context(_, Some(validator), _, _) as context) -> {
+          Ok(
+            #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
+              let assert ObjectAnnotation(matches) = ann
+              case json {
+                jsonvalue.JsonObject(d, _) -> {
+                  dict.filter(d, fn(k, _) { !dict.has_key(matches, k) })
+                  |> dict.to_list
+                  |> list.fold_until(#(Valid, ann), fn(state, entry) {
+                    let assert ObjectAnnotation(matches) = state.1
+                    let #(k, v) = entry
+                    case validator2.do_validate(v, validator, schema, state.1) {
+                      #(Valid, _) ->
+                        Continue(#(
+                          Valid,
+                          ObjectAnnotation(dict.insert(matches, k, Nil)),
+                        ))
+                      #(err, _) -> Stop(#(err, ann))
+                    }
+                  })
+                }
+                _ -> #(IncorrectType(types.Object(types.AnyType), json), ann)
               }
-              _ -> #(IncorrectType(types.Object(types.AnyType), json), ann)
-            }
-          })
+            }),
+          )
         }
+        _ ->
+          Error(types.InvalidProperty(
+            "unevaluatedProperties",
+            context.current_node,
+          ))
       }
     }
     _ -> Error(SchemaError)
@@ -321,56 +344,67 @@ pub fn unevaluated_properties(
 }
 
 fn property_names(
-  v: JsonValue,
-  get_validator: fn(JsonValue) -> Result(types.ValidationNode, SchemaError),
+  context: Context,
+  get_validator: fn(Context) -> Result(Context, SchemaError),
 ) -> Result(
-  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  #(
+    Context,
+    fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  ),
   SchemaError,
 ) {
-  case v {
+  case context.current_node {
     JsonBool(b, _) -> {
       case b {
-        True -> fn(_, _, ann) { #(Valid, ann) }
-        False -> fn(json, _, ann) {
+        True -> #(context, fn(_, _, ann) { #(Valid, ann) })
+        False -> #(context, fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
           case dict.is_empty(d) {
             True -> #(Valid, ann)
             False -> #(AlwaysFail, ann)
           }
-        }
+        })
       }
       |> Ok
     }
-    JsonObject(d, _) -> {
+    JsonObject(_, _) -> {
       {
-        let json = jsonvalue.JsonObject(d, None)
-        case get_validator(json) {
-          Error(_) -> Error(types.InvalidProperty("propertyNames", json))
-          Ok(validator) -> {
-            Ok(fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
-              case json {
-                jsonvalue.JsonObject(d, _) -> {
-                  dict.keys(d)
-                  |> list.find_map(fn(key) {
-                    case
-                      validator2.do_validate(
-                        JsonString(key, None),
-                        validator,
-                        schema,
-                        NoAnnotation,
-                      )
-                    {
-                      #(Valid, _) -> Error(Nil)
-                      _ -> Ok(#(types.InvalidKey(key), ann))
+        case get_validator(context) {
+          Ok(Context(_, Some(validator), _, _) as context) -> {
+            Ok(
+              #(
+                context,
+                fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
+                  case json {
+                    jsonvalue.JsonObject(d, _) -> {
+                      dict.keys(d)
+                      |> list.find_map(fn(key) {
+                        case
+                          validator2.do_validate(
+                            JsonString(key, None),
+                            validator,
+                            schema,
+                            NoAnnotation,
+                          )
+                        {
+                          #(Valid, _) -> Error(Nil)
+                          _ -> Ok(#(types.InvalidKey(key), ann))
+                        }
+                      })
+                      |> result.replace_error(#(Valid, ann))
+                      |> result.unwrap_both
                     }
-                  })
-                  |> result.replace_error(#(Valid, ann))
-                  |> result.unwrap_both
-                }
-                _ -> #(IncorrectType(types.Object(types.AnyType), json), ann)
-              }
-            })
+                    _ -> #(
+                      IncorrectType(types.Object(types.AnyType), json),
+                      ann,
+                    )
+                  }
+                },
+              ),
+            )
           }
+          _ ->
+            Error(types.InvalidProperty("propertyNames", context.current_node))
         }
       }
     }

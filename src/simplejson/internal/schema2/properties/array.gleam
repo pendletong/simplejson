@@ -7,7 +7,8 @@ import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, type ValidationNode, ArrayAnnotation,
-  InvalidComparison, NoAnnotation, Property, SchemaError, SchemaFailure, Valid,
+  Context, InvalidComparison, NoAnnotation, Property, SchemaError, SchemaFailure,
+  Valid,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/utils
@@ -184,20 +185,23 @@ fn unique_items(
 }
 
 pub fn unevaluated_items(
-  v: JsonValue,
-  get_validator: fn(JsonValue) -> Result(ValidationNode, SchemaError),
+  context: Context,
+  get_validator: fn(Context) -> Result(Context, SchemaError),
 ) -> Result(
-  fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  #(
+    Context,
+    fn(JsonValue, Schema, NodeAnnotation) -> #(ValidationInfo, NodeAnnotation),
+  ),
   SchemaError,
 ) {
-  case v {
+  case context.current_node {
     JsonBool(b, _) -> {
       case b {
-        True -> fn(_, _, ann) {
+        True -> #(context, fn(_, _, ann) {
           let assert ArrayAnnotation(_, _, _, _) = ann
           #(Valid, ArrayAnnotation(..ann, items_all: Some(True)))
-        }
-        False -> fn(json, _, ann) {
+        })
+        False -> #(context, fn(json, _, ann) {
           let assert ArrayAnnotation(
             items_index:,
             items_all:,
@@ -227,65 +231,62 @@ pub fn unevaluated_items(
               }
             }
           }
-        }
+        })
       }
       |> Ok
     }
-    JsonObject(d, _) -> {
-      let json = jsonvalue.JsonObject(d, None)
-
-      case get_validator(json) {
-        Error(_) -> Error(types.InvalidProperty("unevaluatedItems", json))
-        Ok(validator) -> {
-          Ok(fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
-            let assert ArrayAnnotation(
-              items_index:,
-              items_all:,
-              contains:,
-              contains_all:,
-            ) = ann
-            case contains_all, items_all {
-              Some(True), _ | _, Some(True) -> #(Valid, ann)
-              _, _ -> {
-                let index = case items_index {
-                  Some(i) -> i
-                  _ -> -1
-                }
-                let contains = case contains {
-                  Some(c) -> c
-                  _ -> []
-                }
-                let assert jsonvalue.JsonArray(d, _) = json |> echo as "before"
-                dict.filter(d, fn(k, _) {
-                  !{
-                    k <= index |> echo
-                    || list.contains(contains |> echo |> echo, k)
+    JsonObject(_, _) -> {
+      case get_validator(context) {
+        Ok(Context(_, Some(validator), _, _) as context) -> {
+          Ok(
+            #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
+              let assert ArrayAnnotation(
+                items_index:,
+                items_all:,
+                contains:,
+                contains_all:,
+              ) = ann
+              case contains_all, items_all {
+                Some(True), _ | _, Some(True) -> #(Valid, ann)
+                _, _ -> {
+                  let index = case items_index {
+                    Some(i) -> i
+                    _ -> -1
                   }
-                })
-                |> echo as "after"
-                |> dict.to_list
-                |> list.fold_until(#(Valid, ann), fn(_, entry) {
-                  let #(_i, node) = entry
-                  case
-                    validator2.do_validate(
-                      node,
-                      validator,
-                      schema,
-                      NoAnnotation,
-                    )
-                  {
-                    #(Valid, _) ->
-                      list.Continue(#(
-                        Valid,
-                        ArrayAnnotation(..ann, items_all: Some(True)),
-                      ))
-                    #(v, _) -> list.Stop(#(v, ann))
+                  let contains = case contains {
+                    Some(c) -> c
+                    _ -> []
                   }
-                })
+                  let assert jsonvalue.JsonArray(d, _) = json
+                  dict.filter(d, fn(k, _) {
+                    !{ k <= index || list.contains(contains, k) }
+                  })
+                  |> dict.to_list
+                  |> list.fold_until(#(Valid, ann), fn(_, entry) {
+                    let #(_i, node) = entry
+                    case
+                      validator2.do_validate(
+                        node,
+                        validator,
+                        schema,
+                        NoAnnotation,
+                      )
+                    {
+                      #(Valid, _) ->
+                        list.Continue(#(
+                          Valid,
+                          ArrayAnnotation(..ann, items_all: Some(True)),
+                        ))
+                      #(v, _) -> list.Stop(#(v, ann))
+                    }
+                  })
+                }
               }
-            }
-          })
+            }),
+          )
         }
+        _ ->
+          Error(types.InvalidProperty("unevaluatedItems", context.current_node))
       }
     }
     _ -> Error(SchemaError)

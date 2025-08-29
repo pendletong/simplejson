@@ -20,6 +20,15 @@ pub type Schema {
   )
 }
 
+pub type Context {
+  Context(
+    current_node: JsonValue,
+    current_validator: Option(ValidationNode),
+    root_node: JsonValue,
+    schemas: dict.Dict(jsonvalue.JsonValue, Option(ValidationNode)),
+  )
+}
+
 pub type Combination {
   All
   Any
@@ -130,21 +139,16 @@ pub type Property {
     valuetype: ValueType,
     value_check: fn(JsonValue, Context, Property) -> Result(Bool, SchemaError),
     validator_fn: Option(
-      fn(JsonValue, fn(JsonValue) -> Result(ValidationNode, SchemaError)) ->
+      fn(Context, fn(Context) -> Result(Context, SchemaError)) ->
         Result(
-          fn(JsonValue, Schema, NodeAnnotation) ->
-            #(ValidationInfo, NodeAnnotation),
+          #(
+            Context,
+            fn(JsonValue, Schema, NodeAnnotation) ->
+              #(ValidationInfo, NodeAnnotation),
+          ),
           SchemaError,
         ),
     ),
-  )
-}
-
-pub type Context {
-  Context(
-    current_node: JsonValue,
-    root_node: JsonValue,
-    schemas: dict.Dict(jsonvalue.JsonValue, Option(ValidationNode)),
   )
 }
 

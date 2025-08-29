@@ -5,6 +5,8 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/regexp.{type Regexp}
 import gleam/result
+import gleam/string
+import simplejson/internal/pointer
 import simplejson/internal/schema2/types.{
   type NodeAnnotation, type Schema, type ValidationInfo, type ValidationNode,
   type ValueType, AlwaysFail, ArrayAnnotation, MultipleInfo, NoAnnotation,
@@ -83,6 +85,7 @@ pub fn do_validate(
       }
     }
     types.ObjectSubValidation(props:, pattern_props:, additional_prop:) -> {
+      annotation |> echo
       do_object_validation(
         json,
         props,
@@ -119,7 +122,27 @@ pub fn do_validate(
         #(_, _) -> #(Valid, annotation)
       }
     }
-    types.RefValidation(jsonpointer:) -> todo as jsonpointer
+    types.RefValidation(jsonpointer:) -> {
+      case string.contains(jsonpointer, "$defs") {
+        True -> panic as "$defs"
+        False -> Nil
+      }
+      case pointer.jsonpointer(schema.schema, jsonpointer) {
+        Error(_) -> todo
+        Ok(schema_json) -> {
+          { "looking for " <> stringify.to_string(json) } |> echo
+          case dict.get(schema.refs, schema_json) {
+            Ok(Some(validation)) -> {
+              annotation |> echo
+              do_validate(json, validation, schema, annotation) |> echo
+            }
+            _ -> {
+              panic
+            }
+          }
+        }
+      }
+    }
   }
 }
 
@@ -132,7 +155,7 @@ fn do_object_validation(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   let #(valid, annotation) =
-    do_properties_validation(json, props, schema, annotation)
+    do_properties_validation(json, props, schema, annotation |> echo)
   use <- bool.guard(when: valid != Valid, return: #(valid, annotation))
 
   let #(valid, annotation) =
@@ -240,13 +263,15 @@ fn do_properties_validation(
     Some(props) -> {
       dict.to_list(d)
       |> list.try_fold(#(Valid, annotation), fn(state, entry) {
-        let assert ObjectAnnotation(matches) = state.1
         let #(key, value) = entry
         case dict.get(props, key) {
           Ok(validation) -> {
-            case do_validate(value, validation, schema, NoAnnotation) {
-              #(Valid, _) ->
-                Ok(#(Valid, ObjectAnnotation(dict.insert(matches, key, Nil))))
+            case do_validate(value, validation, schema, annotation) {
+              #(Valid, ObjectAnnotation(matches)) ->
+                Ok(#(
+                  Valid,
+                  ObjectAnnotation(dict.insert(matches, key, Nil)) |> echo,
+                ))
               #(err, _) -> Error(#(err, state.1))
             }
           }
