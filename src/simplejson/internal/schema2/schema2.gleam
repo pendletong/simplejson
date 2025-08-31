@@ -282,10 +282,7 @@ fn construct_type_validation(
     Some(JsonArray(d, _)) -> {
       use <- bool.guard(
         when: dict.is_empty(d),
-        return: Ok(add_validator_to_context(
-          context,
-          TypeValidation(dict.from_list([#(NoType, SimpleValidation(False))])),
-        )),
+        return: Error(types.InvalidProperty("type", context.current_node)),
       )
       let types =
         list.map(dict.values(d), fn(t) {

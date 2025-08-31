@@ -94,12 +94,12 @@ pub fn schema_type_tests() {
         schema2.get_validator("{\"type\":[\"boolean\"]}") |> expect.to_be_ok
         schema2.get_validator("{\"type\":[\"boolean\", \"string\"]}")
         |> expect.to_be_ok
-        schema2.get_validator("{\"type\":[]}") |> expect.to_be_ok
         Nil
       }),
       it("Invalid Schema", fn() {
         schema2.get_validator("{\"type\":\"bool\"}") |> expect.to_be_error
         schema2.get_validator("{\"type\":\"nul\"}") |> expect.to_be_error
+        schema2.get_validator("{\"type\":[]}") |> expect.to_be_error
         schema2.get_validator("{\"type\":[\"bool\"]}") |> expect.to_be_error
         schema2.get_validator("{\"type\":[\"boolean\", \"boolean\"]}")
         |> expect.to_be_error
@@ -424,13 +424,6 @@ pub fn schema_type_tests() {
         validator2.validate(json, schema) |> expect.to_equal(#(True, None))
       }),
       it("Isn't valid", fn() {
-        let schema = schema2.get_validator("{\"type\":[]}") |> expect.to_be_ok
-        let assert Ok(json) = simplejson.parse("\"null\"")
-        validator2.validate(json, schema)
-        |> expect.to_equal(#(
-          False,
-          Some(IncorrectType(types.NoType, JsonString("null", None))),
-        ))
         let schema =
           schema2.get_validator("{\"type\":[\"null\"]}") |> expect.to_be_ok
         let assert Ok(json) = simplejson.parse("\"null\"")

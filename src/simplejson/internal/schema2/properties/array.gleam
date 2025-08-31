@@ -6,9 +6,8 @@ import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
-  type SchemaError, type ValidationInfo, type ValidationNode, ArrayAnnotation,
-  Context, InvalidComparison, NodeAnnotation, Property, SchemaError,
-  SchemaFailure, Valid,
+  type SchemaError, type ValidationInfo, ArrayAnnotation, Context,
+  InvalidComparison, NodeAnnotation, Property, SchemaError, SchemaFailure, Valid,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/utils

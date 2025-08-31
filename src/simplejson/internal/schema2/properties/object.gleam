@@ -6,10 +6,9 @@ import gleam/order.{Eq, Gt, Lt}
 import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
-  type SchemaError, type ValidationInfo, type ValidationNode, AlwaysFail,
-  Context, IncorrectType, InvalidComparison, MissingKey, NodeAnnotation,
-  ObjectAnnotation, Property, SchemaError, SchemaFailure, Valid,
-  ValidatorProperties,
+  type SchemaError, type ValidationInfo, AlwaysFail, Context, IncorrectType,
+  InvalidComparison, MissingKey, NodeAnnotation, ObjectAnnotation, Property,
+  SchemaError, SchemaFailure, Valid, ValidatorProperties,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/stringify
@@ -316,8 +315,7 @@ pub fn unevaluated_properties(
         Ok(Context(_, Some(validator), _, _) as context) -> {
           Ok(
             #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
-              let ObjectAnnotation(matches) =
-                types.get_object_annotation(ann) |> echo as "uneval"
+              let ObjectAnnotation(matches) = types.get_object_annotation(ann)
 
               case json {
                 jsonvalue.JsonObject(d, _) -> {
