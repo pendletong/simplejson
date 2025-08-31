@@ -126,11 +126,16 @@ pub fn do_validate(
     }
     types.RefValidation(jsonpointer:) -> {
       case pointer.jsonpointer(schema.schema, jsonpointer) {
-        Error(_) -> todo
+        Error(_) -> todo as "Nonpointer"
         Ok(schema_json) -> {
           case dict.get(schema.refs, schema_json) {
             Ok(Some(validation)) -> {
-              do_validate(json, strip_finish(validation), schema, annotation)
+              do_validate(
+                json,
+                validation,
+                schema,
+                NodeAnnotation([], None, None),
+              )
             }
             _ -> {
               panic
@@ -139,18 +144,6 @@ pub fn do_validate(
         }
       }
     }
-  }
-}
-
-fn strip_finish(validation: ValidationNode) -> ValidationNode {
-  case validation {
-    MultipleValidation(validations, _, _) -> {
-      MultipleValidation(
-        ..validation,
-        tests: list.filter(validations, fn(v) { v != types.FinishLevel }),
-      )
-    }
-    v -> v
   }
 }
 

@@ -14,8 +14,8 @@ import simplejson/internal/schema2/properties/string
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, type ValidationNode, ArraySubValidation,
-  Context, FinishLevel, InvalidJson, InvalidType, MultipleValidation, NoType,
-  Property, RefValidation, Schema, SchemaError, SimpleValidation, TypeValidation,
+  Context, FinishLevel, InvalidJson, InvalidType, MultipleValidation, Property,
+  RefValidation, Schema, SchemaError, SimpleValidation, TypeValidation,
   Validation, ValidatorProperties,
 }
 import simplejson/internal/stringify
@@ -101,8 +101,9 @@ pub fn add_validator_to_context(
   validator: ValidationNode,
 ) -> Context {
   let new_schemas = case context.current_node {
-    JsonObject(_, _) ->
+    JsonObject(_, _) | JsonBool(_, _) ->
       dict.insert(context.schemas, context.current_node, Some(validator))
+
     _ -> context.schemas
   }
   Context(..context, current_validator: Some(validator), schemas: new_schemas)
@@ -114,7 +115,11 @@ fn generate_validator(
 ) -> Result(Context, SchemaError) {
   case json {
     JsonBool(b, _) -> {
-      Ok(add_validator_to_context(context, SimpleValidation(b)))
+      Ok(add_validator_to_context(
+        Context(..context, current_node: json),
+        SimpleValidation(b),
+      ))
+      |> utils.revert_current_node(context.current_node)
     }
     JsonObject(d, _) -> {
       case dict.is_empty(d) {
@@ -159,7 +164,7 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
   use context <- result.try(case defs {
     Some(JsonObject(d, _)) -> {
       use #(context, _) <- result.try(
-        dict_to_validations(d, context, Ok)
+        dict_to_validations(d, context, fn(_, v) { Ok(v) })
         |> result.map(fn(e) {
           let #(context, properties) = e
           #(context, Some(properties))
@@ -225,11 +230,12 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
     |> option.values
   {
     [FinishLevel] -> Error(SchemaError)
-    v ->
+    v -> {
       Ok(add_validator_to_context(
         context,
         MultipleValidation(v, types.All, function.identity),
       ))
+    }
   }
 }
 
@@ -698,7 +704,7 @@ fn get_object_subvalidation(
       case v {
         None -> Ok(#(context, None))
         Some(JsonObject(d, _)) -> {
-          dict_to_validations(d, context, Ok)
+          dict_to_validations(d, context, fn(k, _) { Ok(k) })
           |> result.map(fn(e) {
             let #(context, properties) = e
             #(context, Some(properties))
@@ -723,7 +729,7 @@ fn get_object_subvalidation(
       case v {
         None -> Ok(#(context, None))
         Some(JsonObject(d, _)) -> {
-          dict_to_validations(d, context, fn(k) {
+          dict_to_validations(d, context, fn(k, _) {
             regexp.compile(k, regexp.Options(False, False))
             |> result.replace_error(InvalidType(context.current_node, p))
           })
@@ -786,14 +792,14 @@ fn get_validation_property(
 fn dict_to_validations(
   d: dict.Dict(String, JsonValue),
   context: Context,
-  km: fn(String) -> Result(k, SchemaError),
+  km: fn(String, JsonValue) -> Result(k, SchemaError),
 ) -> Result(#(Context, dict.Dict(k, ValidationNode)), SchemaError) {
   use l <- result.try(
     dict.to_list(d)
     |> list.try_map(fn(e) {
       case e {
         #(k, JsonObject(_, _) as jv) | #(k, JsonBool(_, _) as jv) -> {
-          use k <- result.try(km(k))
+          use k <- result.try(km(k, jv))
           generate_validator(context, jv)
           |> result.map(fn(v) { #(k, v) })
         }
@@ -809,7 +815,6 @@ fn dict_to_validations(
     |> list.fold(context, fn(context, new_context) {
       merge_context(context, new_context)
     })
-
   Ok(#(
     context,
     dict.from_list(
