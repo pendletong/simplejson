@@ -7,7 +7,7 @@ import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, type ValidationNode, AlwaysFail,
-  Context, IncorrectType, InvalidComparison, MissingKey, NoAnnotation,
+  Context, IncorrectType, InvalidComparison, MissingKey, NodeAnnotation,
   ObjectAnnotation, Property, SchemaError, SchemaFailure, Valid,
   ValidatorProperties,
 }
@@ -213,7 +213,7 @@ fn dependent_schemas(
                           json,
                           validator,
                           schema,
-                          NoAnnotation,
+                          NodeAnnotation([], None, None),
                         )
                       {
                         #(Valid, ann) ->
@@ -283,18 +283,25 @@ pub fn unevaluated_properties(
       case b {
         True -> #(context, fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
-          let assert ObjectAnnotation(matched) = ann
+          let ObjectAnnotation(matched) = types.get_object_annotation(ann)
           #(
             Valid,
-            ObjectAnnotation(dict.merge(
-              matched,
-              dict.keys(d) |> list.map(fn(k) { #(k, Nil) }) |> dict.from_list,
-            )),
+            NodeAnnotation(
+              ..ann,
+              object_annotation: Some(
+                ObjectAnnotation(dict.merge(
+                  matched,
+                  dict.keys(d)
+                    |> list.map(fn(k) { #(k, Nil) })
+                    |> dict.from_list,
+                )),
+              ),
+            ),
           )
         })
         False -> #(context, fn(json, _, ann) {
           let assert jsonvalue.JsonObject(d, _) = json
-          let assert ObjectAnnotation(matches) = ann
+          let ObjectAnnotation(matches) = types.get_object_annotation(ann)
           let d = dict.fold(matches, d, fn(d, k, _) { dict.delete(d, k) })
           case dict.is_empty(d) {
             True -> #(Valid, ann)
@@ -309,20 +316,27 @@ pub fn unevaluated_properties(
         Ok(Context(_, Some(validator), _, _) as context) -> {
           Ok(
             #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
-              let assert ObjectAnnotation(matches) = ann |> echo as "UNEVAL"
+              let ObjectAnnotation(matches) =
+                types.get_object_annotation(ann) |> echo as "uneval"
 
               case json {
                 jsonvalue.JsonObject(d, _) -> {
                   dict.filter(d, fn(k, _) { !dict.has_key(matches, k) })
                   |> dict.to_list
                   |> list.fold_until(#(Valid, ann), fn(state, entry) {
-                    let assert ObjectAnnotation(matches) = state.1
+                    let ObjectAnnotation(matches) =
+                      types.get_object_annotation(state.1)
                     let #(k, v) = entry
                     case validator2.do_validate(v, validator, schema, state.1) {
                       #(Valid, _) ->
                         Continue(#(
                           Valid,
-                          ObjectAnnotation(dict.insert(matches, k, Nil)),
+                          NodeAnnotation(
+                            ..ann,
+                            object_annotation: Some(
+                              ObjectAnnotation(dict.insert(matches, k, Nil)),
+                            ),
+                          ),
                         ))
                       #(err, _) -> Stop(#(err, ann))
                     }
@@ -385,7 +399,7 @@ fn property_names(
                             JsonString(key, None),
                             validator,
                             schema,
-                            NoAnnotation,
+                            NodeAnnotation([], None, None),
                           )
                         {
                           #(Valid, _) -> Error(Nil)

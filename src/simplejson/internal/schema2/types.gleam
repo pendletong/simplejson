@@ -30,9 +30,11 @@ pub type Context {
 }
 
 pub type Combination {
+  AllOf
+  AnyOf
   All
   Any
-  One
+  OneOf
 }
 
 pub type ValidationNode {
@@ -51,7 +53,6 @@ pub type ValidationNode {
     tests: List(ValidationNode),
     combination: Combination,
     map_error: fn(List(ValidationInfo)) -> List(ValidationInfo),
-    isolate_annotation: Bool,
   )
   IfThenValidation(
     when: ValidationNode,
@@ -73,14 +74,38 @@ pub type ValidationNode {
 }
 
 pub type NodeAnnotation {
-  NoAnnotation
+  NodeAnnotation(
+    post_validation: List(ValidationNode),
+    array_annotation: Option(ArrayAnnotation),
+    object_annotation: Option(ObjectAnnotation),
+  )
+}
+
+pub type ArrayAnnotation {
   ArrayAnnotation(
     items_index: Option(Int),
     items_all: Option(Bool),
     contains: Option(List(Int)),
     contains_all: Option(Bool),
   )
+}
+
+pub type ObjectAnnotation {
   ObjectAnnotation(prop_matches: Dict(String, Nil))
+}
+
+pub fn get_array_annotation(annotation: NodeAnnotation) -> ArrayAnnotation {
+  case annotation {
+    NodeAnnotation(_, Some(aa), _) -> aa
+    _ -> ArrayAnnotation(None, None, None, None)
+  }
+}
+
+pub fn get_object_annotation(annotation: NodeAnnotation) -> ObjectAnnotation {
+  case annotation {
+    NodeAnnotation(_, _, Some(oa)) -> oa
+    _ -> ObjectAnnotation(dict.new())
+  }
 }
 
 pub type SchemaError {
@@ -362,48 +387,66 @@ pub fn swap_value_type(prop: Property, t: ValueType) -> Property {
   }
 }
 
-pub fn do_merge_annotations(annotations: List(NodeAnnotation)) -> NodeAnnotation {
-  let annotations = list.filter(annotations, fn(a) { a != NoAnnotation })
-  case list.first(annotations) {
-    Ok(ObjectAnnotation(_)) -> {
-      annotations
-      |> list.fold(ObjectAnnotation(dict.new()), fn(ann, i) {
-        let assert ObjectAnnotation(annd) = ann
-        let assert ObjectAnnotation(d) = i
-        ObjectAnnotation(dict.merge(annd, d))
-      })
+pub fn merge_array_annotations(
+  annotation: Option(ArrayAnnotation),
+  to_merge: Option(ArrayAnnotation),
+) -> Option(ArrayAnnotation) {
+  case annotation, to_merge {
+    None, None -> None
+    None, merge -> merge
+    merge, None -> merge
+    Some(orig), Some(merge) -> {
+      let ArrayAnnotation(v1, v2, v3, v4) = orig
+      let ArrayAnnotation(i1, i2, i3, i4) = merge
+      let r1 = case v1, i1 {
+        Some(v), Some(i) -> Some(int.max(v, i))
+        None, Some(i) -> Some(i)
+        Some(v), None -> Some(v)
+        None, None -> None
+      }
+      let r2 = case v2, i2 {
+        Some(True), _ | _, Some(True) -> Some(True)
+        None, None -> None
+        _, _ -> Some(False)
+      }
+      let r3 = case v3, i3 {
+        Some(v), Some(i) -> Some(list.flatten([v, i]) |> list.unique)
+        None, Some(i) -> Some(i)
+        Some(v), None -> Some(v)
+        None, None -> None
+      }
+      let r4 = case v4, i4 {
+        Some(True), _ | _, Some(True) -> Some(True)
+        None, None -> None
+        _, _ -> Some(False)
+      }
+      Some(ArrayAnnotation(r1, r2, r3, r4))
     }
-    Ok(ArrayAnnotation(_, _, _, _)) -> {
-      annotations
-      |> list.fold(ArrayAnnotation(None, None, None, None), fn(ann, i) {
-        let assert ArrayAnnotation(v1, v2, v3, v4) = ann
-        let assert ArrayAnnotation(i1, i2, i3, i4) = i
-        let r1 = case v1, i1 {
-          Some(v), Some(i) -> Some(int.max(v, i))
-          None, Some(i) -> Some(i)
-          Some(v), None -> Some(v)
-          None, None -> None
-        }
-        let r2 = case v2, i2 {
-          Some(True), _ | _, Some(True) -> Some(True)
-          None, None -> None
-          _, _ -> Some(False)
-        }
-        let r3 = case v3, i3 {
-          Some(v), Some(i) -> Some(list.flatten([v, i]) |> list.unique)
-          None, Some(i) -> Some(i)
-          Some(v), None -> Some(v)
-          None, None -> None
-        }
-        let r4 = case v4, i4 {
-          Some(True), _ | _, Some(True) -> Some(True)
-          None, None -> None
-          _, _ -> Some(False)
-        }
-        ArrayAnnotation(r1, r2, r3, r4)
-      })
-    }
-    Ok(a) -> a
-    _ -> NoAnnotation
   }
+}
+
+pub fn merge_object_annotation(
+  annotation: Option(ObjectAnnotation),
+  to_merge: Option(ObjectAnnotation),
+) -> Option(ObjectAnnotation) {
+  case annotation, to_merge {
+    None, None -> None
+    None, merge -> merge
+    merge, None -> merge
+    Some(orig), Some(merge) -> {
+      let ObjectAnnotation(annd) = orig
+      let ObjectAnnotation(d) = merge
+      Some(ObjectAnnotation(dict.merge(annd, d)))
+    }
+  }
+}
+
+pub fn do_merge_annotations(annotations: List(NodeAnnotation)) -> NodeAnnotation {
+  list.fold(annotations, NodeAnnotation([], None, None), fn(ann, i) {
+    NodeAnnotation(
+      list.append(ann.post_validation, i.post_validation) |> list.unique,
+      merge_array_annotations(ann.array_annotation, i.array_annotation),
+      merge_object_annotation(ann.object_annotation, i.object_annotation),
+    )
+  })
 }

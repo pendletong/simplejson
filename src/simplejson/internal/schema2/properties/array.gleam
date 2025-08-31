@@ -7,8 +7,8 @@ import gleam/result
 import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, type ValidationNode, ArrayAnnotation,
-  Context, InvalidComparison, NoAnnotation, Property, SchemaError, SchemaFailure,
-  Valid,
+  Context, InvalidComparison, NodeAnnotation, Property, SchemaError,
+  SchemaFailure, Valid,
 }
 import simplejson/internal/schema2/validator2
 import simplejson/internal/utils
@@ -68,8 +68,8 @@ pub fn get_min_contains(
     jsonvalue.get_int_from_number(v) |> result.replace_error(SchemaError),
   )
   Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-    case ann {
-      ArrayAnnotation(_, _, Some(l), _) -> {
+    case ann.array_annotation {
+      Some(ArrayAnnotation(_, _, Some(l), _)) -> {
         case int.compare(list.length(l), min_val) {
           Eq | Gt -> #(Valid, ann)
           Lt -> #(InvalidComparison(v, name, jsonvalue), ann)
@@ -91,8 +91,8 @@ fn max_contains(
   )
 
   Ok(fn(jsonvalue: JsonValue, ann: NodeAnnotation) {
-    case ann {
-      ArrayAnnotation(_, _, Some(l), _) -> {
+    case ann.array_annotation {
+      Some(ArrayAnnotation(_, _, Some(l), _)) -> {
         case int.compare(list.length(l), max_val) {
           Eq | Lt -> #(Valid, ann)
           Gt -> #(InvalidComparison(v, "minContains", jsonvalue), ann)
@@ -198,16 +198,24 @@ pub fn unevaluated_items(
     JsonBool(b, _) -> {
       case b {
         True -> #(context, fn(_, _, ann) {
-          let assert ArrayAnnotation(_, _, _, _) = ann
-          #(Valid, ArrayAnnotation(..ann, items_all: Some(True)))
+          let arann = types.get_array_annotation(ann)
+          #(
+            Valid,
+            NodeAnnotation(
+              ..ann,
+              array_annotation: Some(
+                ArrayAnnotation(..arann, items_all: Some(True)),
+              ),
+            ),
+          )
         })
         False -> #(context, fn(json, _, ann) {
-          let assert ArrayAnnotation(
+          let ArrayAnnotation(
             items_index:,
             items_all:,
             contains:,
             contains_all:,
-          ) = ann
+          ) = types.get_array_annotation(ann)
           case contains_all, items_all {
             Some(True), _ | _, Some(True) -> #(Valid, ann)
             _, _ -> {
@@ -240,12 +248,13 @@ pub fn unevaluated_items(
         Ok(Context(_, Some(validator), _, _) as context) -> {
           Ok(
             #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
-              let assert ArrayAnnotation(
+              let arann = types.get_array_annotation(ann)
+              let ArrayAnnotation(
                 items_index:,
                 items_all:,
                 contains:,
                 contains_all:,
-              ) = ann
+              ) = arann
               case contains_all, items_all {
                 Some(True), _ | _, Some(True) -> #(Valid, ann)
                 _, _ -> {
@@ -269,13 +278,18 @@ pub fn unevaluated_items(
                         node,
                         validator,
                         schema,
-                        NoAnnotation,
+                        NodeAnnotation([], None, None),
                       )
                     {
                       #(Valid, _) ->
                         list.Continue(#(
                           Valid,
-                          ArrayAnnotation(..ann, items_all: Some(True)),
+                          NodeAnnotation(
+                            ..ann,
+                            array_annotation: Some(
+                              ArrayAnnotation(..arann, items_all: Some(True)),
+                            ),
+                          ),
                         ))
                       #(v, _) -> list.Stop(#(v, ann))
                     }

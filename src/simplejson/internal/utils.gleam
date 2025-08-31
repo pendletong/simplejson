@@ -53,7 +53,7 @@ pub fn unwrap_to_multiple(
 ) -> Option(types.ValidationNode) {
   option.map(contexts, fn(contexts) {
     unwrap_context_list(contexts)
-    |> MultipleValidation(combination, function.identity, True)
+    |> MultipleValidation(combination, function.identity)
   })
 }
 

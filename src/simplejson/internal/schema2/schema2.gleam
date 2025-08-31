@@ -224,12 +224,11 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
     ]
     |> option.values
   {
-    // [v, FinishLevel] -> Ok(add_validator_to_context(context, v))
     [FinishLevel] -> Error(SchemaError)
     v ->
       Ok(add_validator_to_context(
         context,
-        MultipleValidation(v, types.All, function.identity, False),
+        MultipleValidation(v, types.All, function.identity),
       ))
   }
 }
@@ -241,7 +240,6 @@ fn validate_enum(v: JsonValue) {
         list.map(dict.values(array), validate_const),
         types.Any,
         function.identity,
-        False,
       )
     }
     _ -> panic as "Enum parse error"
@@ -471,7 +469,7 @@ fn get_validation_for_type(
       v ->
         add_validator_to_context(
           context,
-          MultipleValidation(v, types.All, function.identity, False),
+          MultipleValidation(v, types.All, function.identity),
         )
     },
   )
@@ -516,9 +514,9 @@ fn get_subschemas(
 
   let context = construct_new_context(context, [all_of, any_of, one_of])
 
-  let all_of = utils.unwrap_to_multiple(all_of, types.All)
-  let any_of = utils.unwrap_to_multiple(any_of, types.Any)
-  let one_of = utils.unwrap_to_multiple(one_of, types.One)
+  let all_of = utils.unwrap_to_multiple(all_of, types.AllOf)
+  let any_of = utils.unwrap_to_multiple(any_of, types.AnyOf)
+  let one_of = utils.unwrap_to_multiple(one_of, types.OneOf)
 
   use not <- result.try(
     get_property(
