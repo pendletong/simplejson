@@ -125,22 +125,25 @@ pub fn do_validate(
       }
     }
     types.RefValidation(jsonpointer:) -> {
-      case pointer.jsonpointer(schema.schema, jsonpointer) {
-        Error(_) -> todo as "Nonpointer"
-        Ok(schema_json) -> {
-          case dict.get(schema.refs, schema_json) {
-            Ok(Some(validation)) -> {
-              do_validate(
-                json,
-                validation,
-                schema,
-                NodeAnnotation([], None, None),
-              )
-            }
-            _ -> {
-              panic
-            }
-          }
+      do_ref_validation(json, schema, jsonpointer)
+    }
+  }
+}
+
+fn do_ref_validation(
+  json: JsonValue,
+  schema: Schema,
+  jsonpointer: String,
+) -> #(ValidationInfo, NodeAnnotation) {
+  case pointer.jsonpointer(schema.schema, jsonpointer) {
+    Error(_) -> todo as "Nonpointer"
+    Ok(schema_json) -> {
+      case dict.get(schema.info, schema_json) {
+        Ok(Some(validation)) -> {
+          do_validate(json, validation, schema, NodeAnnotation([], None, None))
+        }
+        _ -> {
+          panic
         }
       }
     }

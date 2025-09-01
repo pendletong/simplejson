@@ -3,8 +3,8 @@ import gleam/result
 import gleam/uri
 import simplejson/jsonvalue.{
   type JsonPathError, type JsonPointerError, type JsonValue, InvalidJsonPath,
-  InvalidPointer, JsonArray, JsonObject, ParseError, PathNotFound,
-  PointerParseError, PointerPathNotFound,
+  InvalidPointer, JsonArray, JsonObject, PathNotFound, PointerParseError,
+  PointerPathNotFound,
 }
 
 import gleam/dict

@@ -10,12 +10,15 @@ import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonNull, JsonNumber, JsonObject, JsonString,
 }
 
+pub type SchemaInfo =
+  dict.Dict(jsonvalue.JsonValue, Option(ValidationNode))
+
 pub type Schema {
   Schema(
     id: Option(String),
     schema_definition: Option(String),
     schema: JsonValue,
-    refs: dict.Dict(jsonvalue.JsonValue, Option(ValidationNode)),
+    info: SchemaInfo,
     validation: ValidationNode,
   )
 }
@@ -25,7 +28,7 @@ pub type Context {
     current_node: JsonValue,
     current_validator: Option(ValidationNode),
     root_node: JsonValue,
-    schemas: dict.Dict(jsonvalue.JsonValue, Option(ValidationNode)),
+    schemas: SchemaInfo,
   )
 }
 

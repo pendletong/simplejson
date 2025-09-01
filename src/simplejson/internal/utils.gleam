@@ -3,8 +3,8 @@ import gleam/function
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import simplejson/internal/schema2/types.{
-  type Combination, type Context, type Property, type SchemaError, Context,
-  InvalidProperty, MultipleValidation,
+  type Combination, type Context, type Property, type SchemaError,
+  type ValidationNode, Context, InvalidProperty, MultipleValidation,
 }
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
@@ -17,6 +17,19 @@ pub fn merge_context(context1: Context, context2: Context) -> Context {
     current_validator: None,
     schemas: dict.merge(context2.schemas, context1.schemas),
   )
+}
+
+pub fn add_validator_to_context(
+  context: Context,
+  validator: ValidationNode,
+) -> Context {
+  let new_schemas = case context.current_node {
+    JsonObject(_, _) | JsonBool(_, _) ->
+      dict.insert(context.schemas, context.current_node, Some(validator))
+
+    _ -> context.schemas
+  }
+  Context(..context, current_validator: Some(validator), schemas: new_schemas)
 }
 
 pub fn construct_new_context(
@@ -50,7 +63,7 @@ pub fn unwrap_context_list(contexts: List(Context)) {
 pub fn unwrap_to_multiple(
   contexts: Option(List(Context)),
   combination: Combination,
-) -> Option(types.ValidationNode) {
+) -> Option(ValidationNode) {
   option.map(contexts, fn(contexts) {
     unwrap_context_list(contexts)
     |> MultipleValidation(combination, function.identity)
