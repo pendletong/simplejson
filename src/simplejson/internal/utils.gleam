@@ -2,9 +2,11 @@ import gleam/dict
 import gleam/function
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
+import gleam/uri
 import simplejson/internal/schema2/types.{
   type Combination, type Context, type Property, type SchemaError,
-  type ValidationNode, Context, InvalidProperty, MultipleValidation,
+  type SchemaInfo, type ValidationNode, Context, InvalidProperty,
+  MultipleValidation, SchemaInfo,
 }
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonBool, JsonNull, JsonNumber, JsonObject,
@@ -15,7 +17,28 @@ pub fn merge_context(context1: Context, context2: Context) -> Context {
   Context(
     ..context1,
     current_validator: None,
-    schemas: dict.merge(context2.schemas, context1.schemas),
+    schema_info: merge_schema_info(context2.schema_info, context1.schema_info),
+  )
+}
+
+fn merge_schema_info(info1: SchemaInfo, info2: SchemaInfo) -> SchemaInfo {
+  SchemaInfo(
+    dict.merge(info1.validators, info2.validators),
+    dict.merge(info1.refs, info2.refs),
+  )
+}
+
+pub fn add_uri_to_context(
+  context: Context,
+  uri: uri.Uri,
+  json: JsonValue,
+) -> Context {
+  Context(
+    ..context,
+    schema_info: SchemaInfo(
+      ..context.schema_info,
+      refs: dict.insert(context.schema_info.refs, uri, json),
+    ),
   )
 }
 
@@ -23,13 +46,24 @@ pub fn add_validator_to_context(
   context: Context,
   validator: ValidationNode,
 ) -> Context {
-  let new_schemas = case context.current_node {
+  let new_schema_info = case context.current_node {
     JsonObject(_, _) | JsonBool(_, _) ->
-      dict.insert(context.schemas, context.current_node, Some(validator))
+      SchemaInfo(
+        ..context.schema_info,
+        validators: dict.insert(
+          context.schema_info.validators,
+          context.current_node,
+          Some(validator),
+        ),
+      )
 
-    _ -> context.schemas
+    _ -> context.schema_info
   }
-  Context(..context, current_validator: Some(validator), schemas: new_schemas)
+  Context(
+    ..context,
+    current_validator: Some(validator),
+    schema_info: new_schema_info,
+  )
 }
 
 pub fn construct_new_context(

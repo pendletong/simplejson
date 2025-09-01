@@ -6,11 +6,12 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/regexp.{type Regexp}
 import gleam/result
+import gleam/uri.{Uri}
 import simplejson/internal/pointer
 import simplejson/internal/schema2/types.{
   type NodeAnnotation, type Schema, type ValidationInfo, type ValidationNode,
-  type ValueType, AlwaysFail, ArrayAnnotation, MultipleInfo, MultipleValidation,
-  NoTypeYet, NodeAnnotation, ObjectAnnotation, Schema, Valid,
+  type ValueType, AlwaysFail, ArrayAnnotation, InvalidRef, MultipleInfo,
+  MultipleValidation, NoTypeYet, NodeAnnotation, ObjectAnnotation, Schema, Valid,
 }
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
@@ -124,8 +125,8 @@ pub fn do_validate(
         #(_, _) -> #(Valid, annotation)
       }
     }
-    types.RefValidation(jsonpointer:) -> {
-      do_ref_validation(json, schema, jsonpointer)
+    types.RefValidation(ref:) -> {
+      do_ref_validation(json, schema, ref)
     }
   }
 }
@@ -133,17 +134,29 @@ pub fn do_validate(
 fn do_ref_validation(
   json: JsonValue,
   schema: Schema,
-  jsonpointer: String,
+  ref: String,
 ) -> #(ValidationInfo, NodeAnnotation) {
-  case pointer.jsonpointer(schema.schema, jsonpointer) {
-    Error(_) -> todo as "Nonpointer"
-    Ok(schema_json) -> {
-      case dict.get(schema.info, schema_json) {
-        Ok(Some(validation)) -> {
-          do_validate(json, validation, schema, NodeAnnotation([], None, None))
-        }
-        _ -> {
-          panic
+  let annotation = NodeAnnotation([], None, None)
+  case uri.parse(ref) {
+    Error(_) -> #(InvalidRef(ref), annotation)
+    Ok(Uri(_scheme, _userinfo, _host, _port, _path, _query, fragment:) as uri) -> {
+      let root_uri = Uri(..uri, fragment: None)
+      let root = case dict.get(schema.info.refs, root_uri) {
+        Ok(json) -> json
+        _ -> panic as { "uri not implemented yet " <> uri.to_string(root_uri) }
+      }
+
+      case pointer.jsonpointer(root, fragment |> option.unwrap("")) {
+        Error(_) -> todo as "Nonpointer"
+        Ok(schema_json) -> {
+          case dict.get(schema.info.validators, schema_json) {
+            Ok(Some(validation)) -> {
+              do_validate(json, validation, schema, annotation)
+            }
+            _ -> {
+              panic
+            }
+          }
         }
       }
     }

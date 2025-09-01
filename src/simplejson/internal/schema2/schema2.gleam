@@ -6,6 +6,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
 import gleam/result
+import gleam/uri
 import simplejson
 import simplejson/internal/schema2/consts.{
   const_property, contains_property, defs_property, enum_property,
@@ -19,8 +20,8 @@ import simplejson/internal/schema2/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, type ValidationNode, ArraySubValidation,
   Context, FinishLevel, InvalidJson, InvalidType, MultipleValidation, Property,
-  RefValidation, Schema, SchemaError, SimpleValidation, TypeValidation,
-  Validation, ValidatorProperties,
+  RefValidation, Schema, SchemaError, SchemaInfo, SimpleValidation,
+  TypeValidation, Validation, ValidatorProperties,
 }
 import simplejson/internal/stringify
 
@@ -52,7 +53,13 @@ pub fn get_validator_from_json(
     | JsonString(_, Some(_)) -> utils.strip_metadata(schema_json)
     _ -> schema_json
   }
-  let context = Context(schema_json, None, schema_json, dict.new())
+  let context =
+    Context(
+      schema_json,
+      None,
+      schema_json,
+      SchemaInfo(dict.new(), dict.insert(dict.new(), uri.empty, schema_json)),
+    )
   use schema_uri <- result.try(get_property(
     context,
     schema_property,
@@ -70,7 +77,7 @@ pub fn get_validator_from_json(
           }),
         None,
         schema_json,
-        new_context.schemas,
+        new_context.schema_info,
         option.unwrap(new_context.current_validator, SimpleValidation(True)),
       ))
     Error(err) -> Error(err)
