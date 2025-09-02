@@ -17,6 +17,7 @@ const run_optional = False
 const files = [
   "additionalProperties.json",
   "allOf.json",
+  "anchor.json",
   "anyOf.json",
   "boolean_schema.json",
   "const.json",

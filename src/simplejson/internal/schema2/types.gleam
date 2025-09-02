@@ -128,6 +128,7 @@ pub type SchemaError {
   FailedValidation(value: JsonValue)
   MultipleErrors(errors: List(SchemaError))
   UnknownType(t: String)
+
   RemoteRef(ref: String)
 }
 

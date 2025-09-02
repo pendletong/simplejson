@@ -134,17 +134,31 @@ fn add_validator(
   |> utils.revert_current_node(context.current_node)
 }
 
+fn pop_id(path: List(JsonValue)) -> Result(#(JsonValue, List(JsonValue)), Nil) {
+  case path {
+    [] -> Error(Nil)
+    [i, ..rest] -> {
+      let assert JsonObject(d, _) = i
+      case dict.get(d, "$id") {
+        Ok(_) -> Ok(#(i, rest))
+        Error(_) -> pop_id(rest)
+      }
+    }
+  }
+}
+
 fn get_current_uri(context: Context, uri: Uri) -> Result(Uri, Nil) {
-  case
-    list.find(context.current_path, fn(e) {
-      let assert JsonObject(d, _) = e
-      dict.get(d, "$id") |> result.is_ok
-    })
-  {
-    Ok(JsonObject(d, _)) -> {
+  case pop_id(context.current_path) {
+    Ok(#(JsonObject(d, _), path)) -> {
       case dict.get(d, "$id") {
         Ok(JsonString(id, _)) -> {
-          use parent_uri <- result.try(uri.parse(id))
+          use parent_uri <- result.try({
+            case uri.parse(id) {
+              Ok(Uri(Some(_), _, _, _, _, _, _)) as uri -> uri
+              Error(_) -> Error(Nil)
+              _ -> get_current_uri(Context(..context, current_path: path), uri)
+            }
+          })
           use current_uri <- result.try(uri.merge(parent_uri, uri))
           Ok(current_uri)
         }
@@ -163,7 +177,6 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
 
   use context <- result.try(case dict.get(d, "$id") {
     Ok(JsonString(id, _) as v) -> {
-      context.current_path |> list.map(stringify.to_string)
       let uri = uri.parse(id)
       case uri {
         Ok(Uri(Some("urn"), _, _, _, _, _, _) as uri) -> {
@@ -216,10 +229,23 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
     Ok(_) -> panic
     Error(_) -> Nil
   }
-  case dict.get(d, "$anchor") {
-    Ok(_) -> panic
-    Error(_) -> Nil
-  }
+  use context <- result.try(case dict.get(d, "$anchor") {
+    Ok(JsonString(a, _)) -> {
+      let anchor_uri = Uri(..context.current_uri, fragment: Some(a))
+      let schema_info =
+        SchemaInfo(
+          context.schema_info.validators,
+          dict.insert(
+            context.schema_info.refs,
+            anchor_uri,
+            context.current_node,
+          ),
+        )
+      Ok(Context(..context, schema_info:))
+    }
+    Ok(_) -> Error(types.InvalidProperty("$anchor", context.current_node))
+    _ -> Ok(context)
+  })
 
   use #(ref, context) <- result.try(case dict.get(d, "$ref") {
     Ok(JsonString(ref, _) as ref_json) -> {

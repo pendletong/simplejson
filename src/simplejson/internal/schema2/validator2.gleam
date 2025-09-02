@@ -10,9 +10,10 @@ import gleam/string
 import gleam/uri.{type Uri, Uri}
 import simplejson/internal/pointer
 import simplejson/internal/schema2/types.{
-  type NodeAnnotation, type Schema, type ValidationInfo, type ValidationNode,
-  type ValueType, AlwaysFail, ArrayAnnotation, MultipleInfo, MultipleValidation,
-  NoTypeYet, NodeAnnotation, ObjectAnnotation, Schema, Valid,
+  type NodeAnnotation, type Schema, type SchemaInfo, type ValidationInfo,
+  type ValidationNode, type ValueType, AlwaysFail, ArrayAnnotation, InvalidRef,
+  MultipleInfo, MultipleValidation, NoTypeYet, NodeAnnotation, ObjectAnnotation,
+  Schema, Valid,
 }
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
@@ -142,35 +143,51 @@ pub fn do_validate(
   }
 }
 
+fn get_ref(ref: Uri, info: SchemaInfo) -> Result(ValidationNode, Nil) {
+  case dict.get(info.refs, ref) {
+    Ok(json) -> {
+      case dict.get(info.validators, json) {
+        Ok(Some(v)) -> Ok(v)
+        _ -> Error(Nil)
+      }
+    }
+    Error(_) -> {
+      let Uri(_scheme, _userinfo, _host, _port, _path, _query, fragment:) = ref
+      let root_uri = Uri(..ref, fragment: None)
+      let root = case dict.get(info.refs, root_uri) {
+        Ok(json) -> json
+        _ -> panic as { "uri not implemented yet " <> uri.to_string(root_uri) }
+      }
+      let fragment = fragment |> option.unwrap("")
+      let fragment = case string.starts_with(fragment, "#") {
+        True -> fragment
+        False -> "#" <> fragment
+      }
+      case pointer.jsonpointer(root, fragment) {
+        Error(_) -> todo as { "Nonpointer " <> fragment }
+        Ok(schema_json) -> {
+          case dict.get(info.validators, schema_json) {
+            Ok(Some(v)) -> Ok(v)
+            _ -> Error(Nil)
+          }
+        }
+      }
+    }
+  }
+}
+
 fn do_ref_validation(
   json: JsonValue,
   schema: Schema,
   ref: Uri,
 ) -> #(ValidationInfo, NodeAnnotation) {
-  let annotation = NodeAnnotation([], None, None)
-  let Uri(_scheme, _userinfo, _host, _port, _path, _query, fragment:) = ref
-  let root_uri = Uri(..ref, fragment: None)
-  let root = case dict.get(schema.info.refs, root_uri) {
-    Ok(json) -> json
-    _ -> panic as { "uri not implemented yet " <> uri.to_string(root_uri) }
-  }
-  let fragment = fragment |> option.unwrap("")
-  let fragment = case string.starts_with(fragment, "#") {
-    True -> fragment
-    False -> "#" <> fragment
-  }
-  case pointer.jsonpointer(root, fragment) {
-    Error(_) -> todo as { "Nonpointer " <> fragment }
-    Ok(schema_json) -> {
-      case dict.get(schema.info.validators, schema_json) {
-        Ok(Some(validation)) -> {
-          do_validate(json, validation, schema, annotation)
-        }
-        _ -> {
-          panic
-        }
-      }
-    }
+  case get_ref(ref, schema.info) {
+    Ok(validator) ->
+      do_validate(json, validator, schema, NodeAnnotation([], None, None))
+    Error(_) -> #(
+      InvalidRef(uri.to_string(ref)),
+      NodeAnnotation([], None, None),
+    )
   }
 }
 
