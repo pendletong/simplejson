@@ -166,7 +166,15 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
       context.current_path |> list.map(stringify.to_string)
       let uri = uri.parse(id)
       case uri {
-        Ok(Uri(_, _, _, _, "", _, _) as uri) -> {
+        Ok(Uri(Some("urn"), _, _, _, _, _, _) as uri) -> {
+          let schema_info =
+            SchemaInfo(
+              context.schema_info.validators,
+              dict.insert(context.schema_info.refs, uri, context.current_node),
+            )
+          Ok(Context(..context, schema_info:, current_uri: uri))
+        }
+        Ok(Uri(_, _, None, _, _, _, _) as uri) -> {
           use current_uri <- result.try(
             get_current_uri(context, uri)
             |> result.replace_error(types.InvalidProperty("$id", v)),
@@ -208,6 +216,10 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
     Ok(_) -> panic
     Error(_) -> Nil
   }
+  case dict.get(d, "$anchor") {
+    Ok(_) -> panic
+    Error(_) -> Nil
+  }
 
   use #(ref, context) <- result.try(case dict.get(d, "$ref") {
     Ok(JsonString(ref, _) as ref_json) -> {
@@ -215,18 +227,18 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
         uri.parse(ref)
         |> result.replace_error(types.InvalidProperty("$ref", ref_json)),
       )
-      use uri <- result.try(case uri {
-        Uri(None, None, None, None, "", None, Some(_)) -> Ok(uri)
-        Uri(Some("urn"), _, _, _, _, _, _) -> Ok(uri)
-        Uri(_, _, _, _, "", _, _) as uri | Uri(_, _, None, _, _, _, _) as uri -> {
-          use current_uri <- result.try(
-            get_current_uri(context, uri)
-            |> result.replace_error(types.InvalidProperty("$ref", ref_json)),
-          )
-          Ok(current_uri)
+      use uri <- result.try(case context.current_uri, uri {
+        Uri(Some("urn"), _, _, _, _, _, _),
+          Uri(None, None, None, None, "", None, Some(fragment))
+        -> Ok(Uri(..context.current_uri, fragment: Some(fragment)))
+        _, Uri(Some(_), _, _, _, _, _, _) -> Ok(uri)
+        Uri(Some(_), _, _, _, _, _, _), _ -> {
+          uri.merge(context.current_uri, uri)
+          |> result.replace_error(types.InvalidProperty("$ref", ref_json))
         }
-        _ -> Ok(uri)
+        _, _ -> Ok(uri)
       })
+
       let root_uri = Uri(..uri, fragment: None)
       let context = case dict.has_key(context.schema_info.refs, root_uri) {
         True -> context
