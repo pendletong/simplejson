@@ -6,12 +6,13 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/regexp.{type Regexp}
 import gleam/result
+import gleam/string
 import gleam/uri.{type Uri, Uri}
 import simplejson/internal/pointer
 import simplejson/internal/schema2/types.{
   type NodeAnnotation, type Schema, type ValidationInfo, type ValidationNode,
-  type ValueType, AlwaysFail, ArrayAnnotation, InvalidRef, MultipleInfo,
-  MultipleValidation, NoTypeYet, NodeAnnotation, ObjectAnnotation, Schema, Valid,
+  type ValueType, AlwaysFail, ArrayAnnotation, MultipleInfo, MultipleValidation,
+  NoTypeYet, NodeAnnotation, ObjectAnnotation, Schema, Valid,
 }
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
@@ -153,9 +154,13 @@ fn do_ref_validation(
     Ok(json) -> json
     _ -> panic as { "uri not implemented yet " <> uri.to_string(root_uri) }
   }
-
-  case pointer.jsonpointer(root, fragment |> option.unwrap("")) {
-    Error(_) -> todo as "Nonpointer"
+  let fragment = fragment |> option.unwrap("")
+  let fragment = case string.starts_with(fragment, "#") {
+    True -> fragment
+    False -> "#" <> fragment
+  }
+  case pointer.jsonpointer(root, fragment) {
+    Error(_) -> todo as { "Nonpointer " <> fragment }
     Ok(schema_json) -> {
       case dict.get(schema.info.validators, schema_json) {
         Ok(Some(validation)) -> {

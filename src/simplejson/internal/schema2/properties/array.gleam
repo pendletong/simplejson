@@ -244,7 +244,7 @@ pub fn unevaluated_items(
     }
     JsonObject(_, _) -> {
       case get_validator(context) {
-        Ok(Context(_, Some(validator), _, _, _, _) as context) -> {
+        Ok(Context(_, Some(validator), _, _, _, _, _) as context) -> {
           Ok(
             #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
               let arann = types.get_array_annotation(ann)

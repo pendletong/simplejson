@@ -36,6 +36,7 @@ pub type Context {
     schema_info: SchemaInfo,
     current_path: List(JsonValue),
     current_uri: Uri,
+    refs_to_process: List(Uri),
   )
 }
 
@@ -127,6 +128,7 @@ pub type SchemaError {
   FailedValidation(value: JsonValue)
   MultipleErrors(errors: List(SchemaError))
   UnknownType(t: String)
+  RemoteRef(ref: String)
 }
 
 pub type ValidationInfo {

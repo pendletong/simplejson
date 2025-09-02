@@ -61,6 +61,7 @@ pub fn get_validator_from_json(
       SchemaInfo(dict.new(), dict.insert(dict.new(), uri.empty, schema_json)),
       [],
       uri.empty,
+      [],
     )
   use schema_uri <- result.try(get_property(
     context,
@@ -68,7 +69,8 @@ pub fn get_validator_from_json(
     // This needs to be fixed to validate uris
   ))
   case generate_validator(context, schema_json) {
-    Ok(new_context) ->
+    Ok(new_context) -> {
+      use new_context <- result.try(post_process_refs(new_context))
       Ok(Schema(
         schema_uri
           |> option.map(fn(v) {
@@ -82,7 +84,25 @@ pub fn get_validator_from_json(
         new_context.schema_info,
         option.unwrap(new_context.current_validator, SimpleValidation(True)),
       ))
+    }
     Error(err) -> Error(err)
+  }
+}
+
+fn post_process_refs(context: Context) -> Result(Context, SchemaError) {
+  case context.refs_to_process {
+    [] -> Ok(context)
+    refs -> {
+      list.try_fold(refs, context, fn(context, uri) {
+        let root_uri = Uri(..uri, fragment: None)
+        case dict.has_key(context.schema_info.refs, root_uri) {
+          True -> Ok(context)
+          False -> {
+            Error(types.RemoteRef(uri.to_string(root_uri)))
+          }
+        }
+      })
+    }
   }
 }
 
@@ -189,26 +209,38 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
     Error(_) -> Nil
   }
 
-  use ref <- result.try(case dict.get(d, "$ref") {
+  use #(ref, context) <- result.try(case dict.get(d, "$ref") {
     Ok(JsonString(ref, _) as ref_json) -> {
       use uri <- result.try(
         uri.parse(ref)
         |> result.replace_error(types.InvalidProperty("$ref", ref_json)),
       )
-      case uri {
-        Uri(None, None, None, None, "", None, Some(_)) -> Ok(Some(uri))
-        Uri(_, _, _, _, "", _, _) as uri -> {
+      use uri <- result.try(case uri {
+        Uri(None, None, None, None, "", None, Some(_)) -> Ok(uri)
+        Uri(Some("urn"), _, _, _, _, _, _) -> Ok(uri)
+        Uri(_, _, _, _, "", _, _) as uri | Uri(_, _, None, _, _, _, _) as uri -> {
           use current_uri <- result.try(
             get_current_uri(context, uri)
             |> result.replace_error(types.InvalidProperty("$ref", ref_json)),
           )
-          Ok(Some(current_uri))
+          Ok(current_uri)
         }
-        _ -> Ok(Some(uri))
+        _ -> Ok(uri)
+      })
+      let root_uri = Uri(..uri, fragment: None)
+      let context = case dict.has_key(context.schema_info.refs, root_uri) {
+        True -> context
+        False -> {
+          Context(
+            ..context,
+            refs_to_process: [uri, ..context.refs_to_process] |> list.unique,
+          )
+        }
       }
+      Ok(#(Some(uri), context))
     }
     Ok(j) -> Error(types.InvalidProperty("$ref", j))
-    Error(_) -> Ok(None)
+    Error(_) -> Ok(#(None, context))
   })
 
   use defs <- result.try(get_property(context, defs_property))
@@ -436,7 +468,7 @@ fn get_validation_for_type(
 
   let ifthen = [
     case if_validation {
-      Some(Context(_, Some(if_validator), _, _, _, _)) ->
+      Some(Context(_, Some(if_validator), _, _, _, _, _)) ->
         Some(types.IfThenValidation(
           if_validator,
           then |> to_validator,

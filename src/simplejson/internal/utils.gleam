@@ -18,6 +18,11 @@ pub fn merge_context(context1: Context, context2: Context) -> Context {
     ..context1,
     current_validator: None,
     schema_info: merge_schema_info(context2.schema_info, context1.schema_info),
+    refs_to_process: list.append(
+        context1.refs_to_process,
+        context2.refs_to_process,
+      )
+      |> list.unique,
   )
 }
 
