@@ -6,7 +6,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
 import gleam/result
-import gleam/uri
+import gleam/uri.{type Uri, Uri}
 import simplejson
 import simplejson/internal/schema2/consts.{
   const_property, contains_property, defs_property, enum_property,
@@ -59,6 +59,8 @@ pub fn get_validator_from_json(
       None,
       schema_json,
       SchemaInfo(dict.new(), dict.insert(dict.new(), uri.empty, schema_json)),
+      [],
+      uri.empty,
     )
   use schema_uri <- result.try(get_property(
     context,
@@ -112,11 +114,75 @@ fn add_validator(
   |> utils.revert_current_node(context.current_node)
 }
 
+fn get_current_uri(context: Context, uri: Uri) -> Result(Uri, Nil) {
+  case
+    list.find(context.current_path, fn(e) {
+      let assert JsonObject(d, _) = e
+      dict.get(d, "$id") |> result.is_ok
+    })
+  {
+    Ok(JsonObject(d, _)) -> {
+      case dict.get(d, "$id") {
+        Ok(JsonString(id, _)) -> {
+          use parent_uri <- result.try(uri.parse(id))
+          use current_uri <- result.try(uri.merge(parent_uri, uri))
+          Ok(current_uri)
+        }
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+
 fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
   use d <- result.try(case context.current_node {
     JsonObject(d, _) -> Ok(d)
     _ -> Error(SchemaError)
   })
+
+  use context <- result.try(case dict.get(d, "$id") {
+    Ok(JsonString(id, _) as v) -> {
+      context.current_path |> list.map(stringify.to_string)
+      let uri = uri.parse(id)
+      case uri {
+        Ok(Uri(_, _, _, _, "", _, _) as uri) -> {
+          use current_uri <- result.try(
+            get_current_uri(context, uri)
+            |> result.replace_error(types.InvalidProperty("$id", v)),
+          )
+
+          let schema_info =
+            SchemaInfo(
+              context.schema_info.validators,
+              dict.insert(
+                context.schema_info.refs,
+                current_uri,
+                context.current_node,
+              ),
+            )
+          Ok(Context(..context, schema_info:, current_uri:))
+        }
+        Ok(uri) -> {
+          let schema_info =
+            SchemaInfo(
+              context.schema_info.validators,
+              dict.insert(context.schema_info.refs, uri, context.current_node),
+            )
+          Ok(Context(..context, schema_info:, current_uri: uri))
+        }
+        Error(_) -> Error(types.InvalidProperty("$id", v))
+      }
+    }
+    Ok(v) -> Error(types.InvalidProperty("$id", v))
+    Error(_) -> Ok(context)
+  })
+
+  let context =
+    Context(..context, current_path: [
+      context.current_node,
+      ..context.current_path
+    ])
 
   case dict.get(d, "$dynamicRef") {
     Ok(_) -> panic
@@ -124,7 +190,23 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
   }
 
   use ref <- result.try(case dict.get(d, "$ref") {
-    Ok(JsonString(ref, _)) -> Ok(Some(ref))
+    Ok(JsonString(ref, _) as ref_json) -> {
+      use uri <- result.try(
+        uri.parse(ref)
+        |> result.replace_error(types.InvalidProperty("$ref", ref_json)),
+      )
+      case uri {
+        Uri(None, None, None, None, "", None, Some(_)) -> Ok(Some(uri))
+        Uri(_, _, _, _, "", _, _) as uri -> {
+          use current_uri <- result.try(
+            get_current_uri(context, uri)
+            |> result.replace_error(types.InvalidProperty("$ref", ref_json)),
+          )
+          Ok(Some(current_uri))
+        }
+        _ -> Ok(Some(uri))
+      }
+    }
     Ok(j) -> Error(types.InvalidProperty("$ref", j))
     Error(_) -> Ok(None)
   })
@@ -197,8 +279,6 @@ fn validate_const(v: JsonValue) {
 
 fn compare_jsons(v: JsonValue, json: JsonValue) -> Bool {
   case v, json {
-    JsonNumber(Some(i), _, _), JsonNumber(Some(i2), _, _) -> i == i2
-    JsonNumber(_, Some(f), _), JsonNumber(_, Some(f2), _) -> f == f2
     JsonNumber(Some(i), _, _), JsonNumber(_, Some(f2), _) ->
       int.to_float(i) == f2
     JsonNumber(_, Some(f), _), JsonNumber(Some(i2), _, _) ->
@@ -356,7 +436,7 @@ fn get_validation_for_type(
 
   let ifthen = [
     case if_validation {
-      Some(Context(_, Some(if_validator), _, _)) ->
+      Some(Context(_, Some(if_validator), _, _, _, _)) ->
         Some(types.IfThenValidation(
           if_validator,
           then |> to_validator,

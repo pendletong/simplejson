@@ -6,7 +6,7 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/regexp.{type Regexp}
 import gleam/result
-import gleam/uri.{Uri}
+import gleam/uri.{type Uri, Uri}
 import simplejson/internal/pointer
 import simplejson/internal/schema2/types.{
   type NodeAnnotation, type Schema, type ValidationInfo, type ValidationNode,
@@ -28,6 +28,56 @@ pub fn validate(
   }
 }
 
+fn do_finish_level(
+  json: JsonValue,
+  schema: Schema,
+  annotation: NodeAnnotation,
+) -> #(ValidationInfo, NodeAnnotation) {
+  case annotation, json {
+    NodeAnnotation([], _, _), _ -> #(Valid, NodeAnnotation([], None, None))
+    NodeAnnotation(post_validation, _, _), jsonvalue.JsonObject(_, _)
+    | NodeAnnotation(post_validation, _, _), jsonvalue.JsonArray(_, _)
+    -> {
+      do_validate(
+        json,
+        MultipleValidation(post_validation, types.All, function.identity),
+        schema,
+        NodeAnnotation(..annotation, post_validation: []),
+      )
+      // #(v, NodeAnnotation([], None, None))
+    }
+    _, _ -> #(Valid, NodeAnnotation([], None, None))
+  }
+}
+
+fn do_if_then(
+  json: JsonValue,
+  schema: Schema,
+  annotation: NodeAnnotation,
+  when: ValidationNode,
+  then: Option(ValidationNode),
+  orelse: Option(ValidationNode),
+) -> #(ValidationInfo, NodeAnnotation) {
+  case do_validate(json, when, schema, NodeAnnotation([], None, None)) {
+    #(Valid, annotation) ->
+      case then {
+        Some(then) -> {
+          let #(v, thenann) = do_validate(json, then, schema, annotation)
+          #(v, types.do_merge_annotations([annotation, thenann]))
+        }
+        None -> #(Valid, annotation)
+      }
+    #(_, _) ->
+      case orelse {
+        Some(orelse) -> {
+          let #(v, thenann) = do_validate(json, orelse, schema, annotation)
+          #(v, types.do_merge_annotations([annotation, thenann]))
+        }
+        None -> #(Valid, annotation)
+      }
+  }
+}
+
 pub fn do_validate(
   json: JsonValue,
   validator: ValidationNode,
@@ -35,61 +85,21 @@ pub fn do_validate(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   case validator {
-    types.FinishLevel -> {
-      case annotation, json {
-        NodeAnnotation([], _, _), _ -> #(Valid, NodeAnnotation([], None, None))
-        NodeAnnotation(post_validation, _, _), jsonvalue.JsonObject(_, _)
-        | NodeAnnotation(post_validation, _, _), jsonvalue.JsonArray(_, _)
-        -> {
-          do_validate(
-            json,
-            MultipleValidation(post_validation, types.All, function.identity),
-            schema,
-            NodeAnnotation(..annotation, post_validation: []),
-          )
-          // #(v, NodeAnnotation([], None, None))
-        }
-        _, _ -> #(Valid, NodeAnnotation([], None, None))
-      }
-    }
+    types.FinishLevel -> do_finish_level(json, schema, annotation)
     types.ArraySubValidation(prefix, items, contains) ->
       do_array_validation(json, prefix, items, contains, schema, annotation)
     types.IfThenValidation(when:, then:, orelse:) -> {
-      case do_validate(json, when, schema, NodeAnnotation([], None, None)) {
-        #(Valid, annotation) ->
-          case then {
-            Some(then) -> {
-              let #(v, thenann) = do_validate(json, then, schema, annotation)
-              #(v, types.do_merge_annotations([annotation, thenann]))
-            }
-            None -> #(Valid, annotation)
-          }
-        #(_, annotation) ->
-          case orelse {
-            Some(orelse) -> {
-              let #(v, thenann) = do_validate(json, orelse, schema, annotation)
-              #(v, types.do_merge_annotations([annotation, thenann]))
-            }
-            None -> #(Valid, annotation)
-          }
-      }
+      do_if_then(json, schema, annotation, when, then, orelse)
     }
-    MultipleValidation(tests:, combination:, map_error:) -> {
-      case
-        {
-          case
-            do_multiple_validation(json, tests, combination, schema, annotation)
-          {
-            #(True, _, ann) -> #([Valid], ann)
-            #(False, [vi], ann) -> #(map_error([vi]), ann)
-            #(False, vis, ann) -> #(map_error(vis), ann)
-          }
-        }
-      {
-        #([v], ann) -> #(v, ann)
-        #(v, ann) -> #(MultipleInfo(v), ann)
-      }
-    }
+    MultipleValidation(tests:, combination:, map_error:) ->
+      do_multiple_validation(
+        json,
+        tests,
+        combination,
+        schema,
+        annotation,
+        map_error,
+      )
     types.ObjectSubValidation(props:, pattern_props:, additional_prop:) -> {
       do_object_validation(
         json,
@@ -134,29 +144,25 @@ pub fn do_validate(
 fn do_ref_validation(
   json: JsonValue,
   schema: Schema,
-  ref: String,
+  ref: Uri,
 ) -> #(ValidationInfo, NodeAnnotation) {
   let annotation = NodeAnnotation([], None, None)
-  case uri.parse(ref) {
-    Error(_) -> #(InvalidRef(ref), annotation)
-    Ok(Uri(_scheme, _userinfo, _host, _port, _path, _query, fragment:) as uri) -> {
-      let root_uri = Uri(..uri, fragment: None)
-      let root = case dict.get(schema.info.refs, root_uri) {
-        Ok(json) -> json
-        _ -> panic as { "uri not implemented yet " <> uri.to_string(root_uri) }
-      }
+  let Uri(_scheme, _userinfo, _host, _port, _path, _query, fragment:) = ref
+  let root_uri = Uri(..ref, fragment: None)
+  let root = case dict.get(schema.info.refs, root_uri) {
+    Ok(json) -> json
+    _ -> panic as { "uri not implemented yet " <> uri.to_string(root_uri) }
+  }
 
-      case pointer.jsonpointer(root, fragment |> option.unwrap("")) {
-        Error(_) -> todo as "Nonpointer"
-        Ok(schema_json) -> {
-          case dict.get(schema.info.validators, schema_json) {
-            Ok(Some(validation)) -> {
-              do_validate(json, validation, schema, annotation)
-            }
-            _ -> {
-              panic
-            }
-          }
+  case pointer.jsonpointer(root, fragment |> option.unwrap("")) {
+    Error(_) -> todo as "Nonpointer"
+    Ok(schema_json) -> {
+      case dict.get(schema.info.validators, schema_json) {
+        Ok(Some(validation)) -> {
+          do_validate(json, validation, schema, annotation)
+        }
+        _ -> {
+          panic
         }
       }
     }
@@ -532,31 +538,47 @@ fn do_multiple_validation(
   combination: types.Combination,
   schema: Schema,
   annotation: NodeAnnotation,
-) -> #(Bool, List(ValidationInfo), NodeAnnotation) {
-  let #(comp, annotation, isolate) = case combination {
-    types.All -> #(validate_all, annotation, False)
-    types.AllOf -> {
-      #(validate_all, NodeAnnotation([], None, None), True)
-    }
-    types.Any -> #(validate_any, annotation, False)
-    types.AnyOf -> #(validate_any, NodeAnnotation([], None, None), True)
-    types.OneOf -> #(validate_one, annotation, False)
-  }
-  case comp(json, validators, schema, annotation, isolate) {
-    #([Valid], ann) -> {
-      let ann = case isolate {
-        True ->
-          NodeAnnotation(
-            ..types.do_merge_annotations([annotation, ann]),
-            post_validation: [],
-          )
-        False -> ann
+  map_error: fn(List(ValidationInfo)) -> List(ValidationInfo),
+) -> #(ValidationInfo, NodeAnnotation) {
+  case
+    {
+      case
+        {
+          let #(comp, annotation, isolate) = case combination {
+            types.All -> #(validate_all, annotation, False)
+            types.AllOf -> {
+              #(validate_all, NodeAnnotation([], None, None), True)
+            }
+            types.Any -> #(validate_any, annotation, False)
+            types.AnyOf -> #(validate_any, NodeAnnotation([], None, None), True)
+            types.OneOf -> #(validate_one, annotation, False)
+          }
+          case comp(json, validators, schema, annotation, isolate) {
+            #([Valid], ann) -> {
+              let ann = case isolate {
+                True ->
+                  NodeAnnotation(
+                    ..types.do_merge_annotations([annotation, ann]),
+                    post_validation: [],
+                  )
+                False -> ann
+              }
+              #(True, [Valid], ann)
+            }
+            #(errors, _) -> {
+              #(False, list.unique(errors), annotation)
+            }
+          }
+        }
+      {
+        #(True, _, ann) -> #([Valid], ann)
+        #(False, [vi], ann) -> #(map_error([vi]), ann)
+        #(False, vis, ann) -> #(map_error(vis), ann)
       }
-      #(True, [Valid], ann)
     }
-    #(errors, _) -> {
-      #(False, list.unique(errors), annotation)
-    }
+  {
+    #([v], ann) -> #(v, ann)
+    #(v, ann) -> #(MultipleInfo(v), ann)
   }
 }
 

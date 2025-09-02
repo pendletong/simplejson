@@ -6,7 +6,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{Gt, Lt}
 import gleam/regexp.{type Regexp}
 import gleam/result
-import gleam/uri
+import gleam/uri.{type Uri}
 import simplejson/jsonvalue.{
   type JsonValue, JsonArray, JsonNull, JsonNumber, JsonObject, JsonString,
 }
@@ -14,7 +14,7 @@ import simplejson/jsonvalue.{
 pub type SchemaInfo {
   SchemaInfo(
     validators: dict.Dict(jsonvalue.JsonValue, Option(ValidationNode)),
-    refs: dict.Dict(uri.Uri, jsonvalue.JsonValue),
+    refs: dict.Dict(Uri, jsonvalue.JsonValue),
   )
 }
 
@@ -34,6 +34,8 @@ pub type Context {
     current_validator: Option(ValidationNode),
     root_node: JsonValue,
     schema_info: SchemaInfo,
+    current_path: List(JsonValue),
+    current_uri: Uri,
   )
 }
 
@@ -47,7 +49,7 @@ pub type Combination {
 
 pub type ValidationNode {
   SimpleValidation(valid: Bool)
-  RefValidation(ref: String)
+  RefValidation(ref: Uri)
   Validation(
     valid: fn(JsonValue, Schema, NodeAnnotation) ->
       #(ValidationInfo, NodeAnnotation),

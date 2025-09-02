@@ -189,7 +189,7 @@ fn dependent_schemas(
             |> utils.revert_current_node(json),
           )
           case context {
-            Context(_, Some(validator), _, _) ->
+            Context(_, Some(validator), _, _, _, _) ->
               Ok(#(context, [#(key, validator), ..l]))
             _ -> Ok(#(context, l))
           }
@@ -312,7 +312,7 @@ pub fn unevaluated_properties(
     }
     JsonObject(_, _) -> {
       case get_validator(context) {
-        Ok(Context(_, Some(validator), _, _) as context) -> {
+        Ok(Context(_, Some(validator), _, _, _, _) as context) -> {
           Ok(
             #(context, fn(json: JsonValue, schema: Schema, ann: NodeAnnotation) {
               let ObjectAnnotation(matches) = types.get_object_annotation(ann)
@@ -383,7 +383,7 @@ fn property_names(
     JsonObject(_, _) -> {
       {
         case get_validator(context) {
-          Ok(Context(_, Some(validator), _, _) as context) -> {
+          Ok(Context(_, Some(validator), _, _, _, _) as context) -> {
             Ok(
               #(
                 context,
