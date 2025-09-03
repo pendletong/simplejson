@@ -8,15 +8,15 @@ import gleam/regexp
 import gleam/result
 import gleam/uri.{type Uri, Uri}
 import simplejson
-import simplejson/internal/schema2/consts.{
+import simplejson/internal/schema/consts.{
   const_property, contains_property, defs_property, enum_property,
   get_all_checks, get_checks, items_property, not_property,
   pattern_properties_property, properties_property, schema_property,
   type_property, validator_list_property,
 }
-import simplejson/internal/schema2/properties/array
-import simplejson/internal/schema2/properties/object
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/properties/array
+import simplejson/internal/schema/properties/object
+import simplejson/internal/schema/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, type ValidationNode, ArraySubValidation,
   Context, FinishLevel, InvalidJson, InvalidType, MultipleValidation, Property,

@@ -3,7 +3,7 @@ import gleam/function
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
 import gleam/uri
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/types.{
   type Combination, type Context, type Property, type SchemaError,
   type SchemaInfo, type ValidationNode, Context, InvalidProperty,
   MultipleValidation, SchemaInfo,

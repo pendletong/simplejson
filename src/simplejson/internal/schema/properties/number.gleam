@@ -5,7 +5,7 @@ import gleam/int
 import gleam/option.{None, Some}
 import gleam/order.{Eq}
 import gleam/result
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/types.{
   type NodeAnnotation, InvalidComparison, Property, SchemaError, SchemaFailure,
   Valid, ValidationError, ok_fn,
 }

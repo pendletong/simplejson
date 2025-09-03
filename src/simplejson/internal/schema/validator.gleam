@@ -1,6 +1,5 @@
 import gleam/bool
 import gleam/dict.{type Dict}
-import gleam/float
 import gleam/function
 import gleam/list.{Continue, Stop}
 import gleam/option.{type Option, None, Some}
@@ -9,7 +8,7 @@ import gleam/result
 import gleam/string
 import gleam/uri.{type Uri, Uri}
 import simplejson/internal/pointer
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/types.{
   type NodeAnnotation, type Schema, type SchemaInfo, type ValidationInfo,
   type ValidationNode, type ValueType, AlwaysFail, ArrayAnnotation, InvalidRef,
   MultipleInfo, MultipleValidation, NoTypeYet, NodeAnnotation, ObjectAnnotation,

@@ -1,11 +1,11 @@
 import gleam/dict
 import gleam/list
 import gleam/option.{None}
-import simplejson/internal/schema2/properties/array
-import simplejson/internal/schema2/properties/number
-import simplejson/internal/schema2/properties/object
-import simplejson/internal/schema2/properties/string
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/properties/array
+import simplejson/internal/schema/properties/number
+import simplejson/internal/schema/properties/object
+import simplejson/internal/schema/properties/string
+import simplejson/internal/schema/types.{
   type Context, type Property, type SchemaError, InvalidType, Property,
 }
 

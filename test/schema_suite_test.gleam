@@ -4,9 +4,9 @@ import gleam/list
 import gleam/result
 import gleam/string
 import simplejson
-import simplejson/internal/schema2/schema2
-import simplejson/internal/schema2/types
-import simplejson/internal/schema2/validator2
+import simplejson/internal/schema/schema
+import simplejson/internal/schema/types
+import simplejson/internal/schema/validator
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{JsonArray, JsonBool, JsonObject, JsonString}
 import simplifile
@@ -72,7 +72,7 @@ pub fn suite_tests() {
                             Ok(
                               it(description <> " -> " <> desc, fn() {
                                 let schema =
-                                  schema2.get_validator_from_json(schema)
+                                  schema.get_validator_from_json(schema)
                                 use <- bool.guard(
                                   when: case schema {
                                     Error(types.UnsupportedError(_))
@@ -83,8 +83,7 @@ pub fn suite_tests() {
                                 )
 
                                 let schema = schema |> expect.to_be_ok
-                                let validated =
-                                  validator2.validate(data, schema)
+                                let validated = validator.validate(data, schema)
                                 case valid {
                                   True -> {
                                     expect.to_be_true(validated.0)

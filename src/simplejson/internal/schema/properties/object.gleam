@@ -4,13 +4,13 @@ import gleam/list.{Continue, Stop}
 import gleam/option.{None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/result
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, AlwaysFail, Context, IncorrectType,
   InvalidComparison, MissingKey, NodeAnnotation, ObjectAnnotation, Property,
   SchemaError, SchemaFailure, Valid, ValidatorProperties,
 }
-import simplejson/internal/schema2/validator2
+import simplejson/internal/schema/validator
 import simplejson/internal/stringify
 import simplejson/internal/utils
 import simplejson/jsonvalue.{
@@ -208,7 +208,7 @@ fn dependent_schemas(
                   case dict.has_key(d, key) {
                     True -> {
                       case
-                        validator2.do_validate(
+                        validator.do_validate(
                           json,
                           validator,
                           schema,
@@ -325,7 +325,7 @@ pub fn unevaluated_properties(
                     let ObjectAnnotation(matches) =
                       types.get_object_annotation(state.1)
                     let #(k, v) = entry
-                    case validator2.do_validate(v, validator, schema, state.1) {
+                    case validator.do_validate(v, validator, schema, state.1) {
                       #(Valid, _) ->
                         Continue(#(
                           Valid,
@@ -393,7 +393,7 @@ fn property_names(
                       dict.keys(d)
                       |> list.find_map(fn(key) {
                         case
-                          validator2.do_validate(
+                          validator.do_validate(
                             JsonString(key, None),
                             validator,
                             schema,

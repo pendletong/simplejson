@@ -4,12 +4,12 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/result
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
   type SchemaError, type ValidationInfo, ArrayAnnotation, Context,
   InvalidComparison, NodeAnnotation, Property, SchemaError, SchemaFailure, Valid,
 }
-import simplejson/internal/schema2/validator2
+import simplejson/internal/schema/validator
 import simplejson/internal/utils
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonBool, JsonObject}
 
@@ -273,7 +273,7 @@ pub fn unevaluated_items(
                   |> list.fold_until(#(Valid, ann), fn(_, entry) {
                     let #(_i, node) = entry
                     case
-                      validator2.do_validate(
+                      validator.do_validate(
                         node,
                         validator,
                         schema,

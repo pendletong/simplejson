@@ -4,7 +4,7 @@ import gleam/order.{Eq, Gt, Lt}
 import gleam/regexp
 import gleam/result
 import gleam/string
-import simplejson/internal/schema2/types.{
+import simplejson/internal/schema/types.{
   type Context, type NodeAnnotation, type SchemaError, InvalidComparison,
   InvalidProperty, Property, SchemaError, SchemaFailure, Valid,
 }
