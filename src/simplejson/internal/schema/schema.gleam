@@ -18,10 +18,12 @@ import simplejson/internal/schema/properties/array
 import simplejson/internal/schema/properties/object
 import simplejson/internal/schema/types.{
   type Context, type NodeAnnotation, type Property, type Schema,
-  type SchemaError, type ValidationInfo, type ValidationNode, ArraySubValidation,
-  Context, FinishLevel, InvalidJson, InvalidType, MultipleValidation, Property,
-  RefValidation, Schema, SchemaError, SchemaInfo, SimpleValidation,
-  TypeValidation, UnsupportedError, Validation, ValidatorProperties,
+  type SchemaError, type ValidationInfo, type ValidationNode, type ValueType,
+  ArraySubValidation, Context, FinishLevel, IfThenValidation, InvalidComparison,
+  InvalidJson, InvalidProperty, InvalidType, MultipleValidation, NotValidation,
+  ObjectSubValidation, PostValidation, Property, RefValidation, RemoteRef,
+  Schema, SchemaError, SchemaInfo, SimpleValidation, TypeValidation,
+  UnsupportedError, Valid, Validation, ValidatorProperties,
 }
 import simplejson/internal/stringify
 
@@ -98,7 +100,7 @@ fn post_process_refs(context: Context) -> Result(Context, SchemaError) {
         case dict.has_key(context.schema_info.refs, root_uri) {
           True -> Ok(context)
           False -> {
-            Error(types.RemoteRef(uri.to_string(root_uri)))
+            Error(RemoteRef(uri.to_string(root_uri)))
           }
         }
       })
@@ -190,7 +192,7 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
         Ok(Uri(_, _, None, _, _, _, _) as uri) -> {
           use current_uri <- result.try(
             get_current_uri(context, uri)
-            |> result.replace_error(types.InvalidProperty("$id", v)),
+            |> result.replace_error(InvalidProperty("$id", v)),
           )
 
           let schema_info =
@@ -212,10 +214,10 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
             )
           Ok(Context(..context, schema_info:, current_uri: uri))
         }
-        Error(_) -> Error(types.InvalidProperty("$id", v))
+        Error(_) -> Error(InvalidProperty("$id", v))
       }
     }
-    Ok(v) -> Error(types.InvalidProperty("$id", v))
+    Ok(v) -> Error(InvalidProperty("$id", v))
     Error(_) -> Ok(context)
   })
 
@@ -244,7 +246,7 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
         )
       Ok(Context(..context, schema_info:))
     }
-    Ok(_) -> Error(types.InvalidProperty("$anchor", context.current_node))
+    Ok(_) -> Error(InvalidProperty("$anchor", context.current_node))
     _ -> Ok(context)
   })
 
@@ -252,7 +254,7 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
     Ok(JsonString(ref, _) as ref_json) -> {
       use uri <- result.try(
         uri.parse(ref)
-        |> result.replace_error(types.InvalidProperty("$ref", ref_json)),
+        |> result.replace_error(InvalidProperty("$ref", ref_json)),
       )
       use uri <- result.try(case context.current_uri, uri {
         Uri(Some("urn"), _, _, _, _, _, _),
@@ -261,7 +263,7 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
         _, Uri(Some(_), _, _, _, _, _, _) -> Ok(uri)
         Uri(Some(_), _, _, _, _, _, _), _ -> {
           uri.merge(context.current_uri, uri)
-          |> result.replace_error(types.InvalidProperty("$ref", ref_json))
+          |> result.replace_error(InvalidProperty("$ref", ref_json))
         }
         _, _ -> Ok(uri)
       })
@@ -278,7 +280,7 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
       }
       Ok(#(Some(uri), context))
     }
-    Ok(j) -> Error(types.InvalidProperty("$ref", j))
+    Ok(j) -> Error(InvalidProperty("$ref", j))
     Error(_) -> Ok(#(None, context))
   })
 
@@ -342,8 +344,8 @@ fn validate_enum(v: JsonValue) {
 fn validate_const(v: JsonValue) {
   Validation(fn(jsonvalue, _, ann) {
     case compare_jsons(v, jsonvalue) {
-      True -> #(types.Valid, ann)
-      False -> #(types.InvalidComparison(v, "equal", jsonvalue), ann)
+      True -> #(Valid, ann)
+      False -> #(InvalidComparison(v, "equal", jsonvalue), ann)
     }
   })
 }
@@ -373,7 +375,7 @@ fn construct_type_validation(
     Some(JsonArray(d, _)) -> {
       use <- bool.guard(
         when: dict.is_empty(d),
-        return: Error(types.InvalidProperty("type", context.current_node)),
+        return: Error(InvalidProperty("type", context.current_node)),
       )
       let types =
         list.map(stringify.dict_to_ordered_list(d), fn(t) {
@@ -383,7 +385,7 @@ fn construct_type_validation(
 
       use <- bool.guard(
         when: types != list.unique(types),
-        return: Error(types.InvalidProperty("type", context.current_node)),
+        return: Error(InvalidProperty("type", context.current_node)),
       )
 
       use validations <- result.try(
@@ -391,13 +393,13 @@ fn construct_type_validation(
       )
       apply_multiple_type_validations(context, validations)
     }
-    _ -> todo
+    _ -> Error(InvalidProperty("type", context.current_node))
   }
 }
 
 fn apply_multiple_type_validations(
   context: Context,
-  l: List(#(types.ValueType, Context)),
+  l: List(#(ValueType, Context)),
 ) -> Result(Context, SchemaError) {
   let context =
     list.fold(l, context, fn(context, val) {
@@ -462,7 +464,7 @@ fn apply_property(
 fn get_validation_for_type(
   context: Context,
   t: String,
-) -> Result(#(types.ValueType, Context), SchemaError) {
+) -> Result(#(ValueType, Context), SchemaError) {
   use #(type_check, checks) <- result.try(get_checks(t))
 
   use #(context, validations) <- result.try(
@@ -508,7 +510,7 @@ fn get_validation_for_type(
   let ifthen = [
     case if_validation {
       Some(Context(_, Some(if_validator), _, _, _, _, _)) ->
-        Some(types.IfThenValidation(
+        Some(IfThenValidation(
           if_validator,
           then |> to_validator,
           orelse |> to_validator,
@@ -579,7 +581,7 @@ fn get_unevaluated(
   case get_property(context, prop) {
     Error(e) -> Error(e)
     Ok(Some(json)) -> {
-      apply_property(prop, context, json, types.PostValidation)
+      apply_property(prop, context, json, PostValidation)
     }
     Ok(None) -> Ok(#(context, None))
   }
@@ -607,7 +609,7 @@ fn get_subschemas(
   )
   let context = option.unwrap(not, context)
 
-  let not = option.map(not |> to_validator, types.NotValidation)
+  let not = option.map(not |> to_validator, NotValidation)
 
   Ok(#(context, [all_of, any_of, one_of, not]))
 }
@@ -726,7 +728,7 @@ fn jsonvalue_to_validation(
 ) -> Result(Context, SchemaError) {
   case v {
     JsonObject(_, _) | JsonBool(_, _) -> generate_validator(context, v)
-    _ -> Error(types.InvalidProperty(prop_name, context.current_node))
+    _ -> Error(InvalidProperty(prop_name, context.current_node))
   }
 }
 
@@ -789,7 +791,7 @@ fn get_object_subvalidation(
     True ->
       Ok(
         #(context, [
-          Some(types.ObjectSubValidation(
+          Some(ObjectSubValidation(
             properties,
             pattern_properties,
             additional_properties

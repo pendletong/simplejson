@@ -10,9 +10,12 @@ import gleam/uri.{type Uri, Uri}
 import simplejson/internal/pointer
 import simplejson/internal/schema/types.{
   type NodeAnnotation, type Schema, type SchemaInfo, type ValidationInfo,
-  type ValidationNode, type ValueType, AlwaysFail, ArrayAnnotation, InvalidRef,
-  MultipleInfo, MultipleValidation, NoTypeYet, NodeAnnotation, ObjectAnnotation,
-  Schema, Valid,
+  type ValidationNode, type ValueType, AlwaysFail, ArrayAnnotation,
+  ArraySubValidation, FinishLevel, IfThenValidation, IncorrectType, InvalidMatch,
+  InvalidRef, MatchOnlyOne, MultipleInfo, MultipleValidation, NoTypeYet,
+  NodeAnnotation, NotBeValid, NotValidation, ObjectAnnotation,
+  ObjectSubValidation, PostValidation, RefValidation, Schema, SimpleValidation,
+  TypeValidation, Valid, Validation,
 }
 import simplejson/internal/stringify
 import simplejson/jsonvalue.{type JsonValue, JsonArray, JsonObject}
@@ -86,10 +89,10 @@ pub fn do_validate(
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   case validator {
-    types.FinishLevel -> do_finish_level(json, schema, annotation)
-    types.ArraySubValidation(prefix, items, contains) ->
+    FinishLevel -> do_finish_level(json, schema, annotation)
+    ArraySubValidation(prefix, items, contains) ->
       do_array_validation(json, prefix, items, contains, schema, annotation)
-    types.IfThenValidation(when:, then:, orelse:) -> {
+    IfThenValidation(when:, then:, orelse:) -> {
       do_if_then(json, schema, annotation, when, then, orelse)
     }
     MultipleValidation(tests:, combination:, map_error:) ->
@@ -101,7 +104,7 @@ pub fn do_validate(
         annotation,
         map_error,
       )
-    types.ObjectSubValidation(props:, pattern_props:, additional_prop:) -> {
+    ObjectSubValidation(props:, pattern_props:, additional_prop:) -> {
       do_object_validation(
         json,
         props,
@@ -111,32 +114,32 @@ pub fn do_validate(
         annotation,
       )
     }
-    types.SimpleValidation(valid:) -> {
+    SimpleValidation(valid:) -> {
       case valid {
         True -> #(Valid, annotation)
         False -> #(AlwaysFail, annotation)
       }
     }
-    types.TypeValidation(types:) -> {
+    TypeValidation(types:) -> {
       validate_type(types, json, schema, annotation)
     }
-    types.Validation(valid:) -> valid(json, schema, annotation)
-    types.PostValidation(valid:) -> {
+    Validation(valid:) -> valid(json, schema, annotation)
+    PostValidation(valid:) -> {
       #(
         Valid,
         NodeAnnotation(..annotation, post_validation: [
-          types.Validation(valid),
+          Validation(valid),
           ..annotation.post_validation
         ]),
       )
     }
-    types.NotValidation(validation:) -> {
+    NotValidation(validation:) -> {
       case do_validate(json, validation, schema, annotation) {
-        #(Valid, _) -> #(types.NotBeValid, annotation)
+        #(Valid, _) -> #(NotBeValid, annotation)
         #(_, _) -> #(Valid, annotation)
       }
     }
-    types.RefValidation(ref:) -> {
+    RefValidation(ref:) -> {
       do_ref_validation(json, schema, ref)
     }
   }
@@ -405,7 +408,7 @@ fn do_prefix_items_validation(
       let assert JsonArray(d, _) = json
       let actual_list = stringify.dict_to_ordered_list(d)
       case apply_prefix_items(actual_list, l, -1, schema) {
-        Error(_) -> #(types.InvalidMatch("prefixItems", json), annotation)
+        Error(_) -> #(InvalidMatch("prefixItems", json), annotation)
         Ok(#(_, True)) -> {
           let ArrayAnnotation(_, _, c, ca) =
             types.get_array_annotation(annotation)
@@ -508,7 +511,7 @@ fn do_items_validation(
         )
       case found {
         Error(_) -> #(Valid, annotation)
-        Ok(_) -> #(types.InvalidMatch("items", json), annotation)
+        Ok(_) -> #(InvalidMatch("items", json), annotation)
       }
     }
     None -> #(Valid, annotation)
@@ -615,7 +618,7 @@ fn validate_one(
       let #(validity, return_annotation, i) = infos
       case do_validate(json, v, schema, annotation), i {
         #(Valid, ann), 0 -> Continue(#([Valid], ann, 1))
-        #(Valid, _), 1 -> Stop(#([types.MatchOnlyOne], return_annotation, 2))
+        #(Valid, _), 1 -> Stop(#([MatchOnlyOne], return_annotation, 2))
         #(_, _), _ -> Continue(#(validity, return_annotation, i))
       }
     })
@@ -724,12 +727,12 @@ fn validate_type(
         False -> {
           #(
             case v {
-              #(NoTypeYet, _) -> types.IncorrectType(vt, json)
-              #(types.IncorrectType(_, _) as v, _) ->
-                types.MultipleInfo([types.IncorrectType(vt, json), v])
-              #(types.MultipleInfo(mi), _) ->
-                types.MultipleInfo([types.IncorrectType(vt, json), ..mi])
-              _ -> todo
+              #(NoTypeYet, _) -> IncorrectType(vt, json)
+              #(IncorrectType(_, _) as vi, _) ->
+                MultipleInfo([IncorrectType(vt, json), vi])
+              #(MultipleInfo(mi), _) ->
+                MultipleInfo([IncorrectType(vt, json), ..mi])
+              #(_, _) -> v.0
             },
             annotation,
           )
