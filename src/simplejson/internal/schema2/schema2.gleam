@@ -21,7 +21,7 @@ import simplejson/internal/schema2/types.{
   type SchemaError, type ValidationInfo, type ValidationNode, ArraySubValidation,
   Context, FinishLevel, InvalidJson, InvalidType, MultipleValidation, Property,
   RefValidation, Schema, SchemaError, SchemaInfo, SimpleValidation,
-  TypeValidation, Validation, ValidatorProperties,
+  TypeValidation, UnsupportedError, Validation, ValidatorProperties,
 }
 import simplejson/internal/stringify
 
@@ -225,10 +225,11 @@ fn generate_root_validation(context: Context) -> Result(Context, SchemaError) {
       ..context.current_path
     ])
 
-  case dict.get(d, "$dynamicRef") {
-    Ok(_) -> panic
-    Error(_) -> Nil
-  }
+  use <- bool.guard(
+    when: dict.has_key(d, "$dynamicRef") || dict.has_key(d, "$dynamicAnchor"),
+    return: Error(UnsupportedError("$dynamic*")),
+  )
+
   use context <- result.try(case dict.get(d, "$anchor") {
     Ok(JsonString(a, _)) -> {
       let anchor_uri = Uri(..context.current_uri, fragment: Some(a))
@@ -375,7 +376,7 @@ fn construct_type_validation(
         return: Error(types.InvalidProperty("type", context.current_node)),
       )
       let types =
-        list.map(dict.values(d), fn(t) {
+        list.map(stringify.dict_to_ordered_list(d), fn(t) {
           let assert JsonString(t, _) = t
           t
         })
@@ -412,7 +413,7 @@ fn apply_multiple_type_validations(
       }
     }),
   )
-  Ok(add_validator_to_context(context, TypeValidation(dict.from_list(l))))
+  Ok(add_validator_to_context(context, TypeValidation(l)))
 }
 
 fn generate_multi_type_validation(

@@ -70,7 +70,7 @@ pub type ValidationNode {
     then: Option(ValidationNode),
     orelse: Option(ValidationNode),
   )
-  TypeValidation(types: dict.Dict(ValueType, ValidationNode))
+  TypeValidation(types: List(#(ValueType, ValidationNode)))
   ArraySubValidation(
     prefix: Option(List(ValidationNode)),
     items: Option(ValidationNode),
@@ -130,6 +130,7 @@ pub type SchemaError {
   UnknownType(t: String)
 
   RemoteRef(ref: String)
+  UnsupportedError(ref: String)
 }
 
 pub type ValidationInfo {
@@ -277,6 +278,73 @@ pub fn valid_type_fn(
   }
 }
 
+pub fn is_type(t: ValueType, json: JsonValue) -> Bool {
+  case t {
+    AnyType -> True
+    Array(_) -> {
+      case json {
+        jsonvalue.JsonArray(_, _) -> {
+          True
+        }
+        _ -> False
+      }
+    }
+    Boolean -> {
+      case json {
+        jsonvalue.JsonBool(_, _) -> {
+          True
+        }
+        _ -> False
+      }
+    }
+    Integer -> {
+      case json {
+        jsonvalue.JsonNumber(Some(_), _, _) -> True
+        jsonvalue.JsonNumber(_, Some(f), _) -> {
+          float.floor(f) == f
+        }
+        _ -> False
+      }
+    }
+    Null -> {
+      case json {
+        jsonvalue.JsonNull(_) -> {
+          True
+        }
+        _ -> False
+      }
+    }
+    Number -> {
+      case json {
+        jsonvalue.JsonNumber(_, _, _) -> {
+          True
+        }
+        _ -> False
+      }
+    }
+    Object(_) -> {
+      case json {
+        jsonvalue.JsonObject(_, _) -> {
+          True
+        }
+        _ -> False
+      }
+    }
+    String -> {
+      case json {
+        jsonvalue.JsonString(_, _) -> {
+          True
+        }
+        _ -> False
+      }
+    }
+    NoType -> False
+    Types(l) -> {
+      list.any(l, is_type(_, json))
+    }
+  }
+}
+
 pub fn validate_type(
   json: JsonValue,
   context: Context,
@@ -371,7 +439,7 @@ pub fn validate_type(
         _ -> Error(InvalidType(json, prop))
       }
     AnyType -> Ok(json)
-    NoType -> todo
+    NoType -> Error(InvalidType(json, prop))
     Types(types) -> {
       case
         list.fold_until(types, None, fn(_, t) {

@@ -441,8 +441,8 @@ pub fn schema_type_tests() {
           False,
           Some(
             MultipleInfo([
-              IncorrectType(types.Null, JsonNumber(Some(123), None, None)),
               IncorrectType(types.String, JsonNumber(Some(123), None, None)),
+              IncorrectType(types.Null, JsonNumber(Some(123), None, None)),
             ]),
           ),
         ))
@@ -452,8 +452,8 @@ pub fn schema_type_tests() {
           False,
           Some(
             MultipleInfo([
-              IncorrectType(types.Null, JsonArray(dict.from_list([]), None)),
               IncorrectType(types.String, JsonArray(dict.from_list([]), None)),
+              IncorrectType(types.Null, JsonArray(dict.from_list([]), None)),
             ]),
           ),
         ))

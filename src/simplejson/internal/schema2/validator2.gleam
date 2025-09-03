@@ -690,16 +690,15 @@ fn validate_any(
 }
 
 fn validate_type(
-  types: dict.Dict(ValueType, ValidationNode),
+  types: List(#(ValueType, ValidationNode)),
   json: JsonValue,
   schema: Schema,
   annotation: NodeAnnotation,
 ) -> #(ValidationInfo, NodeAnnotation) {
   case
-    dict.to_list(types)
-    |> list.fold_until(#(NoTypeYet, annotation), fn(v, t) {
+    list.fold_until(types, #(NoTypeYet, annotation), fn(v, t) {
       let #(vt, validator) = t
-      case is_type(vt, json) {
+      case types.is_type(vt, json) {
         True -> {
           let annotation = case vt {
             types.Array(_) ->
@@ -742,72 +741,5 @@ fn validate_type(
   {
     #(NoTypeYet, ann) -> #(Valid, ann)
     v -> v
-  }
-}
-
-fn is_type(t: ValueType, json: JsonValue) -> Bool {
-  case t {
-    types.AnyType -> True
-    types.Array(_) -> {
-      case json {
-        jsonvalue.JsonArray(_, _) -> {
-          True
-        }
-        _ -> False
-      }
-    }
-    types.Boolean -> {
-      case json {
-        jsonvalue.JsonBool(_, _) -> {
-          True
-        }
-        _ -> False
-      }
-    }
-    types.Integer -> {
-      case json {
-        jsonvalue.JsonNumber(Some(_), _, _) -> True
-        jsonvalue.JsonNumber(_, Some(f), _) -> {
-          float.floor(f) == f
-        }
-        _ -> False
-      }
-    }
-    types.Null -> {
-      case json {
-        jsonvalue.JsonNull(_) -> {
-          True
-        }
-        _ -> False
-      }
-    }
-    types.Number -> {
-      case json {
-        jsonvalue.JsonNumber(_, _, _) -> {
-          True
-        }
-        _ -> False
-      }
-    }
-    types.Object(_) -> {
-      case json {
-        jsonvalue.JsonObject(_, _) -> {
-          True
-        }
-        _ -> False
-      }
-    }
-    types.String -> {
-      case json {
-        jsonvalue.JsonString(_, _) -> {
-          True
-        }
-        _ -> False
-      }
-    }
-    types.NoType -> False
-    types.Types(l) -> {
-      list.any(l, is_type(_, json))
-    }
   }
 }

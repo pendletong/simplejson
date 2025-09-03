@@ -13,8 +13,6 @@ pub type JsonValue {
   JsonString(str: String, metadata: Option(JsonMetaData))
   /// Wraps a number value and stores an int or float depending
   /// on the input type.
-  /// Also the original is stored as a String if the JSON has been parsed
-  /// from text
   JsonNumber(
     int: Option(Int),
     float: Option(Float),
