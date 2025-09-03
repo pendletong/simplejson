@@ -163,7 +163,7 @@ fn get_ref(ref: Uri, info: SchemaInfo) -> Result(ValidationNode, Nil) {
         False -> "#" <> fragment
       }
       case pointer.jsonpointer(root, fragment) {
-        Error(_) -> todo as { "Nonpointer " <> fragment }
+        Error(_) -> Error(Nil)
         Ok(schema_json) -> {
           case dict.get(info.validators, schema_json) {
             Ok(Some(v)) -> Ok(v)
