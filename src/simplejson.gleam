@@ -109,6 +109,18 @@ pub fn query(json: JsonValue, path: JsonPath) -> JsonValue {
   query.query(json, path, json)
 }
 
+/// Takes the provided JSONPointer and returns the JsonValue that the pointer refers to
+/// or Error(Nil) if it fails for some reason
+///
+/// This executes based on RFC6901 (https://www.rfc-editor.org/rfc/rfc6901)
+///
+/// ## Examples
+///
+/// ```Gleam
+/// let assert Ok(json) = simplejson.parse("{\"a\":[1,{\"b\":2},3]}")
+/// simplejson.apply_pointer(json, "/a/1/b")
+/// // -> Ok(JsonNumber(Some(2), None, Some("2")))
+/// ```
 pub fn apply_pointer(json: JsonValue, pointer: String) -> Result(JsonValue, Nil) {
   pointer.jsonpointer(json, pointer) |> result.replace_error(Nil)
 }
