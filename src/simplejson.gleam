@@ -121,6 +121,9 @@ pub fn query(json: JsonValue, path: JsonPath) -> JsonValue {
 /// simplejson.apply_pointer(json, "/a/1/b")
 /// // -> Ok(JsonNumber(Some(2), None, Some("2")))
 /// ```
-pub fn apply_pointer(json: JsonValue, pointer: String) -> Result(JsonValue, Nil) {
+pub fn apply_pointer(
+  json: JsonValue,
+  pointer: String,
+) -> Result(JsonValue, Nil) {
   pointer.jsonpointer(json, pointer) |> result.replace_error(Nil)
 }
