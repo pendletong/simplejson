@@ -24,3 +24,7 @@
 - Added tests for simple jsonpath querying
 - Doc tweak
 - Added JSON Pointer functionality (RFC6901 (https://www.rfc-editor.org/rfc/rfc6901))
+
+## v2.0.0
+
+- Updated stdlib version requirement to >= 1.0.2

@@ -186,7 +186,9 @@ fn try_options(options, str: String) {
   })
 }
 
-fn do_parse_selector(str: String) -> Result(#(Selector, String), JsonPathError) {
+fn do_parse_selector(
+  str: String,
+) -> Result(#(Selector, String), JsonPathError) {
   [
     parse_wildcard_selector,
     member_name_to_selector(parse_string_literal),
@@ -251,7 +253,9 @@ fn parse_slice_selector(
   Ok(#(Slice(val1, val2, val3), rest))
 }
 
-fn parse_string_literal(str: String) -> Result(#(String, String), JsonPathError) {
+fn parse_string_literal(
+  str: String,
+) -> Result(#(String, String), JsonPathError) {
   case str {
     "\"" as quote <> rest | "'" as quote <> rest -> {
       do_parse_string_literal(rest, quote, "")
@@ -463,7 +467,9 @@ fn convert_surrogate(high: String, low: String) {
   Ok({ { high - 0xD800 } * 0x400 } + { { low - 0xDC00 } + 0x10000 })
 }
 
-fn parse_low_surrogate(str: String) -> Result(#(String, String), JsonPathError) {
+fn parse_low_surrogate(
+  str: String,
+) -> Result(#(String, String), JsonPathError) {
   case str {
     "\\u" <> rest -> {
       use #(hex, rest) <- result.try(parse_hex_digit(rest, 4))
@@ -850,27 +856,28 @@ fn filter_to_arg(
 }
 
 fn is_singular(filter: Filter) -> Bool {
-  list.find(filter.path, fn(seg) {
-    case seg {
-      Child(sels) | Descendant(sels) -> {
-        case sels {
-          [sel] -> {
-            case sel {
-              Filter(_) -> True
-              Index(_) -> False
-              Name(_) -> False
-              Slice(_, _, _) -> True
-              Wildcard -> True
+  case filter.path {
+    [] -> True
+    path ->
+      list.any(path, fn(seg) {
+        case seg {
+          Child(sels) | Descendant(sels) -> {
+            case sels {
+              [sel] -> {
+                case sel {
+                  Filter(_) -> False
+                  Index(_) -> True
+                  Name(_) -> True
+                  Slice(_, _, _) -> False
+                  Wildcard -> False
+                }
+              }
+              _ -> False
             }
           }
-          _ -> True
         }
-      }
-    }
-  })
-  |> result.replace(False)
-  |> result.replace_error(True)
-  |> result.unwrap_both
+      })
+  }
 }
 
 fn literal_to_arg(

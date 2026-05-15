@@ -1,5 +1,6 @@
 import bigdecimal
 import gleam/dict
+import gleam/int
 import gleam/list
 import simplejson
 import simplejson/internal/jsonpath
@@ -67,7 +68,7 @@ fn run_tests_in_json(json: JsonValue) {
     JsonObject(d) -> {
       case dict.get(d, "tests") {
         Ok(JsonArray(a)) -> {
-          list.range(0, dict.size(a) - 1)
+          int.range(0, dict.size(a) - 1, [], fn(acc, i) { [i, ..acc] })
           |> list.map(fn(i) {
             let assert Ok(JsonObject(t)) = dict.get(a, i)
             case dict.get(t, "name") {

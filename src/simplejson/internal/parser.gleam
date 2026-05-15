@@ -41,7 +41,7 @@ pub fn parse(json: String) -> Result(JsonValue, ParseError) {
     Error(InvalidEscapeCharacter(esc_char, rest, -1)) -> {
       Error(create_error(InvalidEscapeCharacter, json, rest, esc_char))
     }
-    Error(_ as parse_error) -> Error(parse_error)
+    Error(parse_error) -> Error(parse_error)
   }
 }
 

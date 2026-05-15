@@ -1,6 +1,5 @@
 import gleam/dict
 import gleam/int
-import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import simplejson/internal/stringify
@@ -52,17 +51,17 @@ pub fn simple_stringify_tests() {
       stringify.to_string(JsonString("abcde")) |> expect.to_equal("\"abcde\"")
       stringify.to_string(JsonString("\r\n")) |> expect.to_equal("\"\\r\\n\"")
       stringify.to_string(JsonString("\\")) |> expect.to_equal("\"\\\\\"")
-      stringify.to_string(JsonString(
-        list.range(0, 31)
-        |> list.fold("", fn(acc, i) {
-          let assert Ok(codepoint) = string.utf_codepoint(i)
-          acc <> string.from_utf_codepoints([codepoint])
-        }),
-      ))
+      stringify.to_string(
+        JsonString(
+          int.range(0, 31, "", fn(acc, i) {
+            let assert Ok(codepoint) = string.utf_codepoint(i)
+            acc <> string.from_utf_codepoints([codepoint])
+          }),
+        ),
+      )
       |> expect.to_equal(
         "\""
-        <> list.range(0, 31)
-        |> list.fold("", fn(acc, i) {
+        <> int.range(0, 31, "", fn(acc, i) {
           acc
           <> case i {
             8 -> "\\b"
